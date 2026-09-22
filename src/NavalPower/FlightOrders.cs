@@ -6,6 +6,15 @@ namespace NavalPower
 {
     public enum FlightMode { Route, Orbit, Station, Strike, Engage, ReturnToBase }
 
+    public enum FlightRoe
+    {
+        Hold,      // never fight; evasion only
+        Tight,     // fight back at whatever has shot at us
+        Free       // engage hostiles in reach, then resume the task
+    }
+
+    public enum FlightThreat { None, Missile, Hostile }
+
     // A flight this ship launched and still commands. Aircraft are meant to
     // feel owned, like a deployed vehicle: they hold what they are given and do
     // not go hunting unless told.
@@ -22,10 +31,27 @@ namespace NavalPower
         public bool Adopted;
         public Unit Target;                 // designated for a strike
         public FlightMode PreviousMode = FlightMode.Orbit;
+        public FlightRoe Roe = FlightRoe.Tight;
+        public FlightThreat Threat;
+        public bool Interrupted;            // native pilot has it while it fights or evades
+        public float ThreatClearedAt;
 
         public string Name => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
 
+        // Whatever the standing task is, what it is doing right now comes first.
+        public string Status =>
+            Threat == FlightThreat.Missile ? "EVADING"
+            : Interrupted ? "ENGAGING"
+            : null;
+
         public string Describe()
+        {
+            string now = Status;
+            if (now != null) return now + " · " + Task();
+            return Task();
+        }
+
+        private string Task()
         {
             switch (Mode)
             {
@@ -75,6 +101,7 @@ namespace NavalPower
 
         internal static void Tick()
         {
+            AssessThreats();
             for (int i = flights.Count - 1; i >= 0; i--)
                 if (flights[i].Aircraft == null || flights[i].Aircraft.disabled) flights.RemoveAt(i);
 
@@ -106,6 +133,29 @@ namespace NavalPower
                     Plugin.Log.LogInfo("[flight] " + flight.Name + " · target destroyed, breaking off");
                     BreakOff(flight);
                 }
+                Pilot crew = FirstPilot(flight.Aircraft);
+                if (crew != null && !crew.playerControlled && flight.Adopted)
+                {
+                    bool yield = ShouldYield(flight);
+                    if (yield && !flight.Interrupted && crew.currentState is NavalPilotState)
+                    {
+                        // Hand it over: the native pilot evades and fights far
+                        // better than a navigation loop ever will.
+                        flight.Interrupted = true;
+                        if (crew.AICombatState != null) crew.SwitchStateNew(crew.AICombatState);
+                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
+                            (flight.Threat == FlightThreat.Missile ? "evading" : "engaging"));
+                    }
+                    else if (!yield && flight.Interrupted &&
+                             Time.unscaledTime - flight.ThreatClearedAt > 8f)
+                    {
+                        // Settle before taking it back, or it yo-yos between
+                        // states every time a threat flickers in and out.
+                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · clear, resuming task");
+                        Reclaim(flight);
+                    }
+                }
+
                 if (flight.Adopted || flight.Aircraft == null) continue;
                 Pilot pilot = FirstPilot(flight.Aircraft);
                 if (pilot == null || pilot.playerControlled) continue;
@@ -247,6 +297,78 @@ namespace NavalPower
         {
             if (flight == null) return;
             flight.Mode = FlightMode.Engage;
+        }
+
+        public static void SetRoe(Flight flight, FlightRoe roe)
+        {
+            if (flight == null) return;
+            flight.Roe = roe;
+            // Tightening while the native pilot has it takes control straight back.
+            if (roe == FlightRoe.Hold && flight.Interrupted && flight.Threat != FlightThreat.Missile)
+                Reclaim(flight);
+        }
+
+        public static string Describe(FlightRoe roe) =>
+            roe == FlightRoe.Hold ? "Weapons Hold"
+            : roe == FlightRoe.Tight ? "Weapons Tight" : "Weapons Free";
+
+        private static void Reclaim(Flight flight)
+        {
+            flight.Interrupted = false;
+            flight.Adopted = false;          // Tick reinstalls our state
+        }
+
+        // ---- threats -------------------------------------------------------
+
+        private static float nextThreatScan;
+
+        private static void AssessThreats()
+        {
+            if (Time.unscaledTime < nextThreatScan) return;
+            nextThreatScan = Time.unscaledTime + 0.25f;
+
+            foreach (Flight flight in flights)
+            {
+                Aircraft aircraft = flight.Aircraft;
+                if (aircraft == null || aircraft.disabled) continue;
+                FlightThreat threat = FlightThreat.None;
+
+                foreach (Unit unit in UnitRegistry.allUnits)
+                {
+                    if (unit == null || unit.disabled || unit.NetworkHQ == null) continue;
+                    if (unit.NetworkHQ == aircraft.NetworkHQ) continue;
+
+                    // Anything already in the air at us outranks every order.
+                    if (unit is Missile missile)
+                    {
+                        if (missile.targetID == aircraft.persistentID) { threat = FlightThreat.Missile; break; }
+                        continue;
+                    }
+                    if (threat != FlightThreat.None) continue;
+                    if (flight.Roe != FlightRoe.Free) continue;
+                    // Weapons free: something we can reach and hurt is enough.
+                    WeaponStation station = BestStationFor(aircraft, unit);
+                    if (station == null) continue;
+                    float range = FastMath.Distance(aircraft.GlobalPosition(), unit.GlobalPosition());
+                    if (range <= station.WeaponInfo.targetRequirements.maxRange) threat = FlightThreat.Hostile;
+                }
+
+                // Weapons tight fights back at whoever actually shot at us, which
+                // is exactly the missile case above.
+                if (threat == FlightThreat.None && flight.Threat != FlightThreat.None)
+                    flight.ThreatClearedAt = Time.unscaledTime;
+                flight.Threat = threat;
+            }
+        }
+
+        // Does the flight's ROE let the native pilot take it right now?
+        private static bool ShouldYield(Flight flight)
+        {
+            if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage) return true;
+            // Evasion is never a choice: being shot at overrides Weapons Hold.
+            if (flight.Threat == FlightThreat.Missile) return true;
+            if (flight.Roe == FlightRoe.Hold) return false;
+            return flight.Threat == FlightThreat.Hostile;
         }
 
         public static void ReturnToBase(Flight flight)

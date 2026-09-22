@@ -356,8 +356,9 @@ namespace NavalPower
                     i + 1, () => FlightMenu(flight));
                 if (selected) row.image.color = Theme.AccentFill;
                 row.GetComponentInChildren<Text>().color =
-                    flight.Mode == FlightMode.Engage ? Theme.Bad
-                    : flight.Mode == FlightMode.ReturnToBase ? Theme.Warn
+                    flight.Threat == FlightThreat.Missile ? Theme.Bad
+                    : flight.Interrupted || flight.Mode == FlightMode.Engage ? Theme.Warn
+                    : flight.Mode == FlightMode.ReturnToBase ? Theme.TextMuted
                     : Theme.Text;
             }
             Row("Close", airborne.Count + 1, ClosePopup);
@@ -366,7 +367,7 @@ namespace NavalPower
         private void FlightMenu(Flight flight)
         {
             CommandState.SelectedFlight = flight;
-            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 10);
+            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 11);
             Row("Right-click the map to route this flight", 1, ClosePopup);
             Row("Orbit here", 2, () =>
             {
@@ -388,20 +389,45 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
                 FlightsMenu();
             });
-            Row(flight.Mode == FlightMode.Strike ? "Break off the attack" : "Break off  ·  no attack running", 7, () =>
+            Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), 7, () => FlightRoeMenu(flight));
+            Row(flight.Mode == FlightMode.Strike ? "Break off the attack" : "Break off  ·  no attack running", 8, () =>
             {
                 FlightOrders.BreakOff(flight);
                 CommandState.Say(flight.Name + " · breaking off");
                 FlightsMenu();
             });
-            Row("Return to base", 8, () =>
+            Row("Return to base", 9, () =>
             {
                 FlightOrders.ReturnToBase(flight);
                 CommandState.Say(flight.Name + " · recovering");
                 FlightsMenu();
             });
-            Row("Back to flights", 9, FlightsMenu);
-            Row("Close", 10, ClosePopup);
+            Row("Back to flights", 10, FlightsMenu);
+            Row("Close", 11, ClosePopup);
+        }
+
+        private void FlightRoeMenu(Flight flight)
+        {
+            StartPopup(flight.Name + " · rules of engagement", null, 5);
+            string[] detail =
+            {
+                "never fights · still evades incoming",
+                "fights back at whatever shoots at it",
+                "engages hostiles in reach, then resumes"
+            };
+            for (int i = 0; i < 3; i++)
+            {
+                var roe = (FlightRoe)i;
+                Button row = Row(FlightOrders.Describe(roe) + "  ·  " + detail[i], i + 1, () =>
+                {
+                    FlightOrders.SetRoe(flight, roe);
+                    CommandState.Say(flight.Name + " · " + FlightOrders.Describe(roe));
+                    FlightMenu(flight);
+                });
+                if (flight.Roe == roe) row.image.color = Theme.AccentFill;
+            }
+            Row("Back", 4, () => FlightMenu(flight));
+            Row("Close", 5, ClosePopup);
         }
 
         private void AltitudeMenu(Flight flight)

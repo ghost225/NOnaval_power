@@ -21,6 +21,9 @@ namespace NavalPower
         internal static Color For(Flight flight)
         {
             if (flight == null) return Theme.Accent;
+            // Evading or fighting outranks the standing task on the map too.
+            if (flight.Threat == FlightThreat.Missile) return Theme.Bad;
+            if (flight.Interrupted) return Theme.Warn;
             switch (flight.Mode)
             {
                 case FlightMode.Strike: return Theme.Weapon;
