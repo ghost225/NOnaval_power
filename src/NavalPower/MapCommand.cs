@@ -136,6 +136,7 @@ namespace NavalPower
         internal void Leave()
         {
             if (!CommandState.Active) return;
+            FlightIcons.Clear();
             ReleaseKillCredit();
             RestoreNativeBar();
             CommandState.Clear();
@@ -225,6 +226,7 @@ namespace NavalPower
         private void Update()
         {
             FlightOrders.Tick();
+            FlightIcons.Refresh(CommandState.Ship);
             UpdateGesture();
             if (!CommandState.Active) return;
             var cameras = SceneSingleton<CameraStateManager>.i;

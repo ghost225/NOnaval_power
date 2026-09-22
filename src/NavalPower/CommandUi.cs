@@ -359,7 +359,7 @@ namespace NavalPower
 
         private void AltitudeMenu(Flight flight)
         {
-            float[] feet = { 200f, 500f, 1000f, 2000f, 5000f, 10000f, 20000f };
+            float[] feet = { 300f, 600f, 1000f, 2000f, 5000f, 10000f, 20000f };
             StartPopup(flight.Name + " · altitude", null, feet.Length + 1);
             for (int i = 0; i < feet.Length; i++)
             {

@@ -164,6 +164,35 @@ namespace NavalPower
                         contact.CrossRangeUncertaintyMetres, contact.BearingDegrees, color);
             }
 
+            // Orders for the selected flight only: every flight's route drawn at
+            // once turns the map into spaghetti.
+            Flight selected = CommandState.SelectedFlight;
+            if (selected != null && selected.Aircraft != null && !selected.Aircraft.disabled)
+            {
+                Color color = FlightIcons.For(selected);
+                Vector2 at = Project(selected.Aircraft.GlobalPosition());
+                if (selected.Mode == FlightMode.Route && selected.Route.Count > 0)
+                {
+                    Vector2 last = at;
+                    for (int i = 0; i < selected.Route.Count && i < 32; i++)
+                    {
+                        Vector2 leg = Project(selected.Route[i]);
+                        Line(vh, last, leg, Theme.Dim(color, 0.85f), 1.6f);
+                        Diamond(vh, leg, 4f, color);
+                        last = leg;
+                    }
+                }
+                else if (selected.Mode == FlightMode.Orbit)
+                {
+                    Circle(vh, selected.OrbitCentre, selected.OrbitRadius, Theme.Dim(color, 0.6f));
+                    Line(vh, at, Project(selected.OrbitCentre), Theme.Dim(color, 0.35f), 1.2f);
+                }
+                else if (selected.Mode == FlightMode.Station && selected.Parent != null)
+                {
+                    Line(vh, at, Project(selected.Parent.GlobalPosition()), Theme.Dim(color, 0.5f), 1.4f);
+                }
+            }
+
             Unit hovered = MapCommand.Instance?.HoverUnit;
             if (hovered != null && hovered != ship && ship.NetworkHQ != null &&
                 ship.NetworkHQ.TryGetKnownPosition(hovered, out GlobalPosition known))

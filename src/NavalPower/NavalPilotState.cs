@@ -103,12 +103,36 @@ namespace NavalPower
 
         private void Steer(GlobalPosition destination)
         {
-            this.destination = destination;
             if (aircraft.autopilot == null) return;
-            // followTerrain keeps a low transit from flying into a hillside.
+            // altitudeHold is an offset above the destination point, not an
+            // absolute altitude -- Autopilot.Hover reads it as
+            // (destination.y - aircraft.y) + altitudeHold. Passing an absolute
+            // figure against a destination at sea level commanded a descent
+            // into the water. Put the altitude into the destination instead and
+            // hold zero offset.
+            destination = AtAltitude(destination, flight.Altitude);
+            this.destination = destination;
             bool followTerrain = flight.Altitude < 400f;
-            aircraft.autopilot.AutoAim(destination, flight.Altitude, Vector3.zero, Vector3.zero, followTerrain);
+            aircraft.autopilot.AutoAim(destination, 0f, Vector3.zero, Vector3.zero, followTerrain);
         }
+
+        // Ground clearance at the destination, the way Autopilot.TerrainWaypoint
+        // does it: sample terrain, fall back to sea level, then add the ordered
+        // height above it.
+        private static GlobalPosition AtAltitude(GlobalPosition point, float aboveGround)
+        {
+            float ground = Datum.LocalSeaY;
+            if (Physics.Linecast(new Vector3(point.x, ground + 5000f, point.z),
+                                 new Vector3(point.x, ground - 5000f, point.z),
+                                 out RaycastHit hit,
+                                 (int)PhysicsLayers.StaticsMask | (int)PhysicsLayers.ExclusionZonesMask))
+                ground = Mathf.Max(hit.point.y, Datum.LocalSeaY);
+            return new Vector3(point.x, ground + Mathf.Max(aboveGround, MinimumClearance), point.z).ToGlobalPosition();
+        }
+
+        // Never command a flight lower than this above the ground, whatever is
+        // selected: the autopilot needs room to arrest a descent.
+        private const float MinimumClearance = 55f;
 
         private void HandBackToCombat(Pilot pilot)
         {
