@@ -37,6 +37,7 @@ namespace NavalPower
         private string popupKey;
         private bool placed;
         private Vector2 popupAnchor;
+        private Text popupHeader;
 
         private readonly List<Button> weaponButtons = new List<Button>();
         private readonly List<Text> weaponLabels = new List<Text>();
@@ -467,10 +468,7 @@ namespace NavalPower
             popup.position = new Vector2(
                 Mathf.Clamp(popupAnchor.x, 4f, Mathf.Max(4f, Screen.width - pixelWidth - 4f)),
                 Mathf.Clamp(popupAnchor.y, 4f, Mathf.Max(4f, Screen.height - pixelHeight - 4f)));
-            Text header = Label(popup, title, Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
-            Place(header.rectTransform, 12, 9, 368, 26);
-            RectTransform rule = Box("rule", popup, Theme.Divider);
-            Place(rule, 8, 37, 376, 1f);
+            popupHeader.text = title;
         }
 
         private Button Row(string label, int row, Action action) =>
@@ -749,6 +747,11 @@ namespace NavalPower
             popup = Box("Popup", (RectTransform)root.transform, Theme.SurfaceRaised);
             popup.anchorMin = popup.anchorMax = new Vector2(0, 0);
             popup.pivot = new Vector2(0, 0);
+            popupHeader = Label(popup, "", Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
+            Place(popupHeader.rectTransform, 12, 9, 368, 26);
+            RectTransform popupRule = Box("rule", popup, Theme.Divider);
+            Place(popupRule, 8, 37, 376, 1f);
+
             popupContent = Box("Popup content", popup, new Color(0, 0, 0, 0));
             popupContent.anchorMin = new Vector2(0, 1); popupContent.anchorMax = new Vector2(1, 1);
             popupContent.pivot = new Vector2(0, 1);
