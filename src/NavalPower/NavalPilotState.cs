@@ -123,6 +123,10 @@ namespace NavalPower
         // nearly dead ahead, which is the cruise case the autopilot handles well.
         private const float LookAhead = 6000f;
 
+        // About seventeen degrees. Steeper than this and a rotary aircraft
+        // pitches up hard enough to lose control rather than climb.
+        private const float MaxClimbGradient = 0.3f;
+
         private void FlyOrbit(GlobalPosition centre)
         {
             Vector3 offset = aircraft.GlobalPosition() - centre;
@@ -210,13 +214,26 @@ namespace NavalPower
             }
 
             // Rotary and tiltwing read altitudeHold as the height to hold above
-            // the ground -- it is fed straight into TerrainWaypoint and compared
-            // against radarAlt. The native helo state passes the airframe's own
-            // minimum radar altitude plus the height it wants, so the floor is
-            // never below what the airframe will tolerate; match that.
+            // the ground: it is fed into TerrainWaypoint and compared against
+            // radarAlt. The native helo state passes minimumRadarAlt plus a
+            // desiredHeight it slews by tens of metres a second -- it never
+            // steps it.
+            //
+            // That gradualness is load-bearing. TerrainWaypoint places the
+            // waypoint only max(speed, 100) * 6 metres ahead, so at low speed
+            // that is 600 m; asking for 600 m of height there is a 45-degree
+            // climb, and the attitude controller answers by standing the
+            // aircraft on its tail until it departs. Ask for no more height
+            // than the aircraft can reach at a sane gradient from where it is,
+            // and let it walk up to the ordered altitude over successive frames.
             float floor = parameters != null ? parameters.minimumRadarAlt : 0f;
+            float lookAhead = Mathf.Max(aircraft.speed, 100f) * 6f;
+            float wanted = floor + aboveGround;
+            float reachable = aircraft.radarAlt + lookAhead * MaxClimbGradient;
+            float commanded = Mathf.Clamp(Mathf.Min(wanted, reachable), floor, floor + 1000f);
+
             destination = target;
-            autopilot.AutoAim(target, floor + aboveGround, Vector3.zero, Vector3.zero, followTerrain: true);
+            autopilot.AutoAim(target, commanded, Vector3.zero, Vector3.zero, followTerrain: true);
         }
 
         // Only these autopilots actually implement an AutoAim; anything else
