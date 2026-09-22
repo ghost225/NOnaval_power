@@ -75,6 +75,9 @@ namespace NavalPower
         private const CursorFlags CommandCursor = (CursorFlags)0x20000000;
 
         private int suppressEntryFrame = -1, inputFrame = -1, gestureFrame = -1;
+        // The ship we were commanding, so command can be resumed after a pause
+        // menu or a look at something else, rather than having to be re-found.
+        private Ship lastCommanded;
         private readonly PointerGesture leftGesture = new PointerGesture();
         private readonly CameraGesture cameraGesture = new CameraGesture();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>(32);
@@ -124,6 +127,7 @@ namespace NavalPower
         {
             if (!GameplayReady()) return;
             CommandState.Ship = ship;
+            lastCommanded = ship;
             CommandState.SelectedKey = null;
             CommandState.Quantity = 1;
             Esm.Configure(ship);
@@ -138,6 +142,7 @@ namespace NavalPower
             if (!CommandState.Active) return;
             FlightIcons.Clear();
             ReleaseKillCredit();
+            // lastCommanded deliberately survives, so command can be resumed.
             RestoreNativeBar();
             CommandState.Clear();
             Ui?.ClosePopup();
@@ -228,7 +233,7 @@ namespace NavalPower
             FlightOrders.Tick();
             FlightIcons.Refresh(CommandState.Ship);
             UpdateGesture();
-            if (!CommandState.Active) return;
+            if (!CommandState.Active) { TryResume(); return; }
             var cameras = SceneSingleton<CameraStateManager>.i;
             if (!GameplayReady() || cameras == null || cameras.followingUnit != CommandState.Ship ||
                 !CommandableShip.CanCommand(CommandState.Ship, out _))
@@ -265,6 +270,32 @@ namespace NavalPower
         }
 
         internal bool BlocksMapDrag() { UpdateGesture(); return leftGesture.Claimed; }
+
+        // Opening the pause menu drops command because gameplay is no longer
+        // ready, and nothing re-enters afterwards: the camera never changed, so
+        // no follow event fires. Come back on our own once the conditions hold
+        // again, and give a key for the case where the camera did move.
+        private void TryResume()
+        {
+            if (Input.GetKeyDown(KeyCode.F10))
+            {
+                var cameras = SceneSingleton<CameraStateManager>.i;
+                string why = "Follow a ship you can command, then press F10.";
+                if (GameplayReady() && cameras != null && cameras.followingUnit is Ship followed)
+                {
+                    if (CommandableShip.CanCommand(followed, out string reason)) { Enter(followed); return; }
+                    why = reason ?? why;
+                }
+                CommandState.Say(why);
+                return;
+            }
+
+            if (lastCommanded == null || Time.frameCount == suppressEntryFrame) return;
+            var camera = SceneSingleton<CameraStateManager>.i;
+            if (camera == null || camera.followingUnit != lastCommanded) return;
+            if (!GameplayReady() || !CommandableShip.CanCommand(lastCommanded, out _)) return;
+            Enter(lastCommanded);
+        }
 
         internal bool HandleSelection(Unit unit)
         {

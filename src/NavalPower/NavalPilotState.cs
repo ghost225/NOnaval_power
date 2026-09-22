@@ -114,17 +114,28 @@ namespace NavalPower
             Vector3 offset = aircraft.GlobalPosition() - centre;
             offset.y = 0f;
             float radius = Mathf.Max(flight.OrbitRadius, 400f);
+            float distance = offset.magnitude;
+            Vector3 outward = distance > 1f ? offset / distance : Flat(aircraft.transform.forward);
 
-            Vector3 outward = offset.sqrMagnitude > 1f ? offset.normalized : Flat(aircraft.transform.forward);
-            // Consistent left-hand circuit, the way a holding pattern is flown.
+            // Transit first. Blending a tangent with an inward correction is
+            // right on the circle and useless off it: the correction saturates
+            // once well outside, leaving a 45-degree drift that takes an age to
+            // close. Well outside the area, just go there.
+            if (distance > radius * 1.5f)
+            {
+                Steer(centre + outward * radius);
+                return;
+            }
+
+            // On station: fly the circle. Consistent left-hand circuit, the way
+            // a holding pattern is flown.
             Vector3 tangent = new Vector3(-outward.z, 0f, outward.x);
-
-            // Steer back onto the circle in proportion to how far off it we are,
-            // so the aircraft closes the radius instead of spiralling.
-            float error = Mathf.Clamp((offset.magnitude - radius) / Mathf.Max(radius, 1f), -1f, 1f);
+            float error = Mathf.Clamp((distance - radius) / Mathf.Max(radius, 1f), -1f, 1f);
             Vector3 heading = (tangent - outward * error).normalized;
-
-            Steer(aircraft.GlobalPosition() + heading * LookAhead);
+            // Never look further ahead than the circle itself, or a small area
+            // gets a look-ahead that points clean outside it.
+            float lookAhead = Mathf.Min(LookAhead, radius * 1.5f);
+            Steer(aircraft.GlobalPosition() + heading * lookAhead);
         }
 
         private static Vector3 Flat(Vector3 value)
