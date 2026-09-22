@@ -35,6 +35,9 @@ namespace NavalPower
         private const int DamageRows = 16;
         private bool damageOpen;
 
+        private LoadoutPlan plan;
+        private DeckAircraft[] deckAircraft;
+
         private Unit contextTarget;
         private bool contextAppend;
         private string popupKey;
@@ -192,11 +195,12 @@ namespace NavalPower
             string title = target != null
                 ? (target.definition?.unitName ?? target.name)
                 : (CommandState.Ship?.definition?.unitName ?? "Ship");
-            StartPopup(title, screenPosition, 6);
+            StartPopup(title, screenPosition, CarrierOps.HasDeck(CommandState.Ship) ? 7 : 6);
             Row("Engage with…", 1, WeaponMenu);
             Row("Navigate / speed…", 2, NavigationMenu);
             Row("Engagement permissions…", 3, RoeMenu);
             Row("Sensors / EMCON…", 6, SensorMenu);
+            if (CarrierOps.HasDeck(CommandState.Ship)) Row("Flight deck…", 7, DeckMenu);
             Row("Cease fire", 4, () =>
             {
                 WeaponOrders.CeaseFire(CommandState.Ship, out string reason);
@@ -274,6 +278,72 @@ namespace NavalPower
                 ClosePopup();
             });
             Row("Close", 3, ClosePopup);
+        }
+
+        // ---- flight deck ----------------------------------------------------
+
+        private void DeckMenu()
+        {
+            Ship ship = CommandState.Ship;
+            if (!CarrierOps.HasDeck(ship))
+            {
+                StartPopup("Flight deck", null, 1);
+                Row("This ship has no flight deck", 1, ClosePopup);
+                return;
+            }
+            deckAircraft = CarrierOps.Available(ship);
+            StartPopup("Flight deck · " + CarrierOps.DeckStatus(ship), null, deckAircraft.Length + 2);
+            for (int i = 0; i < deckAircraft.Length; i++)
+            {
+                DeckAircraft airframe = deckAircraft[i];
+                Row(airframe.Name + "  ·  " + (airframe.InReserve ? "in reserve" : "purchase " + airframe.Price.ToString("0")),
+                    i + 1, () =>
+                    {
+                        plan = CarrierOps.PlanFor(airframe.Definition);
+                        LoadoutMenu();
+                    });
+            }
+            Row("Close", deckAircraft.Length + 1, ClosePopup);
+        }
+
+        // Every station listed individually. No presets: a named profile is
+        // exactly what picks the wrong weapons.
+        private void LoadoutMenu()
+        {
+            if (plan == null) { DeckMenu(); return; }
+            int rows = plan.Stations.Count + 3;
+            StartPopup(plan.Definition.unitName + " · loadout", null, rows);
+            for (int i = 0; i < plan.Stations.Count; i++)
+            {
+                LoadoutStation station = plan.Stations[i];
+                Button row = Row(station.Name + "   ·   " + station.SelectedName, i + 1, () => StationMenu(station));
+                if (station.Selected == null) row.GetComponentInChildren<Text>().color = MutedColor;
+            }
+            Row("LAUNCH  ·  " + plan.Summary(), plan.Stations.Count + 1, () =>
+            {
+                CarrierOps.Launch(CommandState.Ship, plan, out string reason);
+                CommandState.Say(reason);
+                ClosePopup();
+            });
+            Row("Back to airframes", plan.Stations.Count + 2, DeckMenu);
+            Row("Close", rows, ClosePopup);
+        }
+
+        private void StationMenu(LoadoutStation station)
+        {
+            StartPopup(station.Name, null, station.Options.Count + 2);
+            Row("Empty", 1, () => { station.Selected = null; LoadoutMenu(); });
+            for (int i = 0; i < station.Options.Count; i++)
+            {
+                WeaponMount mount = station.Options[i];
+                string detail = mount.info != null ? "  ·  " + mount.info.weaponName : "";
+                if (mount.ammo > 1) detail += " ×" + mount.ammo;
+                if (mount.radar) detail += "  ·  RADAR";
+                if (mount.countermeasure) detail += "  ·  CM";
+                if (mount.Cargo) detail += "  ·  CARGO";
+                Row(mount.mountName + detail, i + 2, () => { station.Selected = mount; LoadoutMenu(); });
+            }
+            Row("Close", station.Options.Count + 2, ClosePopup);
         }
 
         private void SensorMenu()
@@ -430,6 +500,7 @@ namespace NavalPower
             Place(shipLabel.rectTransform, 16, 8, 560, 28);
             statusLabel = Label(bar, "", 16, TextAnchor.MiddleLeft, MutedColor);
             Place(statusLabel.rectTransform, 588, 8, 900, 28);
+            MakeButton(bar, "Flight deck", 1252, 8, 124, 30, () => TogglePopup("deck", DeckMenu));
             MakeButton(bar, "Damage", 1382, 8, 104, 30, () => { damageOpen = !damageOpen; Refresh(); });
             MakeButton(bar, "Sensors / EMCON", 1496, 8, 170, 30, () => TogglePopup("sensors", SensorMenu));
             Button exit = MakeButton(bar, "Exit command", 1740, 8, 164, 30,
