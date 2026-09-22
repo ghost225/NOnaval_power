@@ -36,7 +36,11 @@ namespace NavalPower
         public int AmmoAtAttack = -1;       // total rounds when the run began
         public GlobalPosition EgressPoint;
         public float EgressUntil;
+        public float NextEgressPlan;
         public FlightThreat Threat;
+        public bool ThreatIsInfrared;       // flares matter, and it must be let in much closer
+        public float ThreatRange = float.PositiveInfinity;
+        public float NextFlare;
         public bool Interrupted;            // native pilot has it while it fights or evades
         public float ThreatClearedAt;
 
@@ -212,6 +216,12 @@ namespace NavalPower
 
                 if (flight.Mode == FlightMode.Egress)
                 {
+                    // The threat picture moves; so should the escape route.
+                    if (Time.timeSinceLevelLoad >= flight.NextEgressPlan)
+                    {
+                        flight.NextEgressPlan = Time.timeSinceLevelLoad + 2f;
+                        PlanEgress(flight);
+                    }
                     bool clear = flight.Target == null || flight.Target.disabled ||
                         FastMath.Distance(flight.Aircraft.GlobalPosition(), flight.Target.GlobalPosition())
                             >= Settings.StandoffMetres.Value;
@@ -430,21 +440,61 @@ namespace NavalPower
         {
             flight.Mode = FlightMode.Egress;
             flight.EgressUntil = Time.timeSinceLevelLoad + Settings.EgressSeconds.Value;
-            // Out along the line from the target, toward wherever this flight
-            // belongs: its task area, or the ship that launched it.
-            GlobalPosition home = flight.Parent != null ? flight.Parent.GlobalPosition() : flight.OrbitCentre;
-            Vector3 away = home - flight.Aircraft.GlobalPosition();
-            away.y = 0f;
-            if (away.sqrMagnitude < 1f && flight.Target != null)
-            {
-                away = flight.Aircraft.GlobalPosition() - flight.Target.GlobalPosition();
-                away.y = 0f;
-            }
-            if (away.sqrMagnitude < 1f) away = flight.Aircraft.transform.forward;
-            flight.EgressPoint = flight.Aircraft.GlobalPosition() + away.normalized * Settings.StandoffMetres.Value;
+            PlanEgress(flight);
             flight.Adopted = false;                 // take it back off the native pilot
             flight.Interrupted = false;
             Plugin.Log.LogInfo("[flight] " + flight.Name + " · weapons away, egressing");
+        }
+
+        // Away from the threat, never through it.
+        //
+        // Steering toward home is wrong whenever home lies beyond the target:
+        // it takes the aircraft directly over what it just attacked, and over
+        // whatever is defending it. Push away from every hostile close enough to
+        // matter, weighted by how close it is, and only lean toward home when
+        // that does not turn the aircraft back into them.
+        private static void PlanEgress(Flight flight)
+        {
+            Aircraft aircraft = flight.Aircraft;
+            if (aircraft == null) return;
+            GlobalPosition here = aircraft.GlobalPosition();
+            float reach = Settings.StandoffMetres.Value * 2f;
+
+            Vector3 away = Vector3.zero;
+            foreach (Unit unit in UnitRegistry.allUnits)
+            {
+                if (unit == null || unit.disabled || unit is Missile) continue;
+                if (unit.NetworkHQ == null || unit.NetworkHQ == aircraft.NetworkHQ) continue;
+                Vector3 from = here - unit.GlobalPosition();
+                from.y = 0f;
+                float distance = from.magnitude;
+                if (distance < 1f || distance > reach) continue;
+                // Nearer things push harder.
+                away += from / distance * (1f - distance / reach);
+            }
+
+            // Nothing close enough to weigh: just leave the target behind.
+            if (away.sqrMagnitude < 0.0001f && flight.Target != null)
+            {
+                away = here - flight.Target.GlobalPosition();
+                away.y = 0f;
+            }
+            if (away.sqrMagnitude < 0.0001f) away = aircraft.transform.forward;
+            away.y = 0f;
+            away.Normalize();
+
+            GlobalPosition home = flight.Parent != null ? flight.Parent.GlobalPosition() : flight.OrbitCentre;
+            Vector3 toHome = home - here;
+            toHome.y = 0f;
+            if (toHome.sqrMagnitude > 1f)
+            {
+                toHome.Normalize();
+                // Only lean homeward when home is not back through the threat.
+                if (Vector3.Dot(toHome, away) > 0.1f)
+                    away = (away * 0.6f + toHome * 0.4f).normalized;
+            }
+
+            flight.EgressPoint = here + away * Settings.StandoffMetres.Value;
         }
 
         public static void BreakOff(Flight flight)
@@ -531,6 +581,9 @@ namespace NavalPower
                 if (aircraft == null || aircraft.disabled) continue;
                 FlightThreat threat = FlightThreat.None;
 
+                float nearestShot = float.PositiveInfinity;
+                bool infrared = false;
+
                 foreach (Unit unit in UnitRegistry.allUnits)
                 {
                     if (unit == null || unit.disabled || unit.NetworkHQ == null) continue;
@@ -539,7 +592,17 @@ namespace NavalPower
                     // Anything already in the air at us outranks every order.
                     if (unit is Missile missile)
                     {
-                        if (missile.targetID == aircraft.persistentID) { threat = FlightThreat.Missile; break; }
+                        if (missile.targetID != aircraft.persistentID) continue;
+                        threat = FlightThreat.Missile;
+                        float shotRange = FastMath.Distance(aircraft.GlobalPosition(), missile.GlobalPosition());
+                        if (shotRange < nearestShot)
+                        {
+                            nearestShot = shotRange;
+                            // Anything that is not clearly heat-seeking is
+                            // treated as radar guided, which hands over to
+                            // native evasion far earlier -- the safer mistake.
+                            infrared = missile.GetComponent<IRSeeker>() != null;
+                        }
                         continue;
                     }
                     if (threat != FlightThreat.None) continue;
@@ -559,6 +622,20 @@ namespace NavalPower
                 if (threat == FlightThreat.None && flight.Threat != FlightThreat.None)
                     flight.ThreatClearedAt = Time.unscaledTime;
                 flight.Threat = threat;
+                flight.ThreatIsInfrared = infrared;
+                flight.ThreatRange = nearestShot;
+
+                // Decoy on the way out. Once the native pilot has the aircraft
+                // it runs its own countermeasures, so this only covers the
+                // stretch we are flying ourselves.
+                if (threat == FlightThreat.Missile && infrared && flight.Mode == FlightMode.Egress &&
+                    Time.timeSinceLevelLoad >= flight.NextFlare &&
+                    aircraft.countermeasureManager != null &&
+                    aircraft.countermeasureManager.GetFlareAmmoProportion() > 0f)
+                {
+                    flight.NextFlare = Time.timeSinceLevelLoad + Settings.FlareInterval.Value;
+                    aircraft.countermeasureManager.PopFlares();
+                }
             }
         }
 
@@ -566,7 +643,21 @@ namespace NavalPower
         private static bool ShouldYield(Flight flight)
         {
             if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage) return true;
-            if (flight.Mode == FlightMode.Egress) return false;      // ours to fly, out
+
+            // Leaving outranks evading, up to a point. Turning to fight a shot
+            // that is still thirty kilometres away just keeps the aircraft in
+            // the threat envelope; running until it is genuinely close, then
+            // handing to the native pilot, gets it out alive. Heat-seekers are
+            // let in much closer than radar shots because flares work and the
+            // endgame is short.
+            if (flight.Mode == FlightMode.Egress)
+            {
+                if (flight.Threat != FlightThreat.Missile) return false;
+                float handover = flight.ThreatIsInfrared
+                    ? Settings.InfraredHandover.Value : Settings.RadarHandover.Value;
+                return flight.ThreatRange <= handover;
+            }
+
             // Evasion is never a choice: being shot at overrides Weapons Hold.
             if (flight.Threat == FlightThreat.Missile) return true;
             if (flight.Roe == FlightRoe.Hold) return false;

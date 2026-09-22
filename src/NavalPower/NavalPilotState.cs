@@ -53,7 +53,7 @@ namespace NavalPower
                 case FlightMode.Route: FlyRoute(); break;
                 case FlightMode.Orbit: FlyOrbit(flight.OrbitCentre); break;
                 case FlightMode.Station: FlyStation(); break;
-                case FlightMode.Egress: Steer(flight.EgressPoint); break;
+                case FlightMode.Egress: FlyEgress(); break;
                 // Both hand the aircraft to the native combat pilot; the
                 // difference is that a strike has a designated target pinned
                 // onto it. Missing this case left nothing driving the aircraft.
@@ -143,6 +143,17 @@ namespace NavalPower
         {
             value.y = 0f;
             return value.sqrMagnitude > 0.001f ? value.normalized : Vector3.forward;
+        }
+
+        // Out low and away. Height is the thing a departing aircraft can trade
+        // for survival, so the egress leg ignores the flight's ordered altitude
+        // and runs at the egress height instead.
+        private void FlyEgress()
+        {
+            float ordered = flight.Altitude;
+            flight.Altitude = Mathf.Min(ordered, Settings.EgressAltitude.Value);
+            Steer(flight.EgressPoint);
+            flight.Altitude = ordered;
         }
 
         private void FlyStation()

@@ -17,6 +17,10 @@ namespace NavalPower
         internal static ConfigEntry<float> StandoffMetres;
         internal static ConfigEntry<float> EgressSeconds;
         internal static ConfigEntry<bool> ReattackAfterEgress;
+        internal static ConfigEntry<float> EgressAltitude;
+        internal static ConfigEntry<float> RadarHandover;
+        internal static ConfigEntry<float> InfraredHandover;
+        internal static ConfigEntry<float> FlareInterval;
 
         internal static ConfigEntry<bool> ShowFlightStrip;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
@@ -69,6 +73,26 @@ namespace NavalPower
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
                 "Press the attack again once clear, while ordnance remains and the target lives. " +
                 "Off means one pass per order.");
+
+            EgressAltitude = config.Bind("Flights", "Egress altitude", 200f,
+                new ConfigDescription("Height above ground a flight runs at while leaving a target. " +
+                    "Capped against the flight's ordered altitude, so a low flight does not climb to egress.",
+                    new AcceptableValueRange<float>(60f, 3000f)));
+
+            RadarHandover = config.Bind("Flights", "Radar shot handover", 15000f,
+                new ConfigDescription("While egressing, keep running from a radar-guided shot until it is " +
+                    "this close, then hand the aircraft to native evasion.",
+                    new AcceptableValueRange<float>(1000f, 60000f)));
+
+            InfraredHandover = config.Bind("Flights", "Heat-seeker handover", 2000f,
+                new ConfigDescription("The same for a heat-seeking shot, which is let in far closer: flares " +
+                    "work and the endgame is short.",
+                    new AcceptableValueRange<float>(200f, 20000f)));
+
+            FlareInterval = config.Bind("Flights", "Flare interval", 1.5f,
+                new ConfigDescription("Seconds between flare releases while egressing with a heat-seeker " +
+                    "inbound. The native pilot runs its own countermeasures once it has the aircraft.",
+                    new AcceptableValueRange<float>(0.5f, 10f)));
 
             ShowFlightStrip = config.Bind("Interface", "Flight strip", true,
                 "Show airborne flights as chips along the command bar.");
