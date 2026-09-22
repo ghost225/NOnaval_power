@@ -159,6 +159,22 @@ namespace NavalPower
                 if (flight.Adopted || flight.Aircraft == null) continue;
                 Pilot pilot = FirstPilot(flight.Aircraft);
                 if (pilot == null || pilot.playerControlled) continue;
+                // A strike or weapons-free order wants the native combat pilot,
+                // and can be handed over from our own state as well as from
+                // the native one -- gating it on the native state meant the
+                // handoff never happened once we already had the aircraft.
+                if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage)
+                {
+                    if (pilot.AICombatState != null && !(pilot.currentState is AIPilotCombatModes))
+                        pilot.SwitchStateNew(pilot.AICombatState);
+                    flight.Adopted = true;
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
+                        (flight.Mode == FlightMode.Strike
+                            ? "striking " + (flight.Target?.definition?.unitName ?? "target")
+                            : "weapons free"));
+                    continue;
+                }
+
                 if (!(pilot.currentState is AIPilotCombatModes)) continue;   // still on the deck or climbing out
                 if (!NavalPilotState.CanBeFlown(flight.Aircraft))
                 {
@@ -167,14 +183,6 @@ namespace NavalPower
                         " has no usable autopilot; leaving it to the native AI");
                     flight.Mode = FlightMode.Engage;
                     flight.Adopted = true;
-                    continue;
-                }
-                if (flight.Mode == FlightMode.Strike)
-                {
-                    if (pilot.AICombatState != null) pilot.SwitchStateNew(pilot.AICombatState);
-                    flight.Adopted = true;
-                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · striking " +
-                        (flight.Target?.definition?.unitName ?? "target"));
                     continue;
                 }
                 NavalPilotState.Install(pilot, flight);

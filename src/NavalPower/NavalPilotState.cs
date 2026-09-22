@@ -53,6 +53,10 @@ namespace NavalPower
                 case FlightMode.Route: FlyRoute(); break;
                 case FlightMode.Orbit: FlyOrbit(flight.OrbitCentre); break;
                 case FlightMode.Station: FlyStation(); break;
+                // Both hand the aircraft to the native combat pilot; the
+                // difference is that a strike has a designated target pinned
+                // onto it. Missing this case left nothing driving the aircraft.
+                case FlightMode.Strike:
                 case FlightMode.Engage: HandBackToCombat(pilot); break;
                 case FlightMode.ReturnToBase: HandBackToLanding(pilot); break;
             }
@@ -195,8 +199,10 @@ namespace NavalPower
 
         private void HandBackToCombat(Pilot pilot)
         {
+            // No combat state to hand to: keep flying it ourselves rather than
+            // leaving the aircraft with nobody at the controls.
             if (pilot.AICombatState == null) { FlyOrbit(flight.OrbitCentre); return; }
-            Plugin.Log.LogInfo("[flight] " + flight.Name + " weapons free · AI has control");
+            Plugin.Log.LogInfo("[flight] " + flight.Name + " · handing to the combat pilot · " + flight.Describe());
             pilot.SwitchStateNew(pilot.AICombatState);
         }
 
