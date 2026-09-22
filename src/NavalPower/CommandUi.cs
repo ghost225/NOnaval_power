@@ -295,6 +295,100 @@ namespace NavalPower
             Row("Close", 3, ClosePopup);
         }
 
+        // ---- flights --------------------------------------------------------
+
+        private void FlightsMenu()
+        {
+            List<Flight> airborne = FlightOrders.For(CommandState.Ship);
+            StartPopup("Flights  ·  " + airborne.Count + " airborne", null, airborne.Count + 2);
+            if (airborne.Count == 0)
+            {
+                Row("Nothing airborne from this deck", 1, ClosePopup);
+                Row("Close", 2, ClosePopup);
+                return;
+            }
+            for (int i = 0; i < airborne.Count; i++)
+            {
+                Flight flight = airborne[i];
+                bool selected = CommandState.SelectedFlight == flight;
+                Button row = Row((selected ? "▸ " : "") + flight.Name + "   ·   " + flight.Describe(),
+                    i + 1, () => FlightMenu(flight));
+                if (selected) row.image.color = Theme.AccentFill;
+                row.GetComponentInChildren<Text>().color =
+                    flight.Mode == FlightMode.Engage ? Theme.Bad
+                    : flight.Mode == FlightMode.ReturnToBase ? Theme.Warn
+                    : Theme.Text;
+            }
+            Row("Close", airborne.Count + 1, ClosePopup);
+        }
+
+        private void FlightMenu(Flight flight)
+        {
+            CommandState.SelectedFlight = flight;
+            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 9);
+            Row("Right-click the map to route this flight", 1, ClosePopup);
+            Row("Orbit here", 2, () =>
+            {
+                FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());
+                CommandState.Say(flight.Name + " · holding overhead");
+                FlightsMenu();
+            });
+            Row("Station on the ship  ·  offboard sensor", 3, () =>
+            {
+                FlightOrders.Station(flight);
+                CommandState.Say(flight.Name + " · keeping company");
+                FlightsMenu();
+            });
+            Row("Altitude  ·  " + (flight.Altitude * 3.28084f).ToString("0") + " ft", 4, () => AltitudeMenu(flight));
+            Row("Orbit radius  ·  " + (flight.OrbitRadius / 1852f).ToString("0.0") + " nm", 5, () => RadiusMenu(flight));
+            Row("WEAPONS FREE  ·  hand to the AI", 6, () =>
+            {
+                FlightOrders.Engage(flight);
+                CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
+                FlightsMenu();
+            });
+            Row("Return to base", 7, () =>
+            {
+                FlightOrders.ReturnToBase(flight);
+                CommandState.Say(flight.Name + " · recovering");
+                FlightsMenu();
+            });
+            Row("Back to flights", 8, FlightsMenu);
+            Row("Close", 9, ClosePopup);
+        }
+
+        private void AltitudeMenu(Flight flight)
+        {
+            float[] feet = { 200f, 500f, 1000f, 2000f, 5000f, 10000f, 20000f };
+            StartPopup(flight.Name + " · altitude", null, feet.Length + 1);
+            for (int i = 0; i < feet.Length; i++)
+            {
+                float ft = feet[i];
+                Row(ft.ToString("0") + " ft" + (ft <= 500f ? "  ·  terrain following" : ""), i + 1, () =>
+                {
+                    FlightOrders.SetAltitude(flight, ft / 3.28084f);
+                    FlightMenu(flight);
+                });
+            }
+            Row("Back", feet.Length + 1, () => FlightMenu(flight));
+        }
+
+        private void RadiusMenu(Flight flight)
+        {
+            float[] miles = { 1f, 2f, 5f, 10f, 15f };
+            StartPopup(flight.Name + " · orbit radius", null, miles.Length + 1);
+            for (int i = 0; i < miles.Length; i++)
+            {
+                float nm = miles[i];
+                Row(nm.ToString("0") + " nm", i + 1, () =>
+                {
+                    FlightOrders.SetOrbitRadius(flight, nm * 1852f);
+                    FlightMenu(flight);
+                });
+            }
+            Row("Back", miles.Length + 1, () => FlightMenu(flight));
+        }
+
         // ---- flight deck ----------------------------------------------------
 
         private void DeckMenu()
@@ -561,6 +655,7 @@ namespace NavalPower
             statusLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
             Place(statusLabel.rectTransform, 986, 13, 560, 24);
 
+            MakeButton(bar, "Flights", 1470, 11, 80, 28, () => TogglePopup("flights", FlightsMenu));
             MakeButton(bar, "Flight deck", 1556, 11, 116, 28, () => TogglePopup("deck", DeckMenu));
             MakeButton(bar, "Damage", 1678, 11, 92, 28, () => { damageOpen = !damageOpen; Refresh(); });
             MakeButton(bar, "Sensors", 1776, 11, 92, 28, () => TogglePopup("sensors", SensorMenu));

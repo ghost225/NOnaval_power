@@ -188,6 +188,7 @@ namespace NavalPower
                 return false;
             }
 
+            FlightOrders.ExpectLaunch(ship, plan.Definition);
             reason = "Launching " + plan.Definition.unitName + " · " + plan.Summary() +
                 (purchased ? " · purchased" : " · from reserve");
             Plugin.Log.LogInfo("[deck] " + ship.definition?.unitName + ": " + reason);

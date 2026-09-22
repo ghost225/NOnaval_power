@@ -9,6 +9,8 @@ namespace NavalPower
         internal static Ship Ship;
         internal static string SelectedKey;
         internal static int Quantity = 1;
+        // While a flight is selected, map right-clicks task it rather than the ship.
+        internal static Flight SelectedFlight;
 
         internal static bool Active => Ship != null;
         internal static bool Armed => SelectedKey != null;
@@ -29,6 +31,7 @@ namespace NavalPower
         {
             Ship = null;
             SelectedKey = null;
+            SelectedFlight = null;
             Quantity = 1;
         }
 

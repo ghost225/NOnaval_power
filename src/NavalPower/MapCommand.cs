@@ -224,6 +224,7 @@ namespace NavalPower
 
         private void Update()
         {
+            FlightOrders.Tick();
             UpdateGesture();
             if (!CommandState.Active) return;
             var cameras = SceneSingleton<CameraStateManager>.i;
@@ -326,6 +327,14 @@ namespace NavalPower
                 case RightClickAction.MissingTarget:
                     CommandState.Say((CommandState.SelectedWeapon()?.Name ?? "This weapon") +
                         " needs a target. Right-click a compatible contact.");
+                    break;
+                case RightClickAction.AppendWaypoint when CommandState.SelectedFlight != null:
+                    FlightOrders.SetRoute(CommandState.SelectedFlight, map.GetCursorCoordinates(), true);
+                    CommandState.Say(CommandState.SelectedFlight.Name + " · leg appended");
+                    break;
+                case RightClickAction.ReplaceWaypoint when CommandState.SelectedFlight != null:
+                    FlightOrders.SetRoute(CommandState.SelectedFlight, map.GetCursorCoordinates(), false);
+                    CommandState.Say(CommandState.SelectedFlight.Name + " · proceeding");
                     break;
                 case RightClickAction.AppendWaypoint:
                     NavigationOrders.AppendWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string appendReason);

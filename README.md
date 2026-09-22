@@ -48,6 +48,27 @@ orders are given on the native map.
 Weapons a contact is immune to are shown greyed as "ineffective", from the
 game's own RoleIdentity/TypeIdentity scoring rather than a table of our own.
 
+### Flights
+
+Aircraft launched from the deck are commanded, not released. A custom
+`PilotBaseState` drives `Aircraft.autopilot` directly rather than leashing the
+native combat AI, so a flight holds a route, an orbit or a station until told
+otherwise instead of picking its own target and flying at it.
+
+- **Route** — right-click the map with a flight selected; shift appends a leg.
+  A finished route becomes an orbit at the last point rather than flying on.
+- **Orbit** — holds a circle at a chosen radius, aiming at a point running
+  ahead around it so it flies a curve rather than converging on the centre.
+- **Station** — the anchor moves with the ship, so the flight keeps company
+  rather than orbiting where the ship used to be. This is the offboard sensor:
+  a helo on station radiating while the ship stays silent.
+- **Weapons free** — hands the flight back to the native AI deliberately.
+- **Return to base** — hands back to the native landing state. Low fuel forces
+  this regardless of orders.
+
+The state is installed only once the aircraft is airborne and in its combat
+state; taking over during taxi or takeoff would fight the native sequence.
+
 ### Sensors and EMCON
 
 `Radar` derives from `TargetDetector`, so a hull carries a mix of emitters and
