@@ -127,6 +127,10 @@ namespace NavalPower
         // pitches up hard enough to lose control rather than climb.
         private const float MaxClimbGradient = 0.3f;
 
+        // How far ahead a rotary aircraft is ever asked to steer. Beyond this
+        // the tilt PID saturates and the aircraft wallows rather than flies.
+        private const float RotaryLead = 1500f;
+
         private void FlyOrbit(GlobalPosition centre)
         {
             Vector3 offset = aircraft.GlobalPosition() - centre;
@@ -232,8 +236,25 @@ namespace NavalPower
             float reachable = aircraft.radarAlt + lookAhead * MaxClimbGradient;
             float commanded = Mathf.Clamp(Mathf.Min(wanted, reachable), floor, floor + 1000f);
 
-            destination = target;
-            autopilot.AutoAim(target, commanded, Vector3.zero, Vector3.zero, followTerrain: true);
+            // Bounded steering point.
+            //
+            // AutopilotHelo feeds the raw horizontal offset to the destination
+            // straight into a tilt PID. The native state hands it a target a
+            // few kilometres away at most; a task area tens of kilometres off
+            // saturates that PID at maximum tilt and the aircraft oscillates
+            // instead of flying. Aim at a point a bounded distance along the
+            // bearing instead -- it moves with the aircraft, so the course is
+            // unchanged, but the error the PID sees stays in its working range.
+            GlobalPosition here = aircraft.GlobalPosition();
+            Vector3 bearing = target - here;
+            bearing.y = 0f;
+            float span = bearing.magnitude;
+            GlobalPosition aim = span > RotaryLead
+                ? here + bearing / span * RotaryLead
+                : target;
+
+            destination = aim;
+            autopilot.AutoAim(aim, commanded, Vector3.zero, Vector3.zero, followTerrain: true);
         }
 
         // Only these autopilots actually implement an AutoAim; anything else
