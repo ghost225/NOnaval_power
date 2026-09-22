@@ -45,7 +45,10 @@ namespace NavalPower
         internal static float MaximumSpeedKnots(Ship ship)
         {
             float top = (ship != null ? ship.definition as ShipDefinition : null)?.shipInfo?.topSpeed ?? 0f;
-            return Finite(top) && top > 0f ? top / 1.852f : 30f;
+            // Definition top speed is a nominal figure; hulls are observed doing
+            // a little better, and clamping to it would make "ahead flank"
+            // quietly slow the ship down.
+            return Finite(top) && top > 0f ? top / 1.852f * 1.05f : 30f;
         }
 
         internal static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);

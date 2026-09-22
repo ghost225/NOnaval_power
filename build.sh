@@ -7,9 +7,16 @@ export PATH="$DOTNET_ROOT:$PATH"
 export NUCLEAR_OPTION_GAME
 
 cd "$(dirname "$0")"
-dotnet build -c Release --nologo "$@"
 
-if [[ " $* " == *" --install "* ]]; then
+install=0
+args=()
+for arg in "$@"; do
+    if [[ "$arg" == "--install" ]]; then install=1; else args+=("$arg"); fi
+done
+
+dotnet build -c Release --nologo ${args[@]+"${args[@]}"}
+
+if (( install )); then
     dest="$NUCLEAR_OPTION_GAME/BepInEx/plugins/NavalPower"
     mkdir -p "$dest"
     cp bin/Release/NavalPower.dll "$dest/"

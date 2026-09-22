@@ -54,10 +54,22 @@ namespace NavalPower
             text.Append("\n  throttle=").Append(ship.GetInputs()?.throttle.ToString("0.00") ?? "?");
             text.Append("\n  weapons: ").Append(WeaponOrders.GetStatus(ship));
             foreach (WeaponCommandInfo weapon in WeaponOrders.GetWeapons(ship))
+            {
+                WeaponInfo info = WeaponOrders.StationsFor(ship, weapon.Key).FirstOrDefault()?.WeaponInfo;
                 text.Append("\n    ").Append(weapon.Name).Append(" · ").Append(weapon.Readiness)
                     .Append(" · ammo ").Append(weapon.Ammo)
                     .Append(weapon.Continuous ? " · continuous" : "")
                     .Append(" · range ").Append(weapon.MinRange.ToString("0")).Append("-").Append(weapon.MaxRange.ToString("0"));
+                if (info != null)
+                {
+                    RoleIdentity role = info.effectiveness;
+                    text.Append(" · vs surface/air/missile/radar ")
+                        .Append(role.antiSurface.ToString("0.0")).Append("/")
+                        .Append(role.antiAir.ToString("0.0")).Append("/")
+                        .Append(role.antiMissile.ToString("0.0")).Append("/")
+                        .Append(role.antiRadar.ToString("0.0"));
+                }
+            }
 
             foreach (Turret turret in ship.GetComponentsInChildren<Turret>(true))
                 text.Append("\n    turret ").Append(turret.name)
@@ -72,23 +84,48 @@ namespace NavalPower
             Ship ship = Require();
             if (ship == null) return;
 
-            WeaponCommandInfo weapon = WeaponOrders.GetWeapons(ship).FirstOrDefault(w => w.Readiness == "Ready");
-            if (weapon == null) { Plugin.Log.LogWarning("[naval] no ready weapon"); return; }
+            // Pick the best weapon/target pairing rather than the first of each:
+            // score every ready weapon against every hostile by native
+            // opportunity, and require the contact to be inside the envelope.
+            WeaponCommandInfo[] ready = WeaponOrders.GetWeapons(ship).Where(w => w.Readiness == "Ready").ToArray();
+            if (ready.Length == 0) { Plugin.Log.LogWarning("[naval] no ready weapon"); return; }
 
-            Unit best = null;
-            float bestDistance = float.MaxValue;
-            foreach (Unit unit in UnitRegistry.allUnits)
+            WeaponCommandInfo bestWeapon = null;
+            Unit bestTarget = null;
+            float bestScore = 0f, bestRange = 0f;
+
+            foreach (WeaponCommandInfo weapon in ready)
             {
-                if (unit == null || unit == ship || unit.disabled || unit is Missile) continue;
-                if (unit.NetworkHQ == null || unit.NetworkHQ == ship.NetworkHQ) continue;
-                float distance = FastMath.Distance(ship.GlobalPosition(), unit.GlobalPosition());
-                if (distance < bestDistance) { bestDistance = distance; best = unit; }
+                WeaponInfo info = WeaponOrders.StationsFor(ship, weapon.Key).FirstOrDefault()?.WeaponInfo;
+                if (info == null) continue;
+                foreach (Unit unit in UnitRegistry.allUnits)
+                {
+                    if (unit == null || unit == ship || unit.disabled) continue;
+                    if (unit.NetworkHQ == null || unit.NetworkHQ == ship.NetworkHQ) continue;
+                    float opportunity = WeaponOrders.Opportunity(info, unit);
+                    if (opportunity <= 0.01f) continue;
+                    float range = FastMath.Distance(ship.GlobalPosition(), unit.GlobalPosition());
+                    if (range > weapon.MaxRange || range < weapon.MinRange) continue;
+                    // Prefer capability, break ties by closing range.
+                    float score = opportunity * 1000f - range / 1000f;
+                    if (score > bestScore)
+                    { bestScore = score; bestWeapon = weapon; bestTarget = unit; bestRange = range; }
+                }
             }
-            if (best == null) { Plugin.Log.LogWarning("[naval] no hostile contact"); return; }
 
-            Plugin.Log.LogInfo("[naval] ordering " + weapon.Name + " at " + best.definition?.unitName +
-                " (" + (bestDistance / 1000f).ToString("0.0") + " km)");
-            WeaponOrders.Attack(ship, weapon.Key, best, 1, out string reason);
+            if (bestWeapon == null)
+            {
+                Plugin.Log.LogWarning("[naval] no hostile inside any ready weapon's envelope; nearest options:");
+                foreach (WeaponCommandInfo weapon in ready)
+                    Plugin.Log.LogWarning("    " + weapon.Name + " envelope " +
+                        weapon.MinRange.ToString("0") + "-" + weapon.MaxRange.ToString("0") + " m");
+                return;
+            }
+
+            Plugin.Log.LogInfo("[naval] ordering " + bestWeapon.Name + " at " + bestTarget.definition?.unitName +
+                " (" + (bestRange / 1000f).ToString("0.0") + " km, opportunity " +
+                WeaponOrders.Opportunity(WeaponOrders.StationsFor(ship, bestWeapon.Key)[0].WeaponInfo, bestTarget).ToString("0.00") + ")");
+            WeaponOrders.Attack(ship, bestWeapon.Key, bestTarget, 1, out string reason);
             Plugin.Log.LogInfo("[naval] " + reason);
         }
 

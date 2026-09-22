@@ -51,15 +51,39 @@ namespace NavalPower
         internal static WeaponStation[] StationsFor(Ship ship, string key) =>
             ship.weaponStations.Where(s => KeyOf(s.WeaponInfo) == key && s.Weapons.Any(Supported)).ToArray();
 
+        // The game scores every weapon against every target type natively:
+        // RoleIdentity (antiSurface/antiAir/antiMissile/antiRadar) crossed with
+        // the target's TypeIdentity. Zero means the weapon simply cannot do the
+        // job -- a radar SAM against a truck -- and that holds for modded
+        // weapons and modded hulls without a lookup table of our own.
+        public static float Opportunity(WeaponInfo info, Unit target) =>
+            info == null || target == null || target.definition == null
+                ? 0f : target.definition.GetOpportunity(info.effectiveness);
+
         public static bool CanAttack(Ship ship, string key, Unit target, out string reason)
         {
             if (!CommandableShip.CanCommand(ship, out reason)) return false;
             if (target == null || target == ship || target.disabled || target.definition == null || target.persistentID.NotValid)
             { reason = "Choose another live unit."; return false; }
-            if (StationsFor(ship, key).Length == 0) { reason = "That weapon is not fitted."; return false; }
+            WeaponStation[] fitted = StationsFor(ship, key);
+            if (fitted.Length == 0) { reason = "That weapon is not fitted."; return false; }
             if (ship.NetworkHQ == null ||
                 (target.NetworkHQ != ship.NetworkHQ && !ship.NetworkHQ.TryGetKnownPosition(target, out _)))
             { reason = "No known position for that contact."; return false; }
+
+            WeaponInfo info = fitted[0].WeaponInfo;
+            if (Opportunity(info, target) <= 0.01f)
+            { reason = info.weaponName + " cannot engage that target type."; return false; }
+
+            // Range is advisory for an explicit order: the player may well be
+            // ordering a shot they intend to close the distance for.
+            float range = FastMath.Distance(ship.GlobalPosition(), target.GlobalPosition());
+            TargetRequirements envelope = info.targetRequirements;
+            reason = range > envelope.maxRange
+                ? "Beyond " + info.weaponName + " range (" + (range / 1000f).ToString("0.0") + " km of " + (envelope.maxRange / 1000f).ToString("0.0") + " km)."
+                : range < envelope.minRange
+                ? "Inside " + info.weaponName + " minimum range."
+                : null;
             return true;
         }
 
@@ -69,13 +93,16 @@ namespace NavalPower
         public static bool Attack(Ship ship, string key, Unit target, int count, out string reason, bool append = false)
         {
             if (!CanAttack(ship, key, target, out reason)) return false;
+            string advisory = reason;
             WeaponStation[] stations = StationsFor(ship, key);
             bool continuous = stations.Any(Continuous);
             if (continuous) count = 1;                          // Counts are a missile-only concept.
             else if (!ValidQuantity(count)) { reason = "Choose 1, 2, 4, 8 or 16."; return false; }
             if (!continuous && stations.Sum(s => Math.Max(0, s.Ammo)) < count)
             { reason = "Not enough loaded ammunition."; return false; }
-            return ShipWeapons.Ensure(ship).AddOrder(key, target, stations, count, continuous, append, out reason);
+            bool accepted = ShipWeapons.Ensure(ship).AddOrder(key, target, stations, count, continuous, append, out reason);
+            if (accepted && advisory != null) reason += " · " + advisory;
+            return accepted;
         }
 
         public static bool CeaseFire(Ship ship, out string reason)
