@@ -168,25 +168,30 @@ namespace NavalPower
             if (autopilot == null) return;
 
             float aboveGround = Mathf.Max(flight.Altitude, MinimumClearance);
-            bool followTerrain = aboveGround < 400f;
-            GlobalPosition point = AtAltitude(target, aboveGround);
-            destination = point;
 
             if (autopilot is AutopilotPlane)
             {
-                // Mirrors the native combat state's call. altitudeHold is only
-                // consulted for terrain following; otherwise the destination's
-                // own height carries the altitude. Bank is held well short of
-                // the 180 degrees the combat state allows, since this is
-                // transit rather than evasion.
+                // Fixed wing: the destination's own height carries the altitude,
+                // and altitudeHold is consulted only for terrain following.
+                // Bank is held well short of the 180 degrees the combat state
+                // allows, since this is transit rather than evasion.
+                bool followTerrain = aboveGround < 400f;
+                GlobalPosition point = AtAltitude(target, aboveGround);
+                destination = point;
                 autopilot.AutoAim(point, aimVelocity: true, ignoreCollisions: false, runwayAlign: false,
                     effort: 1f, bankAllowed: 70f, followTerrain: followTerrain,
                     altitudeHold: aboveGround, targetVelocity: Vector3.zero);
+                return;
             }
-            else
-            {
-                autopilot.AutoAim(point, 0f, Vector3.zero, Vector3.zero, followTerrain);
-            }
+
+            // Rotary and tiltwing read altitudeHold as the height to hold above
+            // the ground -- it is fed straight into TerrainWaypoint and compared
+            // against radarAlt -- so passing zero, as the fixed-wing path does,
+            // commanded a terrain waypoint at ground level and flew the
+            // helicopter into it. The native helo state passes an AGL with
+            // followTerrain set, so do the same.
+            destination = target;
+            autopilot.AutoAim(target, aboveGround, Vector3.zero, Vector3.zero, followTerrain: true);
         }
 
         // Only these autopilots actually implement an AutoAim; anything else
