@@ -53,6 +53,19 @@ namespace NavalPower
         internal void Claim() { Claimed = true; releaseFrame = -1; }
     }
 
+    // Admit only a fresh left press in unobstructed world space. Entering the
+    // map or any UI, or losing the press, cancels it until the next one.
+    internal sealed class CameraGesture
+    {
+        internal bool Dragging { get; private set; }
+
+        internal void Update(bool down, bool held, bool ready, bool blocked)
+        {
+            if (!ready || !held || blocked) { Dragging = false; return; }
+            if (down) Dragging = true;
+        }
+    }
+
     internal sealed class MapCommand : MonoBehaviour
     {
         internal static MapCommand Instance;
@@ -62,6 +75,7 @@ namespace NavalPower
 
         private int suppressEntryFrame = -1, inputFrame = -1, gestureFrame = -1;
         private readonly PointerGesture leftGesture = new PointerGesture();
+        private readonly CameraGesture cameraGesture = new CameraGesture();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>(32);
         private PointerEventData pointer;
         private EventSystem pointerEvents;
@@ -138,7 +152,24 @@ namespace NavalPower
         {
             if (gestureFrame == Time.frameCount) return;
             gestureFrame = Time.frameCount;
-            leftGesture.Update(Time.frameCount, Input.GetMouseButtonDown(0), Input.GetMouseButton(0));
+            bool down = Input.GetMouseButtonDown(0), held = Input.GetMouseButton(0);
+            leftGesture.Update(Time.frameCount, down, held);
+
+            // The world camera may only be orbited by a press that started in
+            // open world space. While the map is up, or over any of our own or
+            // the game's UI, the mouse belongs to the map, not the camera.
+            bool overOwnUi = Ui != null && (Ui.PointerInside() || Ui.PopupOpen);
+            bool ready = CommandState.Active && !DynamicMap.mapMaximized && !overOwnUi && !PointerOnForeignUi(null);
+            cameraGesture.Update(down, held, ready, leftGesture.Claimed);
+        }
+
+        // The native orbit gate is `if (!Cursor.visible)`, so "visible" means
+        // "do not orbit". The command bar keeps the cursor up permanently, so
+        // report it hidden only for a genuine world drag.
+        internal bool AllowsWorldCameraDrag()
+        {
+            UpdateGesture();
+            return CommandState.Active && cameraGesture.Dragging;
         }
 
         internal bool BlocksMapDrag() { UpdateGesture(); return leftGesture.Claimed; }
@@ -333,8 +364,13 @@ namespace NavalPower
     [HarmonyPatch(typeof(CameraOrbitState), "Inputs")]
     internal static class CameraOrbitInputPatch
     {
-        internal static bool CursorVisibleForOrbit() =>
-            !CommandState.Active ? Cursor.visible : false;
+        internal static bool CursorVisibleForOrbit()
+        {
+            MapCommand instance = MapCommand.Instance;
+            return instance == null || !CommandState.Active
+                ? Cursor.visible
+                : !instance.AllowsWorldCameraDrag();
+        }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {

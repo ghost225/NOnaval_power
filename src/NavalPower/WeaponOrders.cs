@@ -153,6 +153,13 @@ namespace NavalPower
             return false;
         }
 
+        internal static void CollectTargets(Ship ship, List<Unit> into)
+        {
+            var state = ship != null ? ship.GetComponent<ShipWeapons>() : null;
+            if (state == null) return;
+            foreach (Order order in state.orders) if (order.Target != null) into.Add(order.Target);
+        }
+
         internal static ShipWeapons Ensure(Ship ship)
         {
             var state = ship.GetComponent<ShipWeapons>();

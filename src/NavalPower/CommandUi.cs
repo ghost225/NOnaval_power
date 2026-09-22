@@ -319,9 +319,21 @@ namespace NavalPower
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0f;
 
+            BuildOverlay();
             BuildBar();
             BuildPopup();
             BuildHover();
+        }
+
+        // Drawn first so map strokes sit behind the bar and popups.
+        private void BuildOverlay()
+        {
+            var go = new GameObject("Map orders", typeof(RectTransform), typeof(MapOverlay));
+            go.transform.SetParent(root.transform, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+            go.GetComponent<MapOverlay>().raycastTarget = false;
         }
 
         private void BuildBar()
