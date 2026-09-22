@@ -1,61 +1,65 @@
-using System.Reflection;
 using HarmonyLib;
+using NuclearOption.Networking;
 
 namespace NavalPower
 {
-    // AIPilotCombatModes.AssessHQTargets runs CombatAI.ChooseHQTarget and takes
-    // whatever it likes the look of. Pilot.SetPrimaryTarget exists but nothing
-    // in the combat state ever reads it, so designating a target means pinning
-    // the state's own choice after its search.
+    // Designating a target by overwriting the combat state's currentTarget after
+    // the fact left it disagreeing with its own targetSearchResults, which still
+    // described whatever the search had picked. Downstream checks consult that
+    // result, so an attack run would set up against our target, fail a viability
+    // test against the other one, break off, and start again -- endlessly.
     //
-    // A postfix rather than a prefix: the native pass still sets up weapon
-    // state and bookkeeping, and only the choice of target is overridden.
-    [HarmonyPatch(typeof(AIPilotCombatModes), "AssessHQTargets")]
+    // Designate one level up instead. Both AIPilotCombatModes and
+    // AIHeloCombatState get their target from CombatAI.ChooseHQTarget, so
+    // replacing its result gives the state a single coherent answer: our target,
+    // with a weapon chosen for it by the game's own analyzer.
+    [HarmonyPatch(typeof(CombatAI), nameof(CombatAI.ChooseHQTarget))]
     internal static class StrikeDesignationPatch
     {
-        private static readonly FieldInfo CurrentTarget = AccessTools.Field(typeof(AIPilotCombatModes), "currentTarget");
-        private static readonly FieldInfo CurrentWeaponInfo = AccessTools.Field(typeof(AIPilotCombatModes), "currentWeaponInfo");
-        private static readonly FieldInfo TargetTracking = AccessTools.Field(typeof(AIPilotCombatModes), "currentTargetTracking");
-        private static readonly FieldInfo StateAircraft = AccessTools.Field(typeof(PilotBaseState), "aircraft");
+        internal static string Report() => "strike designation:\n  ok      CombatAI.ChooseHQTarget";
 
-        internal static string Report() =>
-            "strike designation:" +
-            Line("AIPilotCombatModes.currentTarget", CurrentTarget) +
-            Line("AIPilotCombatModes.currentWeaponInfo", CurrentWeaponInfo) +
-            Line("AIPilotCombatModes.currentTargetTracking", TargetTracking) +
-            Line("PilotBaseState.aircraft", StateAircraft);
-
-        private static string Line(string name, MemberInfo member) =>
-            "\n  " + (member != null ? "ok      " : "MISSING ") + name;
-
-        private static void Postfix(AIPilotCombatModes __instance)
+        private static void Postfix(Unit searcher, ref CombatAI.TargetSearchResults __result)
         {
-            if (CurrentTarget == null || StateAircraft == null) return;
-            if (!(StateAircraft.GetValue(__instance) is Aircraft aircraft)) return;
-
+            if (!(searcher is Aircraft aircraft)) return;
             Flight flight = FlightOrders.Of(aircraft);
             if (flight == null || flight.Mode != FlightMode.Strike) return;
+
             Unit target = flight.Target;
             if (target == null || target.disabled) return;
-            if (ReferenceEquals(CurrentTarget.GetValue(__instance), target)) return;
+            FactionHQ hq = aircraft.NetworkHQ;
+            if (hq == null) return;
+            TrackingInfo track = hq.GetTrackingData(target.persistentID);
+            if (track == null) return;
 
-            // Pick a station that can actually hurt this target rather than
-            // keeping whatever was chosen for the target we just replaced.
-            WeaponStation station = FlightOrders.BestStationFor(aircraft, target);
-            if (station != null && aircraft.weaponManager != null)
+            // Score with CombatAI's own analyzer rather than a heuristic of our
+            // own, so the station chosen is one the attack logic will agree is
+            // viable when it runs its own checks a moment later.
+            WeaponStation best = null;
+            float bestScore = 0f;
+            bool anyAmmo = false;
+            foreach (WeaponStation station in aircraft.weaponStations)
             {
-                aircraft.weaponManager.currentWeaponStation = station;
-                CurrentWeaponInfo?.SetValue(__instance, station.WeaponInfo);
+                if (station == null || station.WeaponInfo == null) continue;
+                if (station.Ammo <= 0) continue;
+                anyAmmo = true;
+                float score = CombatAI.AnalyzeTarget(station, aircraft, track).opportunity;
+                if (score <= bestScore) continue;
+                bestScore = score;
+                best = station;
             }
 
-            CurrentTarget.SetValue(__instance, target);
-            if (aircraft.NetworkHQ != null)
-                TargetTracking?.SetValue(__instance, aircraft.NetworkHQ.GetTrackingData(target.persistentID));
-            if (aircraft.weaponManager != null)
+            if (best == null)
             {
-                aircraft.weaponManager.ClearTargetList();
-                aircraft.weaponManager.AddTargetList(target);
+                // Nothing aboard can usefully attack it. Break off rather than
+                // fly runs that will never release, or quietly hit something
+                // else the search happened to prefer.
+                Plugin.Log.LogInfo("[flight] " + flight.Name + " · cannot engage " +
+                    (target.definition?.unitName ?? "target") + ", breaking off");
+                FlightOrders.BreakOff(flight);
+                return;
             }
+
+            __result = new CombatAI.TargetSearchResults(target, best, bestScore, !anyAmmo);
         }
     }
 }

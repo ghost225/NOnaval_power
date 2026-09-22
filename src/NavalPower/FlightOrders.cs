@@ -441,36 +441,12 @@ namespace NavalPower
 
         // ---- threats -------------------------------------------------------
 
-        private static readonly System.Reflection.FieldInfo HeloTarget =
-            HarmonyLib.AccessTools.Field(typeof(AIHeloCombatState), "currentTarget");
-
-        // The fixed-wing designation runs as a patch on AssessHQTargets, which
-        // the helicopter state does not have. Pin its target directly instead.
-        private static void PinHelicopterTargets()
-        {
-            if (HeloTarget == null) return;
-            foreach (Flight flight in flights)
-            {
-                if (flight.Mode != FlightMode.Strike || flight.Target == null || flight.Target.disabled) continue;
-                Pilot pilot = FirstPilot(flight.Aircraft);
-                if (pilot == null || !(pilot.currentState is AIHeloCombatState helo)) continue;
-                if (ReferenceEquals(HeloTarget.GetValue(helo), flight.Target)) continue;
-                HeloTarget.SetValue(helo, flight.Target);
-                if (flight.Aircraft.weaponManager != null)
-                {
-                    flight.Aircraft.weaponManager.ClearTargetList();
-                    flight.Aircraft.weaponManager.AddTargetList(flight.Target);
-                }
-            }
-        }
-
         private static float nextThreatScan;
 
         private static void AssessThreats()
         {
             if (Time.unscaledTime < nextThreatScan) return;
             nextThreatScan = Time.unscaledTime + 0.25f;
-            PinHelicopterTargets();
 
             foreach (Flight flight in flights)
             {
