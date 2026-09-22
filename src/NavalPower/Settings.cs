@@ -14,6 +14,9 @@ namespace NavalPower
         internal static ConfigEntry<float> MinimumClearance;
         internal static ConfigEntry<float> ThreatSettleSeconds;
         internal static ConfigEntry<bool> AutoResume;
+        internal static ConfigEntry<float> StandoffMetres;
+        internal static ConfigEntry<float> EgressSeconds;
+        internal static ConfigEntry<bool> ReattackAfterEgress;
 
         internal static ConfigEntry<bool> ShowFlightStrip;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
@@ -52,6 +55,20 @@ namespace NavalPower
                 new ConfigDescription("How long a flight's threat picture must stay clear before it resumes " +
                     "its task. Lower reacts sooner; too low and it bounces between fighting and flying.",
                     new AcceptableValueRange<float>(1f, 60f)));
+
+            StandoffMetres = config.Bind("Flights", "Egress standoff", 12000f,
+                new ConfigDescription("How far a flight opens from its target after releasing a weapon, " +
+                    "before deciding whether to attack again. Larger keeps aircraft out of defences at the " +
+                    "cost of slower repeat attacks.",
+                    new AcceptableValueRange<float>(1000f, 40000f)));
+
+            EgressSeconds = config.Bind("Flights", "Egress time limit", 45f,
+                new ConfigDescription("Give up on opening to standoff after this long and decide anyway.",
+                    new AcceptableValueRange<float>(5f, 180f)));
+
+            ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
+                "Press the attack again once clear, while ordnance remains and the target lives. " +
+                "Off means one pass per order.");
 
             ShowFlightStrip = config.Bind("Interface", "Flight strip", true,
                 "Show airborne flights as chips along the command bar.");

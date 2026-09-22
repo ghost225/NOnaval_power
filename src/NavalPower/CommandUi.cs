@@ -1020,6 +1020,7 @@ namespace NavalPower
                 case FlightMode.Orbit: return "on station";
                 case FlightMode.Station: return "escort";
                 case FlightMode.Strike: return "strike";
+                case FlightMode.Egress: return "egress";
                 case FlightMode.Engage: return "free";
                 default: return "recovering";
             }

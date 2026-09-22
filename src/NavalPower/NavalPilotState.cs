@@ -53,6 +53,7 @@ namespace NavalPower
                 case FlightMode.Route: FlyRoute(); break;
                 case FlightMode.Orbit: FlyOrbit(flight.OrbitCentre); break;
                 case FlightMode.Station: FlyStation(); break;
+                case FlightMode.Egress: Steer(flight.EgressPoint); break;
                 // Both hand the aircraft to the native combat pilot; the
                 // difference is that a strike has a designated target pinned
                 // onto it. Missing this case left nothing driving the aircraft.

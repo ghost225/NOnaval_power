@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    public enum FlightMode { Route, Orbit, Station, Strike, Engage, ReturnToBase }
+    public enum FlightMode { Route, Orbit, Station, Strike, Egress, Engage, ReturnToBase }
 
     public enum FlightRoe
     {
@@ -33,6 +33,9 @@ namespace NavalPower
         public Unit Target;                 // designated for a strike
         public FlightMode PreviousMode = FlightMode.Orbit;
         public FlightRoe Roe = FlightRoe.Tight;
+        public int AmmoAtAttack = -1;       // total rounds when the run began
+        public GlobalPosition EgressPoint;
+        public float EgressUntil;
         public FlightThreat Threat;
         public bool Interrupted;            // native pilot has it while it fights or evades
         public float ThreatClearedAt;
@@ -76,6 +79,7 @@ namespace NavalPower
                 case FlightMode.Station: return "Station on " + (Parent?.definition?.unitName ?? "ship");
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
+                case FlightMode.Egress: return "Egressing · weapons away";
                 case FlightMode.Engage: return "Weapons free · AI engaging";
                 default: return "Returning to base";
             }
@@ -197,6 +201,38 @@ namespace NavalPower
                 {
                     Plugin.Log.LogInfo("[flight] " + flight.Name + " · target destroyed, breaking off");
                     BreakOff(flight);
+                }
+
+                // A shot has left the aircraft: stop pressing.
+                if (flight.Mode == FlightMode.Strike && flight.AmmoAtAttack >= 0)
+                {
+                    int now = TotalAmmo(flight.Aircraft);
+                    if (now >= 0 && now < flight.AmmoAtAttack) Egress(flight);
+                }
+
+                if (flight.Mode == FlightMode.Egress)
+                {
+                    bool clear = flight.Target == null || flight.Target.disabled ||
+                        FastMath.Distance(flight.Aircraft.GlobalPosition(), flight.Target.GlobalPosition())
+                            >= Settings.StandoffMetres.Value;
+                    if (clear || Time.timeSinceLevelLoad >= flight.EgressUntil)
+                    {
+                        // Out of danger. Press again only with something left to
+                        // press with, and only if the target is still there.
+                        bool rearmed = flight.Target != null && !flight.Target.disabled &&
+                            BestStationFor(flight.Aircraft, flight.Target) != null &&
+                            Settings.ReattackAfterEgress.Value;
+                        if (rearmed)
+                        {
+                            Plugin.Log.LogInfo("[flight] " + flight.Name + " · re-attacking");
+                            Strike(flight, flight.Target);
+                        }
+                        else
+                        {
+                            Plugin.Log.LogInfo("[flight] " + flight.Name + " · clear of the target, resuming");
+                            BreakOff(flight);
+                        }
+                    }
                 }
                 Pilot crew = FirstPilot(flight.Aircraft);
                 if (crew != null && !crew.playerControlled && flight.Adopted)
@@ -366,11 +402,49 @@ namespace NavalPower
         public static void Strike(Flight flight, Unit target)
         {
             if (flight == null || target == null) return;
-            if (flight.Mode != FlightMode.Strike) flight.PreviousMode = flight.Mode;
+            if (flight.Mode != FlightMode.Strike && flight.Mode != FlightMode.Egress) flight.PreviousMode = flight.Mode;
             flight.Target = target;
+            flight.AmmoAtAttack = TotalAmmo(flight.Aircraft);
             flight.Route.Clear();
             flight.Mode = FlightMode.Strike;
             flight.Adopted = false;                 // let Tick hand it to the combat state
+        }
+
+        internal static int TotalAmmo(Aircraft aircraft)
+        {
+            if (aircraft == null || aircraft.weaponStations == null) return -1;
+            int total = 0;
+            foreach (WeaponStation station in aircraft.weaponStations)
+                if (station != null) total += Mathf.Max(0, station.Ammo);
+            return total;
+        }
+
+        // Weapons away: get out rather than keep closing.
+        //
+        // The native pilot presses an attack for as long as it holds the target,
+        // and pinning that target on every search means it never re-evaluates
+        // and never disengages -- so it flies down the throat of whatever is
+        // defending and dies there. Take the aircraft back once a shot is off
+        // and fly it out to standoff before deciding what to do next.
+        private static void Egress(Flight flight)
+        {
+            flight.Mode = FlightMode.Egress;
+            flight.EgressUntil = Time.timeSinceLevelLoad + Settings.EgressSeconds.Value;
+            // Out along the line from the target, toward wherever this flight
+            // belongs: its task area, or the ship that launched it.
+            GlobalPosition home = flight.Parent != null ? flight.Parent.GlobalPosition() : flight.OrbitCentre;
+            Vector3 away = home - flight.Aircraft.GlobalPosition();
+            away.y = 0f;
+            if (away.sqrMagnitude < 1f && flight.Target != null)
+            {
+                away = flight.Aircraft.GlobalPosition() - flight.Target.GlobalPosition();
+                away.y = 0f;
+            }
+            if (away.sqrMagnitude < 1f) away = flight.Aircraft.transform.forward;
+            flight.EgressPoint = flight.Aircraft.GlobalPosition() + away.normalized * Settings.StandoffMetres.Value;
+            flight.Adopted = false;                 // take it back off the native pilot
+            flight.Interrupted = false;
+            Plugin.Log.LogInfo("[flight] " + flight.Name + " · weapons away, egressing");
         }
 
         public static void BreakOff(Flight flight)
@@ -492,6 +566,7 @@ namespace NavalPower
         private static bool ShouldYield(Flight flight)
         {
             if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage) return true;
+            if (flight.Mode == FlightMode.Egress) return false;      // ours to fly, out
             // Evasion is never a choice: being shot at overrides Weapons Hold.
             if (flight.Threat == FlightThreat.Missile) return true;
             if (flight.Roe == FlightRoe.Hold) return false;
