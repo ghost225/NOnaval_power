@@ -66,7 +66,7 @@ namespace NavalPower
         // the wrong destination or simply refused to fly to the right one.
         private void Report()
         {
-            if (Time.timeSinceLevelLoad < nextReport) return;
+            if (!Settings.FlightTrace.Value || Time.timeSinceLevelLoad < nextReport) return;
             nextReport = Time.timeSinceLevelLoad + 5f;
             Vector3 offset = destination - aircraft.GlobalPosition();
             float bearing = (Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg + 360f) % 360f;
@@ -220,7 +220,7 @@ namespace NavalPower
 
         // Never command a flight lower than this above the ground, whatever is
         // selected: the autopilot needs room to arrest a descent.
-        private const float MinimumClearance = 55f;
+        private static float MinimumClearance => Settings.MinimumClearance.Value;
 
         private void HandBackToCombat(Pilot pilot)
         {

@@ -277,10 +277,11 @@ namespace NavalPower
         // again, and give a key for the case where the camera did move.
         private void TryResume()
         {
-            if (Input.GetKeyDown(KeyCode.F10))
+            if (Settings.ResumeCommand.Value.IsDown())
             {
                 var cameras = SceneSingleton<CameraStateManager>.i;
-                string why = "Follow a ship you can command, then press F10.";
+                string why = "Follow a ship you can command, then press " +
+                    Settings.ResumeCommand.Value.MainKey + ".";
                 if (GameplayReady() && cameras != null && cameras.followingUnit is Ship followed)
                 {
                     if (CommandableShip.CanCommand(followed, out string reason)) { Enter(followed); return; }
@@ -290,6 +291,7 @@ namespace NavalPower
                 return;
             }
 
+            if (!Settings.AutoResume.Value) return;
             if (lastCommanded == null || Time.frameCount == suppressEntryFrame) return;
             var camera = SceneSingleton<CameraStateManager>.i;
             if (camera == null || camera.followingUnit != lastCommanded) return;

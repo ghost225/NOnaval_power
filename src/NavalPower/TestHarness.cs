@@ -17,13 +17,11 @@ namespace NavalPower
     {
         private void Update()
         {
-            if (!MissionManager.IsRunning) return;
-            if (Input.GetKeyDown(KeyCode.F6)) Report();
-            else if (Input.GetKeyDown(KeyCode.F7)) OrderNearest();
-            else if (Input.GetKeyDown(KeyCode.F8)) Cease();
-            else if (Input.GetKeyDown(KeyCode.F9)) WaypointAhead();
-            else if (Input.GetKeyDown(KeyCode.Home)) Speed(0f);
-            else if (Input.GetKeyDown(KeyCode.End)) Speed(CommandableShip.MaximumSpeedKnots(Plugin.CommandedShip()));
+            if (!MissionManager.IsRunning || !Settings.HarnessKeys.Value) return;
+            if (Settings.ReportKey.Value.IsDown()) Report();
+            else if (Settings.OrderNearestKey.Value.IsDown()) OrderNearest();
+            else if (Settings.CeaseFireKey.Value.IsDown()) Cease();
+            else if (Settings.WaypointKey.Value.IsDown()) WaypointAhead();
         }
 
         private static Ship Require()

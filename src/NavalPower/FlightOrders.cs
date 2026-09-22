@@ -25,7 +25,7 @@ namespace NavalPower
         public FlightMode Mode = FlightMode.Orbit;
         public readonly List<GlobalPosition> Route = new List<GlobalPosition>();
         public GlobalPosition OrbitCentre;      // task area centre
-        public float OrbitRadius = 3000f;       // task area radius
+        public float OrbitRadius = 3000f;       // task area radius, overwritten on adoption
         public bool ConfineToArea = true;       // fight only inside the area
         public float Altitude = 900f;
         public Vector3 StationOffset;
@@ -127,7 +127,8 @@ namespace NavalPower
                     Parent = parent,
                     Mode = FlightMode.Orbit,
                     OrbitCentre = parent.GlobalPosition(),
-                    Altitude = 600f
+                    Altitude = Settings.DefaultAltitude.Value,
+                    OrbitRadius = Settings.DefaultAreaRadius.Value
                 };
                 flights.Add(flight);
                 return flight;
@@ -181,7 +182,8 @@ namespace NavalPower
                     Parent = request.Ship,
                     Mode = FlightMode.Orbit,
                     OrbitCentre = request.Ship.GlobalPosition(),
-                    Altitude = Mathf.Max(600f, found.radarAlt + 400f)
+                    Altitude = Settings.DefaultAltitude.Value,
+                    OrbitRadius = Settings.DefaultAreaRadius.Value
                 };
                 flights.Add(flight);
                 Plugin.Log.LogInfo("[flight] adopted " + flight.Name + " from " + (request.Ship.definition?.unitName ?? "ship"));
@@ -210,7 +212,7 @@ namespace NavalPower
                             (flight.Threat == FlightThreat.Missile ? "evading" : "engaging"));
                     }
                     else if (!yield && flight.Interrupted &&
-                             Time.unscaledTime - flight.ThreatClearedAt > 8f)
+                             Time.unscaledTime - flight.ThreatClearedAt > Settings.ThreatSettleSeconds.Value)
                     {
                         // Settle before taking it back, or it yo-yos between
                         // states every time a threat flickers in and out.

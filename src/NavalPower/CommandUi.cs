@@ -987,7 +987,7 @@ namespace NavalPower
         private void RefreshStrip()
         {
             List<Flight> airborne = FlightOrders.For(CommandState.Ship);
-            bool any = airborne.Count > 0;
+            bool any = airborne.Count > 0 && Settings.ShowFlightStrip.Value;
             bar.sizeDelta = new Vector2(0, any ? Theme.BarHeight + 40f : Theme.BarHeight);
             Place(feedbackLabel.rectTransform, 16, any ? 186 : 146, 1888, 22);
             flightStrip.gameObject.SetActive(any);

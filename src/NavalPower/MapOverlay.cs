@@ -200,7 +200,8 @@ namespace NavalPower
 
             // Anything in the pattern for our deck, so the recovery picture is
             // visible without opening a panel.
-            foreach (DeckMovement movement in DeckTraffic.Movements(ship))
+            foreach (DeckMovement movement in Settings.ShowRecoveryTracks.Value
+                ? DeckTraffic.Movements(ship) : new List<DeckMovement>())
             {
                 if (movement.Phase != TrafficPhase.Recovering || movement.Aircraft == null) continue;
                 Vector2 inbound = Project(movement.Aircraft.GlobalPosition());

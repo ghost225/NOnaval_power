@@ -23,6 +23,7 @@ namespace NavalPower
             Log = Logger;
             try
             {
+                Settings.Bind(Config);
                 harmony = new Harmony(Id);
                 harmony.PatchAll(typeof(Plugin).Assembly);
                 gameObject.AddComponent<TestHarness>();

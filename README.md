@@ -135,16 +135,33 @@ a turret whose current pick is not sanctioned has it cleared and is held manual.
 
 Mounts carrying an explicit order are left alone by the policy.
 
+## Configuration
+
+Settings appear in BepInEx ConfigurationManager (F1 by default) under *Naval
+Power*, and are written to `BepInEx/config/com.navalpower.nuclearoption.cfg`.
+
+- **Command** — the resume key, and whether command returns on its own after
+  the pause menu.
+- **Flights** — default altitude and task area radius for a new flight,
+  minimum ground clearance, and how long a threat must stay clear before a
+  flight resumes its task.
+- **Interface** — the flight strip and recovery tracks.
+- **Diagnostics** — the five-second flight trace, off by default, and the
+  keyboard test harness.
+
 ## Test harness keys
+
+Off by default; enable under Diagnostics. Superseded by the command interface
+and kept for diagnosis.
+
 
 Follow a friendly ship with the spectator camera, then:
 
 | Key | Action |
 | --- | --- |
 | `F6` | Report ship state: AI type, speed, throttle, weapons, turret targets |
-| `F7` | Order the first ready weapon at the nearest hostile |
+| `F7` | Order the best available weapon at the best available target |
 | `F8` | Cease fire |
 | `F9` | Waypoint 5 km off the bow |
-| `Home` / `End` | All stop / ahead flank |
 
 Output goes to `BepInEx/LogOutput.log`.
