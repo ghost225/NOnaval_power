@@ -9,6 +9,21 @@ namespace NavalPower
     // hovering a contact reveals nothing the HQ has not observed.
     internal static class TrackReadout
     {
+        internal static string DescribeEsm(Ship ship, EsmContact contact)
+        {
+            var text = new System.Text.StringBuilder();
+            text.Append("ESM ").Append(contact.Id).Append("  ·  ").Append(contact.Type);
+            if (contact.Stale) text.Append("  ·  STALE");
+            text.Append("\nBearing ").Append(contact.BearingDegrees.ToString("000")).Append("°  ·  estimated range ")
+                .Append((contact.RangeMetres / 1852f).ToString("0.0")).Append(" nm");
+            text.Append("\nLast heard ").Append(contact.AgeSeconds.ToString("0")).Append(" s ago");
+            text.Append("\nUncertainty ±").Append((contact.RadialUncertaintyMetres / 1852f).ToString("0.0"))
+                .Append(" nm along bearing · ±").Append((contact.CrossRangeUncertaintyMetres / 1852f).ToString("0.0"))
+                .Append(" nm across");
+            text.Append("\nPassive bearing only · not a fire-control track");
+            return text.ToString();
+        }
+
         internal static string Describe(Ship ship, Unit contact, WeaponCommandInfo weapon)
         {
             if (ship == null || contact == null) return "";

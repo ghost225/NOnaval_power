@@ -143,9 +143,13 @@ namespace NavalPower
         private void RefreshHover()
         {
             Unit unit = MapCommand.Instance?.HoverUnit;
-            if (unit == null || unit == CommandState.Ship) { hover.gameObject.SetActive(false); return; }
+            EsmContact estimate = MapCommand.Instance?.HoverEsm;
+            if (estimate == null && (unit == null || unit == CommandState.Ship))
+            { hover.gameObject.SetActive(false); return; }
             hover.gameObject.SetActive(true);
-            hoverText.text = TrackReadout.Describe(CommandState.Ship, unit, CommandState.SelectedWeapon());
+            hoverText.text = estimate != null
+                ? TrackReadout.DescribeEsm(CommandState.Ship, estimate)
+                : TrackReadout.Describe(CommandState.Ship, unit, CommandState.SelectedWeapon());
             Vector2 size = new Vector2(Mathf.Max(260f, hoverText.preferredWidth + 24f), hoverText.preferredHeight + 18f);
             hover.sizeDelta = size;
             Vector2 point = Input.mousePosition;
@@ -253,12 +257,32 @@ namespace NavalPower
             Row("Close", 8, ClosePopup);
         }
 
+        internal void OpenEsmContext(Vector2 screenPosition, EsmContact contact)
+        {
+            popupKey = "esm";
+            StartPopup("ESM " + contact.Id + " · " + contact.Type, screenPosition, 3);
+            Row("Steer toward this bearing", 1, () =>
+            {
+                NavigationOrders.ReplaceWaypoint(CommandState.Ship, contact.Position, out string reason);
+                CommandState.Say(reason);
+                ClosePopup();
+            });
+            Row("Append leg toward bearing", 2, () =>
+            {
+                NavigationOrders.AppendWaypoint(CommandState.Ship, contact.Position, out string reason);
+                CommandState.Say(reason);
+                ClosePopup();
+            });
+            Row("Close", 3, ClosePopup);
+        }
+
         private void SensorMenu()
         {
             SensorSnapshot[] sensors = Sensors.GetSensors(CommandState.Ship);
             bool silent = Sensors.IsSilent(CommandState.Ship);
             StartPopup((silent ? "Sensors · EMCON SILENT" : "Sensors") +
                 "   ·   own tracks " + TrackPicture.OwnCount(CommandState.Ship) +
+                "   ·   ESM " + Esm.GetContacts(CommandState.Ship).Length +
                 (silent ? "   (picture is datalink only)" : ""),
                 null, sensors.Length + 3);
             Row("EMCON · all emitters silent", 1, () =>

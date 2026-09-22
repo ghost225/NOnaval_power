@@ -17,6 +17,8 @@ namespace NavalPower
         private static readonly Color RadarColor = new Color(0.45f, 0.95f, 0.6f, 0.4f);
         private static readonly Color OwnTrackColor = new Color(0.45f, 0.95f, 0.6f, 0.85f);
         private static readonly Color DatalinkColor = new Color(0.55f, 0.7f, 1f, 0.7f);
+        private static readonly Color EsmColor = new Color(1f, 0.62f, 0.2f, 0.92f);
+        private static readonly Color EsmStaleColor = new Color(1f, 0.62f, 0.2f, 0.42f);
 
         private DynamicMap map;
         private Rect clip;
@@ -94,6 +96,42 @@ namespace NavalPower
                 }
             }
 
+            // Passive emission estimates. Symbol by emitter family, sized error
+            // ellipse on the one under the cursor -- these are bearings, not fixes.
+            EsmContact hoveredEsm = MapCommand.Instance?.HoverEsm;
+            foreach (EsmContact contact in Esm.GetContacts(ship))
+            {
+                Vector2 point = Project(contact.Position);
+                Color color = contact.Stale ? EsmStaleColor : EsmColor;
+                switch (contact.Class)
+                {
+                    case EmitterClass.Airborne:            // caret, pointing up
+                        Line(vh, point + new Vector2(-7f, -4f), point + new Vector2(0f, 7f), color, 2f);
+                        Line(vh, point + new Vector2(0f, 7f), point + new Vector2(7f, -4f), color, 2f);
+                        break;
+                    case EmitterClass.Land:                // square, planted
+                        Line(vh, point + new Vector2(-6f, -6f), point + new Vector2(6f, -6f), color, 2f);
+                        Line(vh, point + new Vector2(6f, -6f), point + new Vector2(6f, 6f), color, 2f);
+                        Line(vh, point + new Vector2(6f, 6f), point + new Vector2(-6f, 6f), color, 2f);
+                        Line(vh, point + new Vector2(-6f, 6f), point + new Vector2(-6f, -6f), color, 2f);
+                        break;
+                    default:                               // surface: hull-ish half diamond
+                        Line(vh, point + new Vector2(-7f, 0f), point + new Vector2(0f, -6f), color, 2f);
+                        Line(vh, point + new Vector2(0f, -6f), point + new Vector2(7f, 0f), color, 2f);
+                        Line(vh, point + new Vector2(7f, 0f), point + new Vector2(-7f, 0f), color, 2f);
+                        break;
+                }
+                // A short stub back down the measured bearing, so the geometry
+                // of the estimate is visible rather than implied.
+                float radians = contact.BearingDegrees * Mathf.Deg2Rad;
+                Vector2 inward = new Vector2(-Mathf.Sin(radians), -Mathf.Cos(radians));
+                Line(vh, point + inward * 10f, point + inward * 22f, color, 1.2f);
+
+                if (hoveredEsm != null && hoveredEsm.Id == contact.Id)
+                    Ellipse(vh, contact.Position, contact.RadialUncertaintyMetres,
+                        contact.CrossRangeUncertaintyMetres, contact.BearingDegrees, color);
+            }
+
             Unit hovered = MapCommand.Instance?.HoverUnit;
             if (hovered != null && hovered != ship && ship.NetworkHQ != null &&
                 ship.NetworkHQ.TryGetKnownPosition(hovered, out GlobalPosition known))
@@ -164,6 +202,26 @@ namespace NavalPower
                 float angle = i * Mathf.PI * 2f / segments;
                 Vector2 point = Project(center + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
                 Line(vh, previous, point, color, 1.6f);
+                previous = point;
+            }
+        }
+
+        // Error ellipse: long axis along the measured bearing, short across it.
+        private void Ellipse(VertexHelper vh, GlobalPosition centre, float radial, float crossRange,
+            float bearingDegrees, Color color)
+        {
+            if (radial <= 0f || crossRange <= 0f) return;
+            float bearing = bearingDegrees * Mathf.Deg2Rad;
+            Vector3 along = new Vector3(Mathf.Sin(bearing), 0f, Mathf.Cos(bearing));
+            Vector3 across = new Vector3(along.z, 0f, -along.x);
+            const int segments = 72;
+            Vector2 previous = Project(centre + along * radial);
+            for (int i = 1; i <= segments; i++)
+            {
+                float angle = i * Mathf.PI * 2f / segments;
+                Vector3 offset = along * (Mathf.Cos(angle) * radial) + across * (Mathf.Sin(angle) * crossRange);
+                Vector2 point = Project(centre + offset);
+                Line(vh, previous, point, color, 1.4f);
                 previous = point;
             }
         }

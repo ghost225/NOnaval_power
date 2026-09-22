@@ -82,6 +82,8 @@ namespace NavalPower
         private float pickedUnitDistance;
 
         internal Unit HoverUnit { get; private set; }
+        internal EsmContact HoverEsm { get; private set; }
+        private float pickedEsmDistance;
         internal CommandUi Ui;
 
         private void Awake() { Instance = this; }
@@ -115,6 +117,7 @@ namespace NavalPower
             CommandState.Ship = ship;
             CommandState.SelectedKey = null;
             CommandState.Quantity = 1;
+            Esm.Configure(ship);
             CursorManager.SetFlag(CommandCursor, true);
             CommandState.Say("Command active · right-click map: waypoint · shift: append · right-click contact: menu");
         }
@@ -207,6 +210,9 @@ namespace NavalPower
             }
 
             Unit pointed = onMap ? PickMapUnit(map) : PickWorldUnit();
+            EsmContact estimate = onMap ? PickEsm(map) : null;
+            if (estimate != null && (pointed == null || pickedEsmDistance < pickedUnitDistance)) pointed = null;
+            else estimate = null;
 
             if (left)
             {
@@ -217,6 +223,8 @@ namespace NavalPower
             if (PointerOnForeignUi(onMap ? map : null)) return;
             Ui?.ClosePopup();
             bool append = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+            if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }
 
             RightClickAction action = InputPolicy.RightClick(CommandState.Active, onMap,
                 pointed != null, CommandState.Armed, append);
@@ -251,6 +259,32 @@ namespace NavalPower
             bool canHover = map != null && DynamicMap.mapMaximized && map.IsCursorInMapRectangle() &&
                 (Ui == null || !Ui.PointerInside()) && !PointerOnForeignUi(map);
             HoverUnit = canHover ? PickMapUnit(map) : null;
+            HoverEsm = canHover ? PickEsm(map) : null;
+            // Whichever symbol the cursor is actually nearer to wins.
+            if (HoverUnit != null && HoverEsm != null)
+            {
+                if (pickedEsmDistance < pickedUnitDistance) HoverUnit = null; else HoverEsm = null;
+            }
+        }
+
+        internal EsmContact PickEsm(DynamicMap map)
+        {
+            pickedEsmDistance = float.PositiveInfinity;
+            if (map == null || map.mapImage == null || CommandState.Ship == null) return null;
+            EsmContact nearest = null;
+            float distance = 24f * 24f;
+            float factor = 900f * map.mapImage.transform.lossyScale.x / map.mapDimension;
+            foreach (EsmContact contact in Esm.GetContacts(CommandState.Ship))
+            {
+                Vector2 screen = map.mapImage.transform.position +
+                    new Vector3(contact.Position.x, contact.Position.z, 0f) * factor;
+                float d = ((Vector2)Input.mousePosition - screen).sqrMagnitude;
+                if (d >= distance) continue;
+                distance = d;
+                nearest = contact;
+            }
+            if (nearest != null) pickedEsmDistance = distance;
+            return nearest;
         }
 
         private Unit PickMapUnit(DynamicMap map)
