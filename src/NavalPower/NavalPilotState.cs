@@ -170,15 +170,23 @@ namespace NavalPower
         // Ground clearance at the destination, the way Autopilot.TerrainWaypoint
         // does it: sample terrain, fall back to sea level, then add the ordered
         // height above it.
-        private static GlobalPosition AtAltitude(GlobalPosition point, float aboveGround)
+        //
+        // GlobalPosition is a large-world coordinate and is NOT interchangeable
+        // with transform.position -- building a Vector3 from its components and
+        // calling ToGlobalPosition converts a second time, displacing every
+        // destination by the floating-origin offset. Convert through a delta
+        // from the aircraft, and return the point raised in its own space.
+        private GlobalPosition AtAltitude(GlobalPosition point, float aboveGround)
         {
+            Vector3 world = aircraft.transform.position + (point - aircraft.GlobalPosition());
             float ground = Datum.LocalSeaY;
-            if (Physics.Linecast(new Vector3(point.x, ground + 5000f, point.z),
-                                 new Vector3(point.x, ground - 5000f, point.z),
+            if (Physics.Linecast(new Vector3(world.x, ground + 5000f, world.z),
+                                 new Vector3(world.x, ground - 5000f, world.z),
                                  out RaycastHit hit,
                                  (int)PhysicsLayers.StaticsMask | (int)PhysicsLayers.ExclusionZonesMask))
                 ground = Mathf.Max(hit.point.y, Datum.LocalSeaY);
-            return new Vector3(point.x, ground + Mathf.Max(aboveGround, MinimumClearance), point.z).ToGlobalPosition();
+            float wanted = ground + Mathf.Max(aboveGround, MinimumClearance);
+            return point + Vector3.up * (wanted - world.y);
         }
 
         // Never command a flight lower than this above the ground, whatever is
