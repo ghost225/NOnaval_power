@@ -27,6 +27,14 @@ namespace NavalPower
         private bool updatingSlider;
         private float nextRefresh;
 
+        private RectTransform damagePanel;
+        private Text damageHeader;
+        private readonly List<Button> damageRows = new List<Button>();
+        private readonly List<Text> damageLabels = new List<Text>();
+        private readonly List<int> damageIds = new List<int>();
+        private const int DamageRows = 16;
+        private bool damageOpen;
+
         private Unit contextTarget;
         private bool contextAppend;
         private string popupKey;
@@ -89,6 +97,7 @@ namespace NavalPower
 
             RefreshWeapons();
             RefreshQuantities();
+            RefreshDamage();
             EngagementMode mode = EngagementPolicy.GetMode(ship);
             for (int i = 0; i < roeButtons.Count; i++)
                 roeButtons[i].image.color = (EngagementMode)i == mode ? SelectedColor : ButtonColor;
@@ -362,6 +371,7 @@ namespace NavalPower
 
             BuildOverlay();
             BuildBar();
+            BuildDamagePanel();
             BuildPopup();
             BuildHover();
         }
@@ -389,6 +399,7 @@ namespace NavalPower
             Place(shipLabel.rectTransform, 16, 8, 560, 28);
             statusLabel = Label(bar, "", 16, TextAnchor.MiddleLeft, MutedColor);
             Place(statusLabel.rectTransform, 588, 8, 900, 28);
+            MakeButton(bar, "Damage", 1382, 8, 104, 30, () => { damageOpen = !damageOpen; Refresh(); });
             MakeButton(bar, "Sensors / EMCON", 1496, 8, 170, 30, () => TogglePopup("sensors", SensorMenu));
             Button exit = MakeButton(bar, "Exit command", 1740, 8, 164, 30,
                 () => MapCommand.Instance?.LeaveForNativeFlow());
@@ -451,6 +462,111 @@ namespace NavalPower
 
             feedbackLabel = Label(bar, "", 16, TextAnchor.MiddleLeft, MutedColor);
             Place(feedbackLabel.rectTransform, 16, 128, 1880, 28);
+        }
+
+        private void BuildDamagePanel()
+        {
+            damagePanel = Box("Damage control", (RectTransform)root.transform, Background);
+            damagePanel.anchorMin = new Vector2(1, 0); damagePanel.anchorMax = new Vector2(1, 1);
+            damagePanel.pivot = new Vector2(1, 0);
+            damagePanel.sizeDelta = new Vector2(520, -240);
+            damagePanel.anchoredPosition = new Vector2(-12, 178);
+
+            damageHeader = Label(damagePanel, "", 15, TextAnchor.UpperLeft, MutedColor);
+            Place(damageHeader.rectTransform, 12, 8, 496, 76);
+            damageHeader.verticalOverflow = VerticalWrapMode.Overflow;
+
+            MakeButton(damagePanel, "DC: work whole ship", 12, 88, 240, 28, () =>
+            {
+                DamageControl.ClearPriorities(CommandState.Ship, out string reason);
+                CommandState.Say(reason);
+            });
+            MakeButton(damagePanel, "Close", 400, 88, 108, 28, () => { damageOpen = false; Refresh(); });
+
+            for (int i = 0; i < DamageRows; i++)
+            {
+                int index = i;
+                Button button = MakeButton(damagePanel, "", 8, 122 + i * 34, 504, 30, () => ToggleCompartment(index));
+                damageRows.Add(button);
+                damageLabels.Add(button.GetComponentInChildren<Text>());
+                damageLabels[i].alignment = TextAnchor.MiddleLeft;
+            }
+            damagePanel.gameObject.SetActive(false);
+        }
+
+        private void ToggleCompartment(int row)
+        {
+            if (row >= damageIds.Count) return;
+            bool seal = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            string reason;
+            if (seal) DamageControl.SealCompartment(CommandState.Ship, damageIds[row], out reason);
+            else DamageControl.TogglePriority(CommandState.Ship, damageIds[row], out reason);
+            CommandState.Say(reason);
+            Refresh();
+        }
+
+        private void RefreshDamage()
+        {
+            if (damagePanel == null) return;
+            damagePanel.gameObject.SetActive(damageOpen);
+            if (!damageOpen) return;
+
+            DamageSnapshot damage = DamageControl.GetSnapshot(CommandState.Ship);
+            damageIds.Clear();
+
+            float pool = damage.DamageControlPoolMax > 0.01f
+                ? Mathf.Clamp01(damage.DamageControlPool / damage.DamageControlPoolMax) * 100f : 0f;
+            damageHeader.text = damage.ShipState +
+                "\nDamage control reserve " + pool.ToString("0") + "%" +
+                "   ·   list " + damage.ListDegrees.ToString("0.0") + "°   ·   trim " + damage.TrimDegrees.ToString("0.0") + "°" +
+                "\nFlooding " + damage.Flooding + "   ·   critical " + damage.Critical + "   ·   lost " + damage.Lost +
+                "\nClick: prioritise damage control   ·   shift-click: seal off";
+
+            // Worst first: a list of forty sound compartments helps nobody.
+            var ordered = new List<CompartmentSnapshot>(damage.Compartments);
+            ordered.Sort((a, b) => Severity(b).CompareTo(Severity(a)));
+
+            int rows = 0;
+            foreach (CompartmentSnapshot compartment in ordered)
+            {
+                if (rows >= DamageRows) break;
+                if (Severity(compartment) <= 0f) continue;
+                damageIds.Add(compartment.Id);
+                string flooded = float.IsNaN(compartment.FloodedPercent) ? "" :
+                    compartment.FloodedPercent > 0.5f ? "  ·  " + compartment.FloodedPercent.ToString("0") + "% flooded" : "";
+                string integrity = float.IsNaN(compartment.IntegrityPercent) ? "" :
+                    "  ·  hull " + compartment.IntegrityPercent.ToString("0") + "%";
+                damageLabels[rows].text = (compartment.Priority ? "▲ " : "") + compartment.Name +
+                    "  ·  " + compartment.State + integrity + flooded;
+                damageLabels[rows].color = compartment.Submerged || compartment.Detached || compartment.Removed ? MutedColor
+                    : compartment.LeakRate > 0.01f ? new Color(1f, 0.62f, 0.4f) : TextColor;
+                damageRows[rows].image.color = compartment.Priority ? SelectedColor : ButtonColor;
+                damageRows[rows].gameObject.SetActive(true);
+                rows++;
+            }
+            if (rows == 0 && damageIds.Count == 0)
+            {
+                damageLabels[0].text = "No damage.";
+                damageLabels[0].color = MutedColor;
+                damageRows[0].image.color = ButtonColor;
+                damageRows[0].gameObject.SetActive(true);
+                rows = 1;
+            }
+            for (int i = rows; i < DamageRows; i++) damageRows[i].gameObject.SetActive(false);
+        }
+
+        // Ordering weight: flooding outranks structural damage, because
+        // flooding is what capsizes the ship.
+        private static float Severity(CompartmentSnapshot c)
+        {
+            if (c.Removed || c.Detached) return 20f;
+            float score = 0f;
+            if (c.LeakRate > 0.01f) score += 100f + c.LeakRate;
+            if (!float.IsNaN(c.FloodedPercent)) score += c.FloodedPercent;
+            if (c.Submerged) score += 60f;
+            if (c.Sealed) score += 30f;
+            if (!float.IsNaN(c.IntegrityPercent)) score += 100f - c.IntegrityPercent;
+            return score;
         }
 
         private void BuildPopup()
