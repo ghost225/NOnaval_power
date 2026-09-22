@@ -5,13 +5,16 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    public enum TrafficPhase { Queued, Launching, Recovering }
+    // Ordered by how close each is to being off the deck, which is also the
+    // order they appear in and the basis for counting what is ahead.
+    public enum TrafficPhase { Launching, Queued, Recovering }
 
     public sealed class DeckMovement
     {
         public TrafficPhase Phase;
         public string Name;
         public string Detail;
+        public int Ahead = -1;          // movements that must clear first; -1 when not queued
         public Aircraft Aircraft;       // null for a launch we have only requested
         public float RangeMetres;
         public bool Ours;
@@ -49,6 +52,7 @@ namespace NavalPower
             var rows = new List<DeckMovement>();
             Airbase deck = CarrierOps.Deck(ship);
             if (deck == null || ship.NetworkHQ == null) return rows;
+            Hangars(ship, out int ready, out _);
 
             // Our own requested launches that have not appeared yet.
             foreach (string waiting in FlightOrders.PendingNames(ship))
@@ -107,6 +111,24 @@ namespace NavalPower
                 int phase = a.Phase.CompareTo(b.Phase);
                 return phase != 0 ? phase : a.RangeMetres.CompareTo(b.RangeMetres);
             });
+
+            // There is no readable queue -- the hangar's is an async state
+            // machine -- but what has to clear the deck first is observable:
+            // everything already rolling, plus whatever we asked for earlier.
+            int launching = 0;
+            foreach (DeckMovement movement in rows)
+                if (movement.Phase == TrafficPhase.Launching) launching++;
+
+            int queuedSoFar = 0;
+            foreach (DeckMovement movement in rows)
+            {
+                if (movement.Phase != TrafficPhase.Queued) continue;
+                movement.Ahead = launching + queuedSoFar;
+                queuedSoFar++;
+                movement.Detail = movement.Ahead == 0
+                    ? (ready > 0 ? "next off the deck" : "waiting for a hangar")
+                    : movement.Ahead + " ahead";
+            }
             return rows;
         }
 

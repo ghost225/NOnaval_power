@@ -127,6 +127,20 @@ namespace NavalPower
             if (CommandState.SelectedFlight != null)
                 SetPill(trackPill, "TASKING " + CommandState.SelectedFlight.Name.ToUpperInvariant(), Theme.Accent);
 
+            if (CarrierOps.HasDeck(ship))
+            {
+                int queued = 0, launching = 0, recovering = 0;
+                foreach (DeckMovement movement in DeckTraffic.Movements(ship))
+                {
+                    if (movement.Phase == TrafficPhase.Queued) queued++;
+                    else if (movement.Phase == TrafficPhase.Launching) launching++;
+                    else recovering++;
+                }
+                if (queued + launching + recovering > 0)
+                    statusLabel.text = "DECK  ·  " + queued + " queued, " + launching + " launching, " +
+                        recovering + " recovering   ·   " + statusLabel.text;
+            }
+
             string say = CommandState.Feedback;
             feedbackLabel.text = say ?? ((nav != null ? nav.Status + "  ·  " : "") +
                 (CommandState.Armed
