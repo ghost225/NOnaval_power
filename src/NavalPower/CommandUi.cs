@@ -11,13 +11,6 @@ namespace NavalPower
     // hover readout, and the context menus that map clicks open.
     internal sealed class CommandUi : MonoBehaviour
     {
-        private static readonly Color Background = new Color(0.075f, 0.095f, 0.12f, 0.96f);
-        private static readonly Color PopupBackground = new Color(0.06f, 0.08f, 0.10f, 0.98f);
-        private static readonly Color ButtonColor = new Color(0.15f, 0.19f, 0.23f, 1f);
-        private static readonly Color SelectedColor = new Color(0.13f, 0.42f, 0.48f, 1f);
-        private static readonly Color DangerColor = new Color(0.46f, 0.20f, 0.17f, 1f);
-        private static readonly Color TextColor = new Color(0.89f, 0.93f, 0.94f, 1f);
-        private static readonly Color MutedColor = new Color(0.62f, 0.68f, 0.72f, 1f);
 
         private Font font;
         private GameObject root;
@@ -79,8 +72,24 @@ namespace NavalPower
             if (ship == null) return;
 
             shipLabel.text = ship.definition?.unitName ?? ship.name;
-            statusLabel.text = (Sensors.IsSilent(ship) ? "EMCON SILENT  ·  " : "") +
-                "own tracks " + TrackPicture.OwnCount(ship) + "  ·  " + WeaponOrders.GetStatus(ship);
+            statusLabel.text = WeaponOrders.GetStatus(ship);
+
+            bool silent = Sensors.IsSilent(ship);
+            SetPill(emconPill, silent ? "EMCON SILENT" : "RADIATING", silent ? Theme.Good : Theme.Warn);
+
+            EngagementMode roe = EngagementPolicy.GetMode(ship);
+            SetPill(roePill, EngagementPolicy.Describe(roe).ToUpperInvariant(),
+                roe == EngagementMode.WeaponsFree ? Theme.Bad : roe == EngagementMode.WeaponsTight ? Theme.Warn : Theme.Good);
+
+            DamageSnapshot damage = DamageControl.GetSnapshot(ship);
+            float reserve = damage.DamageControlPoolMax > 0.01f
+                ? Mathf.Clamp01(damage.DamageControlPool / damage.DamageControlPoolMax) * 100f : 100f;
+            SetPill(damagePill, "DC " + reserve.ToString("0") + "%", Theme.Scale(reserve));
+
+            int own = TrackPicture.OwnCount(ship);
+            int esm = Esm.GetContacts(ship).Length;
+            SetPill(trackPill, own + " OWN  ·  " + esm + " ESM",
+                own > 0 ? Theme.OwnTrack : esm > 0 ? Theme.Passive : Theme.TextMuted);
 
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             if (nav != null)
@@ -105,7 +114,7 @@ namespace NavalPower
             RefreshDamage();
             EngagementMode mode = EngagementPolicy.GetMode(ship);
             for (int i = 0; i < roeButtons.Count; i++)
-                roeButtons[i].image.color = (EngagementMode)i == mode ? SelectedColor : ButtonColor;
+                roeButtons[i].image.color = (EngagementMode)i == mode ? Theme.AccentFill : Theme.Control;
         }
 
         private void RefreshWeapons()
@@ -128,7 +137,10 @@ namespace NavalPower
                 weaponKeys.Add(weapon.Key);
                 weaponLabels[i].text = weapon.Name + "\n" + weapon.Readiness +
                     (weapon.Continuous ? " · continuous" : " · " + weapon.Ammo);
-                weaponButtons[i].image.color = weapon.Key == CommandState.SelectedKey ? SelectedColor : ButtonColor;
+                bool selected = weapon.Key == CommandState.SelectedKey;
+                weaponButtons[i].image.color = selected ? Theme.AccentFill : Theme.Control;
+                weaponLabels[i].color = weapon.Readiness == "Ready" ? (selected ? Theme.Text : Theme.Text)
+                    : weapon.Readiness == "Reloading" ? Theme.Warn : Theme.TextFaint;
             }
         }
 
@@ -139,7 +151,7 @@ namespace NavalPower
             for (int i = 0; i < quantityButtons.Count; i++)
             {
                 quantityButtons[i].gameObject.SetActive(relevant);
-                quantityButtons[i].image.color = Counts[i] == CommandState.Quantity ? SelectedColor : ButtonColor;
+                quantityButtons[i].image.color = Counts[i] == CommandState.Quantity ? Theme.AccentFill : Theme.Control;
             }
         }
 
@@ -231,7 +243,7 @@ namespace NavalPower
                         foreach (WeaponCommandInfo w in WeaponOrders.GetWeapons(CommandState.Ship)) weaponKeys.Add(w.Key);
                         SelectWeapon(index, contextTarget);
                     });
-                if (!capable) row.GetComponentInChildren<Text>().color = MutedColor;
+                if (!capable) row.GetComponentInChildren<Text>().color = Theme.TextFaint;
             }
             Row("Close", weapons.Length + 1, ClosePopup);
         }
@@ -317,7 +329,7 @@ namespace NavalPower
             {
                 LoadoutStation station = plan.Stations[i];
                 Button row = Row(station.Name + "   ·   " + station.SelectedName, i + 1, () => StationMenu(station));
-                if (station.Selected == null) row.GetComponentInChildren<Text>().color = MutedColor;
+                if (station.Selected == null) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
             Row("LAUNCH  ·  " + plan.Summary(), plan.Stations.Count + 1, () =>
             {
@@ -384,8 +396,12 @@ namespace NavalPower
                     CommandState.Say(reason);
                     SensorMenu();
                 });
-                if (!sensor.Operational || !sensor.IsEmitter)
-                    row.GetComponentInChildren<Text>().color = MutedColor;
+                row.GetComponentInChildren<Text>().color =
+                    !sensor.Operational ? Theme.TextFaint
+                    : !sensor.IsEmitter ? Theme.Datalink
+                    : sensor.Jammed ? Theme.Bad
+                    : sensor.Active ? Theme.Warn      // radiating is a risk, not a success
+                    : Theme.Good;                      // silent is the safe state
             }
             Row("Close", sensors.Length + 3, ClosePopup);
         }
@@ -422,8 +438,10 @@ namespace NavalPower
                 Mathf.Clamp(target.x, 0f, Mathf.Max(0f, Screen.width - 392f)),
                 Mathf.Clamp(target.y, height, Screen.height));
             placed = true;
-            Text header = Label(popup, title, 17, TextAnchor.MiddleLeft);
-            Place(header.rectTransform, 12, 8, 368, 30);
+            Text header = Label(popup, title, Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
+            Place(header.rectTransform, 12, 9, 368, 26);
+            RectTransform rule = Box("rule", popup, Theme.Divider);
+            Place(rule, 8, 37, 376, 1f);
         }
 
         private Button Row(string label, int row, Action action) =>
@@ -488,27 +506,45 @@ namespace NavalPower
             go.GetComponent<MapOverlay>().raycastTarget = false;
         }
 
+        private Text emconPill, roePill, damagePill, trackPill;
+
         private void BuildBar()
         {
-            bar = Box("Command bar", (RectTransform)root.transform, Background);
+            bar = Box("Command bar", (RectTransform)root.transform, Theme.Surface);
             bar.anchorMin = new Vector2(0, 0); bar.anchorMax = new Vector2(1, 0);
             bar.pivot = new Vector2(0.5f, 0);
-            bar.sizeDelta = new Vector2(0, 166);
+            bar.sizeDelta = new Vector2(0, Theme.BarHeight);
             bar.anchoredPosition = Vector2.zero;
 
-            shipLabel = Label(bar, "", 20, TextAnchor.MiddleLeft);
-            Place(shipLabel.rectTransform, 16, 8, 560, 28);
-            statusLabel = Label(bar, "", 16, TextAnchor.MiddleLeft, MutedColor);
-            Place(statusLabel.rectTransform, 588, 8, 900, 28);
-            MakeButton(bar, "Flight deck", 1252, 8, 124, 30, () => TogglePopup("deck", DeckMenu));
-            MakeButton(bar, "Damage", 1382, 8, 104, 30, () => { damageOpen = !damageOpen; Refresh(); });
-            MakeButton(bar, "Sensors / EMCON", 1496, 8, 170, 30, () => TogglePopup("sensors", SensorMenu));
-            Button exit = MakeButton(bar, "Exit command", 1740, 8, 164, 30,
-                () => MapCommand.Instance?.LeaveForNativeFlow());
+            // A hairline along the top edge separates the bar from the world
+            // without drawing a box around everything.
+            RectTransform edge = Box("edge", bar, Theme.Dim(Theme.Accent, 0.5f));
+            edge.anchorMin = new Vector2(0, 1); edge.anchorMax = new Vector2(1, 1);
+            edge.pivot = new Vector2(0.5f, 1);
+            edge.sizeDelta = new Vector2(0, 2f);
+            edge.anchoredPosition = Vector2.zero;
 
-            speedLabel = Label(bar, "", 17, TextAnchor.MiddleLeft);
-            Place(speedLabel.rectTransform, 16, 44, 330, 30);
-            speedSlider = MakeSlider(bar, 352, 52, 300, 18);
+            // Band A: identity and standing status.
+            shipLabel = Label(bar, "", Theme.TitleSize, TextAnchor.MiddleLeft);
+            Place(shipLabel.rectTransform, 16, 12, 330, 26);
+
+            emconPill = Pill(bar, 356, 13, 150, 24);
+            roePill = Pill(bar, 514, 13, 130, 24);
+            damagePill = Pill(bar, 652, 13, 120, 24);
+            trackPill = Pill(bar, 780, 13, 190, 24);
+
+            statusLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
+            Place(statusLabel.rectTransform, 986, 13, 560, 24);
+
+            MakeButton(bar, "Flight deck", 1556, 11, 116, 28, () => TogglePopup("deck", DeckMenu));
+            MakeButton(bar, "Damage", 1678, 11, 92, 28, () => { damageOpen = !damageOpen; Refresh(); });
+            MakeButton(bar, "Sensors", 1776, 11, 92, 28, () => TogglePopup("sensors", SensorMenu));
+
+            // Band B: navigation.
+            Section("Navigation", 16, 46, 1180);
+            speedLabel = Label(bar, "", Theme.BodySize, TextAnchor.MiddleLeft);
+            Place(speedLabel.rectTransform, 16, 64, 300, 28);
+            speedSlider = MakeSlider(bar, 322, 70, 260, 16);
             speedSlider.onValueChanged.AddListener(value =>
             {
                 if (updatingSlider || !CommandState.Active) return;
@@ -521,60 +557,65 @@ namespace NavalPower
             for (int i = 0; i < presets.Length; i++)
             {
                 float fraction = fractions[i];
-                MakeButton(bar, presets[i], 672 + i * 96, 44, 90, 30, () =>
+                MakeButton(bar, presets[i], 600 + i * 84, 64, 78, 28, () =>
                 {
                     NavigationOrders.SetOrderedSpeedKnots(CommandState.Ship,
                         CommandableShip.MaximumSpeedKnots(CommandState.Ship) * fraction, out string reason);
                     CommandState.Say(reason);
                 });
             }
-            MakeButton(bar, "Clear route", 1164, 44, 140, 30, () =>
+            MakeButton(bar, "Clear route", 1028, 64, 108, 28, () =>
             {
                 NavigationOrders.ClearWaypoints(CommandState.Ship, out string reason);
                 CommandState.Say(reason);
             });
 
+            // Band B right: engagement permissions, grouped away from movement.
+            Section("Engagement", 1208, 46, 696);
             for (int i = 0; i < 3; i++)
             {
                 var mode = (EngagementMode)i;
-                roeButtons.Add(MakeButton(bar, EngagementPolicy.Describe(mode), 1316 + i * 152, 44, 146, 30, () =>
+                roeButtons.Add(MakeButton(bar, EngagementPolicy.Describe(mode), 1208 + i * 142, 64, 134, 28, () =>
                 {
                     EngagementPolicy.SetMode(CommandState.Ship, mode, out string reason);
                     CommandState.Say(reason);
                     Refresh();
                 }));
             }
-            Button cease = MakeButton(bar, "CEASE FIRE", 1772, 44, 132, 30, () =>
+            Button cease = MakeButton(bar, "CEASE FIRE", 1640, 64, 128, 28, () =>
             {
                 WeaponOrders.CeaseFire(CommandState.Ship, out string reason);
                 CommandState.SelectedKey = null;
                 CommandState.Say(reason);
             });
-            cease.image.color = DangerColor;
+            cease.image.color = Theme.Dim(Theme.Bad, 0.55f);
+            MakeButton(bar, "Exit", 1776, 64, 92, 28, () => MapCommand.Instance?.LeaveForNativeFlow());
 
+            // Band C: weapons.
+            Section("Weapons", 16, 98, 1888);
             weaponRow = Box("Weapons", bar, new Color(0, 0, 0, 0));
-            Place(weaponRow, 16, 82, 1500, 38);
+            Place(weaponRow, 16, 116, 1480, 32);
 
             for (int i = 0; i < Counts.Length; i++)
             {
                 int count = Counts[i];
                 quantityButtons.Add(MakeButton(bar, count == 1 ? "Single" : "x" + count,
-                    1540 + i * 74, 82, 70, 38, () => { CommandState.Quantity = count; Refresh(); }));
+                    1514 + i * 72, 116, 66, 32, () => { CommandState.Quantity = count; Refresh(); }));
             }
 
-            feedbackLabel = Label(bar, "", 16, TextAnchor.MiddleLeft, MutedColor);
-            Place(feedbackLabel.rectTransform, 16, 128, 1880, 28);
+            feedbackLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
+            Place(feedbackLabel.rectTransform, 16, 148, 1888, 18);
         }
 
         private void BuildDamagePanel()
         {
-            damagePanel = Box("Damage control", (RectTransform)root.transform, Background);
+            damagePanel = Box("Damage control", (RectTransform)root.transform, Theme.Surface);
             damagePanel.anchorMin = new Vector2(1, 0); damagePanel.anchorMax = new Vector2(1, 1);
             damagePanel.pivot = new Vector2(1, 0);
             damagePanel.sizeDelta = new Vector2(520, -240);
             damagePanel.anchoredPosition = new Vector2(-12, 178);
 
-            damageHeader = Label(damagePanel, "", 15, TextAnchor.UpperLeft, MutedColor);
+            damageHeader = Label(damagePanel, "", 15, TextAnchor.UpperLeft, Theme.TextMuted);
             Place(damageHeader.rectTransform, 12, 8, 496, 76);
             damageHeader.verticalOverflow = VerticalWrapMode.Overflow;
 
@@ -640,17 +681,20 @@ namespace NavalPower
                     "  ·  hull " + compartment.IntegrityPercent.ToString("0") + "%";
                 damageLabels[rows].text = (compartment.Priority ? "▲ " : "") + compartment.Name +
                     "  ·  " + compartment.State + integrity + flooded;
-                damageLabels[rows].color = compartment.Submerged || compartment.Detached || compartment.Removed ? MutedColor
-                    : compartment.LeakRate > 0.01f ? new Color(1f, 0.62f, 0.4f) : TextColor;
-                damageRows[rows].image.color = compartment.Priority ? SelectedColor : ButtonColor;
+                damageLabels[rows].color =
+                    compartment.Submerged || compartment.Detached || compartment.Removed ? Theme.TextFaint
+                    : compartment.LeakRate > 0.01f ? Theme.Bad
+                    : compartment.Sealed ? Theme.Warn
+                    : Theme.Scale(compartment.IntegrityPercent);
+                damageRows[rows].image.color = compartment.Priority ? Theme.AccentFill : Theme.Control;
                 damageRows[rows].gameObject.SetActive(true);
                 rows++;
             }
             if (rows == 0 && damageIds.Count == 0)
             {
                 damageLabels[0].text = "No damage.";
-                damageLabels[0].color = MutedColor;
-                damageRows[0].image.color = ButtonColor;
+                damageLabels[0].color = Theme.TextMuted;
+                damageRows[0].image.color = Theme.Control;
                 damageRows[0].gameObject.SetActive(true);
                 rows = 1;
             }
@@ -673,7 +717,7 @@ namespace NavalPower
 
         private void BuildPopup()
         {
-            popup = Box("Popup", (RectTransform)root.transform, PopupBackground);
+            popup = Box("Popup", (RectTransform)root.transform, Theme.SurfaceRaised);
             popup.anchorMin = popup.anchorMax = new Vector2(0, 0);
             popup.pivot = new Vector2(0, 0);
             popupContent = Box("Popup content", popup, new Color(0, 0, 0, 0));
@@ -686,7 +730,12 @@ namespace NavalPower
 
         private void BuildHover()
         {
-            hover = Box("Hover", (RectTransform)root.transform, PopupBackground);
+            hover = Box("Hover", (RectTransform)root.transform, Theme.SurfaceRaised);
+            RectTransform hoverEdge = Box("edge", hover, Theme.Dim(Theme.Accent, 0.65f));
+            hoverEdge.anchorMin = new Vector2(0, 0); hoverEdge.anchorMax = new Vector2(0, 1);
+            hoverEdge.pivot = new Vector2(0, 0.5f);
+            hoverEdge.sizeDelta = new Vector2(2f, 0f);
+            hoverEdge.anchoredPosition = Vector2.zero;
             hover.anchorMin = hover.anchorMax = new Vector2(0, 0);
             hover.pivot = new Vector2(0, 1);
             hoverText = Label(hover, "", 15, TextAnchor.UpperLeft);
@@ -700,6 +749,35 @@ namespace NavalPower
 
         // ---- uGUI helpers -------------------------------------------------
 
+        // A small uppercase caption above a group of controls. Grouping is
+        // what makes a dense bar readable; boxes and borders just add noise.
+        private void Section(string title, float x, float y, float width)
+        {
+            Text label = Label(bar, title.ToUpperInvariant(), Theme.LabelSize, TextAnchor.LowerLeft, Theme.TextFaint);
+            Place(label.rectTransform, x, y, width, 14f);
+            RectTransform rule = Box("rule", bar, Theme.Divider);
+            Place(rule, x, y + 15f, width, 1f);
+        }
+
+        // Status as colour plus a word, never colour alone.
+        private Text Pill(RectTransform parent, float x, float y, float width, float height)
+        {
+            RectTransform back = Box("pill", parent, Theme.Dim(Theme.Text, 0.06f));
+            Place(back, x, y, width, height);
+            Text text = Label(back, "", Theme.CaptionSize, TextAnchor.MiddleCenter, Theme.Text);
+            text.rectTransform.anchorMin = Vector2.zero; text.rectTransform.anchorMax = Vector2.one;
+            text.rectTransform.offsetMin = Vector2.zero; text.rectTransform.offsetMax = Vector2.zero;
+            return text;
+        }
+
+        private static void SetPill(Text pill, string value, Color color)
+        {
+            pill.text = value;
+            pill.color = color;
+            Image back = pill.rectTransform.parent.GetComponent<Image>();
+            if (back != null) back.color = Theme.Dim(color, 0.14f);
+        }
+
         private RectTransform Box(string name, RectTransform parent, Color color)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));
@@ -709,7 +787,7 @@ namespace NavalPower
         }
 
         private Text Label(RectTransform parent, string value, int size, TextAnchor alignment) =>
-            Label(parent, value, size, alignment, TextColor);
+            Label(parent, value, size, alignment, Theme.Text);
 
         private Text Label(RectTransform parent, string value, int size, TextAnchor alignment, Color color)
         {
@@ -725,14 +803,15 @@ namespace NavalPower
 
         private Button MakeButton(RectTransform parent, string label, float x, float y, float width, float height, Action action)
         {
-            RectTransform rect = Box(string.IsNullOrEmpty(label) ? "Button" : label, parent, ButtonColor);
+            RectTransform rect = Box(string.IsNullOrEmpty(label) ? "Button" : label, parent, Theme.Control);
             Place(rect, x, y, width, height);
             var button = rect.gameObject.AddComponent<Button>();
             button.targetGraphic = rect.GetComponent<Image>();
             ColorBlock colors = button.colors;
             colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.25f, 1.25f, 1.25f);
-            colors.pressedColor = new Color(0.65f, 0.85f, 0.9f);
+            colors.highlightedColor = new Color(1.22f, 1.22f, 1.22f);
+            colors.pressedColor = new Color(0.78f, 0.92f, 0.96f);
+            colors.fadeDuration = 0.08f;
             button.colors = colors;
             button.onClick.AddListener(() => { if (CommandState.Active) action(); });
             Text text = Label(rect, label, 15, TextAnchor.MiddleCenter);

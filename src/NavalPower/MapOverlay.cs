@@ -9,17 +9,19 @@ namespace NavalPower
     // on the hovered contact's last known position.
     internal sealed class MapOverlay : MaskableGraphic
     {
-        private static readonly Color RouteColor = new Color(0.26f, 0.86f, 0.92f, 0.9f);
-        private static readonly Color MaxRangeColor = new Color(0.95f, 0.45f, 0.3f, 0.8f);
-        private static readonly Color MinRangeColor = new Color(1f, 0.8f, 0.24f, 0.9f);
-        private static readonly Color EngageColor = new Color(1f, 0.38f, 0.32f, 0.9f);
-        private static readonly Color TrackColor = new Color(1f, 0.75f, 0.3f, 0.95f);
-        private static readonly Color RadarColor = new Color(0.45f, 0.95f, 0.6f, 0.4f);
-        private static readonly Color OwnTrackColor = new Color(0.45f, 0.95f, 0.6f, 0.85f);
-        private static readonly Color DatalinkColor = new Color(0.55f, 0.7f, 1f, 0.7f);
-        private static readonly Color EsmColor = new Color(1f, 0.62f, 0.2f, 0.92f);
-        private static readonly Color EsmStaleColor = new Color(1f, 0.62f, 0.2f, 0.42f);
-        private static readonly Color OwnWeaponColor = new Color(1f, 0.32f, 0.26f, 0.95f);
+        // Colour is semantic and shared with the bar: green is ours, blue is
+        // datalink, orange is passive, red is a weapon.
+        private static Color RouteColor => Theme.Dim(Theme.Accent, 0.9f);
+        private static Color MaxRangeColor => Theme.Dim(Theme.Weapon, 0.75f);
+        private static Color MinRangeColor => Theme.Dim(Theme.Warn, 0.85f);
+        private static Color EngageColor => Theme.Dim(Theme.Weapon, 0.9f);
+        private static Color TrackColor => Theme.Dim(Theme.Warn, 0.95f);
+        private static Color RadarColor => Theme.Dim(Theme.OwnTrack, 0.32f);
+        private static Color OwnTrackColor => Theme.Dim(Theme.OwnTrack, 0.9f);
+        private static Color DatalinkColor => Theme.Dim(Theme.Datalink, 0.75f);
+        private static Color EsmColor => Theme.Dim(Theme.Passive, 0.95f);
+        private static Color EsmStaleColor => Theme.Dim(Theme.Passive, 0.4f);
+        private static Color OwnWeaponColor => Theme.Weapon;
 
         private DynamicMap map;
         private Rect clip;
