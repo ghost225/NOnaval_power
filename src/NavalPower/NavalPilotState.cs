@@ -27,8 +27,21 @@ namespace NavalPower
         public override void EnterState(Pilot pilot)
         {
             this.pilot = pilot;
+            controlInputs = aircraft.GetInputs();
+            parameters = aircraft.GetAircraftParameters();
             FindNearestAirbase();
+
+            // The same handover the native combat state performs. Without it a
+            // helicopter arrives from its takeoff state with auto-hover still
+            // engaged, and the controls filter then fights the autopilot's
+            // collective all the way into the ground.
+            aircraft.SetFlightAssistToDefault();
+            aircraft.SetGear(deployed: false);
+            ControlsFilter filter = aircraft.GetControlsFilter();
+            if (filter != null) filter.SetAutoHover(enabled: false);
         }
+
+        private AircraftParameters parameters;
 
         public override void LeaveState() { }
 
@@ -198,12 +211,12 @@ namespace NavalPower
 
             // Rotary and tiltwing read altitudeHold as the height to hold above
             // the ground -- it is fed straight into TerrainWaypoint and compared
-            // against radarAlt -- so passing zero, as the fixed-wing path does,
-            // commanded a terrain waypoint at ground level and flew the
-            // helicopter into it. The native helo state passes an AGL with
-            // followTerrain set, so do the same.
+            // against radarAlt. The native helo state passes the airframe's own
+            // minimum radar altitude plus the height it wants, so the floor is
+            // never below what the airframe will tolerate; match that.
+            float floor = parameters != null ? parameters.minimumRadarAlt : 0f;
             destination = target;
-            autopilot.AutoAim(target, aboveGround, Vector3.zero, Vector3.zero, followTerrain: true);
+            autopilot.AutoAim(target, floor + aboveGround, Vector3.zero, Vector3.zero, followTerrain: true);
         }
 
         // Only these autopilots actually implement an AutoAim; anything else
