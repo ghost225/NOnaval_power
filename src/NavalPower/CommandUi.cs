@@ -1078,11 +1078,22 @@ namespace NavalPower
 
             float pool = damage.DamageControlPoolMax > 0.01f
                 ? Mathf.Clamp01(damage.DamageControlPool / damage.DamageControlPoolMax) * 100f : 0f;
+            // Totals that say whether damage control is winning: how much water
+            // is coming in against how much is being put out.
+            float intake = 0f;
+            int prioritised = 0;
+            foreach (CompartmentSnapshot c in damage.Compartments)
+            {
+                intake += c.LeakRate;
+                if (c.Priority) prioritised++;
+            }
             damageHeader.text = damage.ShipState +
-                "\nDamage control reserve " + pool.ToString("0") + "%" +
-                "   ·   list " + damage.ListDegrees.ToString("0.0") + "°   ·   trim " + damage.TrimDegrees.ToString("0.0") + "°" +
-                "\nFlooding " + damage.Flooding + "   ·   critical " + damage.Critical + "   ·   lost " + damage.Lost +
-                "\nClick: prioritise damage control   ·   shift-click: seal off";
+                "\nReserve " + pool.ToString("0") + "%   ·   list " + damage.ListDegrees.ToString("0.0") +
+                "°   ·   trim " + damage.TrimDegrees.ToString("0.0") + "°" +
+                "\nFlooding " + damage.Flooding + " compartment(s)" +
+                (intake > 0.001f ? "   ·   taking water" : "   ·   no active leaks") +
+                (prioritised > 0 ? "   ·   " + prioritised + " prioritised" : "") +
+                "\nClick a compartment to concentrate damage control   ·   shift-click to seal it off";
 
             // Worst first: a list of forty sound compartments helps nobody.
             var ordered = new List<CompartmentSnapshot>(damage.Compartments);
@@ -1098,8 +1109,14 @@ namespace NavalPower
                     compartment.FloodedPercent > 0.5f ? "  ·  " + compartment.FloodedPercent.ToString("0") + "% flooded" : "";
                 string integrity = float.IsNaN(compartment.IntegrityPercent) ? "" :
                     "  ·  hull " + compartment.IntegrityPercent.ToString("0") + "%";
+                // A falling leak is the only visible sign the parties are
+                // winning, so show it rather than leaving it to be inferred.
+                string leak = compartment.LeakRate > 0.001f
+                    ? "  ·  leak " + compartment.LeakPercentOfMax.ToString("0") + "%" +
+                      (compartment.Working ? " and falling" : "")
+                    : "";
                 damageLabels[rows].text = (compartment.Priority ? "▲ " : "") + compartment.Name +
-                    "  ·  " + compartment.State + integrity + flooded;
+                    "  ·  " + compartment.State + integrity + flooded + leak;
                 damageLabels[rows].color =
                     compartment.Submerged || compartment.Detached || compartment.Removed ? Theme.TextFaint
                     : compartment.LeakRate > 0.01f ? Theme.Bad

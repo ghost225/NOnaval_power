@@ -231,6 +231,7 @@ namespace NavalPower
         private void Update()
         {
             FlightOrders.Tick();
+            if (CommandState.Ship != null) DamageControl.Work(CommandState.Ship);
             FlightIcons.Refresh(CommandState.Ship);
             UpdateGesture();
             if (!CommandState.Active) { TryResume(); return; }

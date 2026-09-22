@@ -12,7 +12,7 @@ namespace NavalPower
         public string State;
         public float IntegrityPercent;      // hull condition, 0-100
         public float FloodedPercent;        // water in the compartment, 0-100
-        public float LeakRate, LeakRateMax;
+        public float LeakRate, LeakRateMax, LeakPercentOfMax;
         public bool Sealed, Submerged, Detached, Removed, Working, Priority;
     }
 
@@ -45,13 +45,15 @@ namespace NavalPower
         private static readonly FieldInfo Compartmentalized = AccessTools.Field(typeof(ShipPart), "compartmentalized");
         private static readonly FieldInfo Submerged = AccessTools.Field(typeof(ShipPart), "submerged");
         private static readonly FieldInfo DcActive = AccessTools.Field(typeof(ShipPart), "damageControlActive");
+        private static readonly FieldInfo LeakRateMin = AccessTools.Field(typeof(ShipPart), "leakRateMin");
 
         internal static string Report()
         {
             return "damage control bindings:" +
                 Line("ShipPart.displacement", Displacement) + Line("ShipPart.leakRate", LeakRate) +
                 Line("ShipPart.leakRateMax", LeakRateMax) + Line("ShipPart.compartmentalized", Compartmentalized) +
-                Line("ShipPart.submerged", Submerged) + Line("ShipPart.damageControlActive", DcActive);
+                Line("ShipPart.submerged", Submerged) + Line("ShipPart.damageControlActive", DcActive) +
+                Line("ShipPart.leakRateMin", LeakRateMin);
         }
 
         private static string Line(string name, MemberInfo member) =>
@@ -114,6 +116,11 @@ namespace NavalPower
                         row.FloodedPercent = Mathf.Clamp01(1f - Read(Displacement, compartment, original) / original) * 100f;
                     row.LeakRate = Read(LeakRate, compartment, 0f);
                     row.LeakRateMax = Read(LeakRateMax, compartment, 0f);
+                    // Litres a second, near enough: what the compartment is
+                    // taking on right now, which is the number that says whether
+                    // damage control is winning.
+                    row.LeakPercentOfMax = row.LeakRateMax > 0.001f
+                        ? Mathf.Clamp01(row.LeakRate / row.LeakRateMax) * 100f : 0f;
                     row.Sealed = Flag(Compartmentalized, compartment);
                     row.Submerged = Flag(Submerged, compartment);
                     row.Working = Flag(DcActive, compartment) && !row.Sealed && !row.Submerged;
@@ -214,6 +221,66 @@ namespace NavalPower
         {
             if (ship == null || compartmentId < 0 || compartmentId >= ship.damageables.Count) return null;
             return ship.damageables[compartmentId].Damageable as ShipPart;
+        }
+
+        private static float nextWork;
+
+        // Concentrate the ship's effort rather than merely withholding it.
+        //
+        // The native routine gives every leaking compartment the same small
+        // step once a second, so suppressing the others -- which is all the
+        // priority patch did on its own -- changed nothing you could see. The
+        // effort those compartments would have received is now applied to the
+        // ones actually named, at the same cost to the pool. Total capacity is
+        // unchanged; where it goes is the decision.
+        internal static void Work(Ship ship)
+        {
+            if (ship == null || !ship.IsServer || !ship.LocalSim) return;
+            if (Time.timeSinceLevelLoad < nextWork) return;
+            nextWork = Time.timeSinceLevelLoad + 1f;                 // the native cadence
+
+            HashSet<int> priority = Priorities(ship);
+            if (priority.Count == 0 || ship.damageControlAvailable <= 0f) return;
+
+            int leaking = 0, chosen = 0;
+            for (int i = 0; i < ship.damageables.Count; i++)
+            {
+                var part = ship.damageables[i].Damageable as ShipPart;
+                if (!Repairable(part)) continue;
+                leaking++;
+                if (priority.Contains(i)) chosen++;
+            }
+            if (chosen == 0 || leaking <= chosen) return;            // nothing was withheld
+
+            // Split what the suppressed compartments would have had.
+            int shares = Mathf.Clamp((leaking - chosen) / chosen, 0, Settings.DamageControlConcentration.Value);
+            if (shares <= 0) return;
+
+            for (int i = 0; i < ship.damageables.Count; i++)
+            {
+                if (!priority.Contains(i)) continue;
+                var part = ship.damageables[i].Damageable as ShipPart;
+                if (!Repairable(part)) continue;
+                for (int pass = 0; pass < shares && ship.damageControlAvailable > 0f; pass++)
+                    RepairStep(ship, part);
+            }
+        }
+
+        private static bool Repairable(ShipPart part) =>
+            part != null && !part.IsDetached() && !Flag(Compartmentalized, part) && !Flag(Submerged, part) &&
+            (Read(LeakRate, part, 0f) > 0.001f || Read(Displacement, part, 0f) < part.GetOriginalDisplacement());
+
+        // One pass of exactly what the native routine does, so concentrated
+        // work costs the pool what the same work would have cost anywhere else.
+        private static void RepairStep(Ship ship, ShipPart part)
+        {
+            if (LeakRate == null || Displacement == null || LeakRateMin == null) return;
+            float plug = 0.02f * Read(LeakRateMin, part, 0f);
+            float pump = 0.001f * part.GetOriginalDisplacement();
+            LeakRate.SetValue(part, Mathf.Max(Read(LeakRate, part, 0f) - plug, 0f));
+            Displacement.SetValue(part,
+                Mathf.Min(Read(Displacement, part, 0f) + pump, part.GetOriginalDisplacement()));
+            ship.damageControlAvailable -= 10f * plug + pump;
         }
 
         internal static bool IsDeprioritised(ShipPart part)

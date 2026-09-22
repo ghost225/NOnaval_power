@@ -22,6 +22,7 @@ namespace NavalPower
         internal static ConfigEntry<float> InfraredHandover;
         internal static ConfigEntry<float> FlareInterval;
 
+        internal static ConfigEntry<int> DamageControlConcentration;
         internal static ConfigEntry<bool> ShowFlightStrip;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
@@ -93,6 +94,12 @@ namespace NavalPower
                 new ConfigDescription("Seconds between flare releases while egressing with a heat-seeker " +
                     "inbound. The native pilot runs its own countermeasures once it has the aircraft.",
                     new AcceptableValueRange<float>(0.5f, 10f)));
+
+            DamageControlConcentration = config.Bind("Damage control", "Concentration limit", 6,
+                new ConfigDescription("How many extra shares of effort a prioritised compartment may take " +
+                    "from the compartments being withheld. The ship's total capacity is unchanged either " +
+                    "way; this caps how sharply it can be focused.",
+                    new AcceptableValueRange<int>(1, 20)));
 
             ShowFlightStrip = config.Bind("Interface", "Flight strip", true,
                 "Show airborne flights as chips along the command bar.");
