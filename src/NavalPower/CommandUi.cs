@@ -38,6 +38,7 @@ namespace NavalPower
         private Unit contextTarget;
         private bool contextAppend;
         private string popupKey;
+        private bool placed;
 
         private readonly List<Button> weaponButtons = new List<Button>();
         private readonly List<Text> weaponLabels = new List<Text>();
@@ -75,7 +76,8 @@ namespace NavalPower
             if (ship == null) return;
 
             shipLabel.text = ship.definition?.unitName ?? ship.name;
-            statusLabel.text = (Sensors.IsSilent(ship) ? "EMCON SILENT  ·  " : "") + WeaponOrders.GetStatus(ship);
+            statusLabel.text = (Sensors.IsSilent(ship) ? "EMCON SILENT  ·  " : "") +
+                "own tracks " + TrackPicture.OwnCount(ship) + "  ·  " + WeaponOrders.GetStatus(ship);
 
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             if (nav != null)
@@ -254,7 +256,10 @@ namespace NavalPower
         private void SensorMenu()
         {
             SensorSnapshot[] sensors = Sensors.GetSensors(CommandState.Ship);
-            StartPopup(Sensors.IsSilent(CommandState.Ship) ? "Sensors · EMCON SILENT" : "Sensors",
+            bool silent = Sensors.IsSilent(CommandState.Ship);
+            StartPopup((silent ? "Sensors · EMCON SILENT" : "Sensors") +
+                "   ·   own tracks " + TrackPicture.OwnCount(CommandState.Ship) +
+                (silent ? "   (picture is datalink only)" : ""),
                 null, sensors.Length + 3);
             Row("EMCON · all emitters silent", 1, () =>
             {
@@ -315,12 +320,14 @@ namespace NavalPower
             popup.gameObject.SetActive(true);
             float height = rows * 38f + 46f;
             popup.sizeDelta = new Vector2(392, height);
-            if (screenPosition.HasValue)
-            {
-                float x = Mathf.Clamp(screenPosition.Value.x, 0, Screen.width - 392);
-                float y = Mathf.Clamp(screenPosition.Value.y, height, Screen.height);
-                popup.position = new Vector2(x, y);
-            }
+            // Without an explicit point -- a menu opened from the bar, or a
+            // submenu replacing its parent -- keep the last position rather than
+            // collapsing to the canvas origin underneath the command bar.
+            Vector2 target = screenPosition ?? (placed ? popup.position : new Vector2(Screen.width * 0.5f - 196f, 200f + height));
+            popup.position = new Vector2(
+                Mathf.Clamp(target.x, 0f, Mathf.Max(0f, Screen.width - 392f)),
+                Mathf.Clamp(target.y, height, Screen.height));
+            placed = true;
             Text header = Label(popup, title, 17, TextAnchor.MiddleLeft);
             Place(header.rectTransform, 12, 8, 368, 30);
         }

@@ -27,6 +27,7 @@ namespace NavalPower
 
             var text = new System.Text.StringBuilder();
             text.Append(name).Append(friendly ? "  ·  FRIENDLY" : observed ? "  ·  TRACKED" : "  ·  STALE TRACK");
+            if (!friendly) text.Append("\n").Append(TrackPicture.Describe(ship, contact));
 
             if (!known)
             {

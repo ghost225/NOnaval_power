@@ -15,6 +15,8 @@ namespace NavalPower
         private static readonly Color EngageColor = new Color(1f, 0.38f, 0.32f, 0.9f);
         private static readonly Color TrackColor = new Color(1f, 0.75f, 0.3f, 0.95f);
         private static readonly Color RadarColor = new Color(0.45f, 0.95f, 0.6f, 0.4f);
+        private static readonly Color OwnTrackColor = new Color(0.45f, 0.95f, 0.6f, 0.85f);
+        private static readonly Color DatalinkColor = new Color(0.55f, 0.7f, 1f, 0.7f);
 
         private DynamicMap map;
         private Rect clip;
@@ -68,6 +70,28 @@ namespace NavalPower
                 Vector2 point = Project(target.GlobalPosition());
                 Line(vh, center, point, EngageColor, 1.6f);
                 Diamond(vh, point, 6f, EngageColor);
+            }
+
+            // Mark hostile contacts by where the track comes from: a filled
+            // tick for our own sensors, a hollow one for datalink. Under EMCON
+            // the map turns blue, which is the cost of going silent made visible.
+            if (ship.NetworkHQ != null)
+            {
+                foreach (Unit unit in UnitRegistry.allUnits)
+                {
+                    if (unit == null || unit.disabled || unit == ship || unit is Missile) continue;
+                    if (unit.NetworkHQ == null || unit.NetworkHQ == ship.NetworkHQ) continue;
+                    if (!ship.NetworkHQ.TryGetKnownPosition(unit, out GlobalPosition at)) continue;
+                    bool ours = TrackPicture.IsOwn(ship, unit);
+                    Vector2 mark = Project(at);
+                    Color color = ours ? OwnTrackColor : DatalinkColor;
+                    if (ours)
+                    {
+                        Line(vh, mark + new Vector2(-5f, -5f), mark + new Vector2(5f, 5f), color, 2f);
+                        Line(vh, mark + new Vector2(-5f, 5f), mark + new Vector2(5f, -5f), color, 2f);
+                    }
+                    else Diamond(vh, mark, 6f, color);
+                }
             }
 
             Unit hovered = MapCommand.Instance?.HoverUnit;
