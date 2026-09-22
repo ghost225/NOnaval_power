@@ -35,8 +35,6 @@ namespace NavalPower
         private Unit contextTarget;
         private bool contextAppend;
         private string popupKey;
-        private bool placed;
-        private Vector2 popupAnchor;
         private Text popupHeader;
 
         private readonly List<Button> weaponButtons = new List<Button>();
@@ -453,21 +451,21 @@ namespace NavalPower
             popup.gameObject.SetActive(true);
             float height = rows * 38f + 46f;
             popup.sizeDelta = new Vector2(392, height);
-            // An explicit point sets the anchor; submenus reuse it unchanged.
-            // Reading the position back each time made every taller menu shove
-            // the popup further up the screen until it left the view.
-            if (screenPosition.HasValue) { popupAnchor = screenPosition.Value; placed = true; }
-            else if (!placed) { popupAnchor = new Vector2(Screen.width * 0.5f - 196f, Theme.BarHeight + 24f); placed = true; }
-
             // sizeDelta is in canvas units, Input/Screen are in pixels, and the
-            // two only agree at the 1920 reference width. Convert before clamping.
+            // two only agree at the 1920 reference width. Convert before placing.
             float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
             float pixelWidth = 392f * scale, pixelHeight = height * scale;
+
+            // Every menu opens down the left edge rather than wherever it was
+            // invoked. A popup over the middle of the map covers the thing the
+            // order is about; the damage panel already owns the right side, so
+            // the left stays clear for menus. The header names the contact, so
+            // nothing is lost by not appearing under the cursor.
             // Pivot is bottom-left and the panel extends upward, so the bottom
             // edge must leave room for the whole height above it.
             popup.position = new Vector2(
-                Mathf.Clamp(popupAnchor.x, 4f, Mathf.Max(4f, Screen.width - pixelWidth - 4f)),
-                Mathf.Clamp(popupAnchor.y, 4f, Mathf.Max(4f, Screen.height - pixelHeight - 4f)));
+                16f * scale,
+                Mathf.Clamp(Theme.BarHeight * scale + 16f, 4f, Mathf.Max(4f, Screen.height - pixelHeight - 4f)));
             popupHeader.text = title;
         }
 
