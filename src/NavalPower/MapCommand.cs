@@ -1,0 +1,363 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+namespace NavalPower
+{
+    // Input ownership is explicit: a target click never also selects a new ship.
+    internal enum SelectionAction { Native, Enter, Exit, Consume }
+    internal enum RightClickAction { None, Menu, AttackTarget, MissingTarget, ReplaceWaypoint, AppendWaypoint }
+
+    internal static class InputPolicy
+    {
+        internal static SelectionAction Select(bool active, bool sameUnit, bool eligible, bool suppressed)
+        {
+            if (active) return sameUnit ? SelectionAction.Consume : SelectionAction.Exit;
+            return eligible && !suppressed ? SelectionAction.Enter : SelectionAction.Native;
+        }
+
+        internal static RightClickAction RightClick(bool active, bool onMap, bool unit, bool weapon, bool shift)
+        {
+            if (!active) return RightClickAction.None;
+            if (unit) return weapon ? RightClickAction.AttackTarget : RightClickAction.Menu;
+            // Selection owns the gesture: a rejected shot must never silently
+            // become a navigation order.
+            if (weapon) return RightClickAction.MissingTarget;
+            if (!onMap) return RightClickAction.None;
+            return shift ? RightClickAction.AppendWaypoint : RightClickAction.ReplaceWaypoint;
+        }
+
+        internal static bool NativeMouseDown(bool active, int button, bool actual) => actual && !(active && button == 1);
+    }
+
+    // Unity's pointer handlers fire on release, possibly several frames after
+    // the press. Ownership has to survive the whole gesture and its release frame.
+    internal sealed class PointerGesture
+    {
+        internal bool Claimed { get; private set; }
+        private int releaseFrame = -1;
+
+        internal void Update(int frame, bool down, bool held)
+        {
+            if (down) { Claimed = false; releaseFrame = -1; return; }
+            if (!Claimed || held) return;
+            if (releaseFrame < 0) releaseFrame = frame;
+            else if (frame > releaseFrame) { Claimed = false; releaseFrame = -1; }
+        }
+
+        internal void Claim() { Claimed = true; releaseFrame = -1; }
+    }
+
+    internal sealed class MapCommand : MonoBehaviour
+    {
+        internal static MapCommand Instance;
+
+        // A private flag: never borrow or clear the map's or another menu's.
+        private const CursorFlags CommandCursor = (CursorFlags)0x20000000;
+
+        private int suppressEntryFrame = -1, inputFrame = -1, gestureFrame = -1;
+        private readonly PointerGesture leftGesture = new PointerGesture();
+        private readonly List<RaycastResult> uiHits = new List<RaycastResult>(32);
+        private PointerEventData pointer;
+        private EventSystem pointerEvents;
+        private float pickedUnitDistance;
+
+        internal Unit HoverUnit { get; private set; }
+        internal CommandUi Ui;
+
+        private void Awake() { Instance = this; }
+        private void OnDestroy() { Leave(); if (Instance == this) Instance = null; }
+
+        private static bool GameplayReady()
+        {
+            if (GameManager.gameState != GameState.SinglePlayer && GameManager.gameState != GameState.Multiplayer) return false;
+            var gameplay = SceneSingleton<GameplayUI>.i;
+            if (gameplay == null || (gameplay.menuCanvas != null && gameplay.menuCanvas.enabled) || GameplayUI.GameIsPaused) return false;
+            if (GameManager.GetLocalAircraft(out Aircraft aircraft) && aircraft != null && !aircraft.disabled) return false;
+            return SceneSingleton<CameraStateManager>.i != null;
+        }
+
+        internal void FollowingChanged(Unit unit)
+        {
+            if (CommandState.Active)
+            {
+                if (unit == CommandState.Ship) return;
+                Leave();
+                suppressEntryFrame = Time.frameCount;
+                return;
+            }
+            if (Time.frameCount == suppressEntryFrame || !GameplayReady()) return;
+            if (unit is Ship ship && CommandableShip.CanCommand(ship, out _)) Enter(ship);
+        }
+
+        internal void Enter(Ship ship)
+        {
+            if (!GameplayReady()) return;
+            CommandState.Ship = ship;
+            CommandState.SelectedKey = null;
+            CommandState.Quantity = 1;
+            CursorManager.SetFlag(CommandCursor, true);
+            CommandState.Say("Command active · right-click map: waypoint · shift: append · right-click contact: menu");
+        }
+
+        internal void Leave()
+        {
+            if (!CommandState.Active) return;
+            CommandState.Clear();
+            Ui?.ClosePopup();
+            CursorManager.SetFlag(CommandCursor, false);
+        }
+
+        internal void LeaveForNativeFlow()
+        {
+            if (!CommandState.Active) return;
+            Leave();
+            suppressEntryFrame = Time.frameCount;
+        }
+
+        private void Update()
+        {
+            UpdateGesture();
+            if (!CommandState.Active) return;
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (!GameplayReady() || cameras == null || cameras.followingUnit != CommandState.Ship ||
+                !CommandableShip.CanCommand(CommandState.Ship, out _))
+            {
+                LeaveForNativeFlow();
+                return;
+            }
+            RefreshHover();
+        }
+
+        private void UpdateGesture()
+        {
+            if (gestureFrame == Time.frameCount) return;
+            gestureFrame = Time.frameCount;
+            leftGesture.Update(Time.frameCount, Input.GetMouseButtonDown(0), Input.GetMouseButton(0));
+        }
+
+        internal bool BlocksMapDrag() { UpdateGesture(); return leftGesture.Claimed; }
+
+        internal bool HandleSelection(Unit unit)
+        {
+            if (unit == null) return true;
+            UpdateGesture();
+            if (leftGesture.Claimed) return false;
+            bool eligible = unit is Ship ship && CommandableShip.CanCommand(ship, out _);
+            SelectionAction action = InputPolicy.Select(CommandState.Active, unit == CommandState.Ship,
+                eligible, Time.frameCount == suppressEntryFrame);
+            if (action == SelectionAction.Consume) return false;
+            if (action == SelectionAction.Exit) { LeaveForNativeFlow(); return true; }
+            return true;
+        }
+
+        internal void ProcessInput()
+        {
+            UpdateGesture();
+            if (!CommandState.Active || inputFrame == Time.frameCount) return;
+            inputFrame = Time.frameCount;
+
+            bool left = Input.GetMouseButtonDown(0), right = Input.GetMouseButtonDown(1);
+            if (!left && !right) return;
+            if (Ui != null && Ui.PointerInside()) return;
+
+            var map = SceneSingleton<DynamicMap>.i;
+            bool onMap = map != null && DynamicMap.mapMaximized && map.IsCursorInMapRectangle();
+            // Native left-drag orbits the world camera; do not pick there.
+            if (left && !onMap)
+            {
+                if (Ui != null && Ui.PopupOpen) { leftGesture.Claim(); Ui.ClosePopup(); }
+                return;
+            }
+
+            Unit pointed = onMap ? PickMapUnit(map) : PickWorldUnit();
+
+            if (left)
+            {
+                if (Ui != null && Ui.PopupOpen) { leftGesture.Claim(); Ui.ClosePopup(); }
+                return;
+            }
+
+            if (PointerOnForeignUi(onMap ? map : null)) return;
+            Ui?.ClosePopup();
+            bool append = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+            RightClickAction action = InputPolicy.RightClick(CommandState.Active, onMap,
+                pointed != null, CommandState.Armed, append);
+
+            switch (action)
+            {
+                case RightClickAction.AttackTarget:
+                    WeaponOrders.Attack(CommandState.Ship, CommandState.SelectedKey, pointed, CommandState.Quantity, out string attackReason, append);
+                    CommandState.Say(attackReason);
+                    break;
+                case RightClickAction.Menu:
+                    Ui?.OpenContext(Input.mousePosition, pointed == CommandState.Ship ? null : pointed, append);
+                    break;
+                case RightClickAction.MissingTarget:
+                    CommandState.Say((CommandState.SelectedWeapon()?.Name ?? "This weapon") +
+                        " needs a target. Right-click a compatible contact.");
+                    break;
+                case RightClickAction.AppendWaypoint:
+                    NavigationOrders.AppendWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string appendReason);
+                    CommandState.Say(appendReason);
+                    break;
+                case RightClickAction.ReplaceWaypoint:
+                    NavigationOrders.ReplaceWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string replaceReason);
+                    CommandState.Say(replaceReason);
+                    break;
+            }
+        }
+
+        private void RefreshHover()
+        {
+            var map = SceneSingleton<DynamicMap>.i;
+            bool canHover = map != null && DynamicMap.mapMaximized && map.IsCursorInMapRectangle() &&
+                (Ui == null || !Ui.PointerInside()) && !PointerOnForeignUi(map);
+            HoverUnit = canHover ? PickMapUnit(map) : null;
+        }
+
+        private Unit PickMapUnit(DynamicMap map)
+        {
+            pickedUnitDistance = float.PositiveInfinity;
+            Unit nearest = null;
+            float distance = 24f * 24f;
+            // Only native visible icons; this discovers no hidden contacts.
+            foreach (MapIcon icon in map.mapIcons)
+            {
+                if (!(icon is UnitMapIcon unitIcon) || unitIcon.unit == null || !icon.gameObject.activeInHierarchy ||
+                    icon.iconImage == null || !icon.iconImage.enabled || icon.iconImage.color.a < 0.02f) continue;
+                Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, icon.iconImage.transform.position);
+                float d = ((Vector2)Input.mousePosition - screen).sqrMagnitude;
+                if (d >= distance) continue;
+                distance = d;
+                nearest = unitIcon.unit;
+            }
+            if (nearest != null) pickedUnitDistance = distance;
+            return nearest;
+        }
+
+        private static Unit PickWorldUnit()
+        {
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (cameras == null || cameras.mainCamera == null) return null;
+            if (!Physics.Raycast(cameras.mainCamera.ScreenPointToRay(Input.mousePosition), out RaycastHit hit,
+                500000f, PhysicsLayers.Everything, QueryTriggerInteraction.Ignore)) return null;
+            var part = hit.collider.GetComponentInParent<UnitPart>();
+            Unit unit = part != null ? part.parentUnit : hit.collider.GetComponentInParent<Unit>();
+            if (unit == null || unit.disabled) return null;
+            // A world click grants no knowledge beyond the native accurate track.
+            if (GameManager.GetLocalHQ(out FactionHQ hq) && unit.NetworkHQ != hq && !hq.IsTargetPositionAccurate(unit, 100f)) return null;
+            return unit;
+        }
+
+        private bool PointerOnForeignUi(DynamicMap map)
+        {
+            EventSystem events = EventSystem.current;
+            if (events == null) return false;
+            if (pointer == null || pointerEvents != events) { pointer = new PointerEventData(events); pointerEvents = events; }
+            pointer.position = Input.mousePosition;
+            uiHits.Clear();
+            events.RaycastAll(pointer, uiHits);
+            foreach (RaycastResult hit in uiHits)
+            {
+                Transform hitTransform = hit.gameObject.transform;
+                if (Ui != null && Ui.Contains(hitTransform)) return true;
+                if (map != null && (hitTransform.IsChildOf(map.transform) || hitTransform == map.transform)) continue;
+                if (hit.gameObject.GetComponent<Graphic>() != null) return true;
+            }
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(CameraStateManager), nameof(CameraStateManager.SetFollowingUnit))]
+    internal static class FollowingPatch
+    {
+        private static void Postfix(Unit unit) => MapCommand.Instance?.FollowingChanged(unit);
+    }
+
+    [HarmonyPatch(typeof(UnitMapIcon), nameof(UnitMapIcon.ClickIcon))]
+    internal static class MapSelectionPatch
+    {
+        private static bool Prefix(UnitMapIcon __instance) =>
+            MapCommand.Instance == null || MapCommand.Instance.HandleSelection(__instance.unit);
+    }
+
+    // Right-click belongs to the command layer while active; native map pan and
+    // zoom keep left-drag and the wheel. Rewriting the two Input calls inside
+    // MapControls is narrower than suppressing the method wholesale.
+    [HarmonyPatch(typeof(DynamicMap), "MapControls")]
+    internal static class MapInputPatch
+    {
+        private static bool Prefix()
+        {
+            MapCommand instance = MapCommand.Instance;
+            instance?.ProcessInput();
+            return instance == null || !CommandState.Active || instance.Ui == null || !instance.Ui.PointerInside();
+        }
+
+        internal static bool MouseDown(int button) =>
+            InputPolicy.NativeMouseDown(CommandState.Active, button, Input.GetMouseButtonDown(button));
+
+        internal static bool MouseHeld(int button) =>
+            Input.GetMouseButton(button) && !(button == 0 && MapCommand.Instance != null && MapCommand.Instance.BlocksMapDrag());
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = new List<CodeInstruction>(instructions);
+            MethodInfo down = AccessTools.Method(typeof(Input), nameof(Input.GetMouseButtonDown), new[] { typeof(int) });
+            MethodInfo held = AccessTools.Method(typeof(Input), nameof(Input.GetMouseButton), new[] { typeof(int) });
+            MethodInfo downReplacement = AccessTools.Method(typeof(MapInputPatch), nameof(MouseDown));
+            MethodInfo heldReplacement = AccessTools.Method(typeof(MapInputPatch), nameof(MouseHeld));
+            int downMatches = 0, heldMatches = 0;
+            foreach (CodeInstruction item in code) { if (item.Calls(down)) downMatches++; if (item.Calls(held)) heldMatches++; }
+            if (downMatches != 1 || heldMatches != 1)
+                throw new InvalidOperationException("Native map input shape changed; refusing to patch.");
+            foreach (CodeInstruction item in code)
+            {
+                if (item.Calls(down)) item.operand = downReplacement;
+                else if (item.Calls(held)) item.operand = heldReplacement;
+            }
+            return code;
+        }
+    }
+
+    // The command bar keeps the cursor visible, which the native orbit gate
+    // reads as "do not orbit". Swap just that read; axes, sensitivity,
+    // smoothing and clamps stay native.
+    [HarmonyPatch(typeof(CameraOrbitState), "Inputs")]
+    internal static class CameraOrbitInputPatch
+    {
+        internal static bool CursorVisibleForOrbit() =>
+            !CommandState.Active ? Cursor.visible : false;
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = new List<CodeInstruction>(instructions);
+            MethodInfo native = AccessTools.PropertyGetter(typeof(Cursor), nameof(Cursor.visible));
+            MethodInfo adapter = AccessTools.Method(typeof(CameraOrbitInputPatch), nameof(CursorVisibleForOrbit));
+            int matches = 0;
+            foreach (CodeInstruction item in code) if (item.Calls(native)) matches++;
+            if (matches != 1) throw new InvalidOperationException("Native orbit input gate changed; refusing to patch.");
+            foreach (CodeInstruction item in code) if (item.Calls(native)) item.operand = adapter;
+            return code;
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class LeaveCommandPatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GameplayUI), nameof(GameplayUI.SelectAircraft));
+            yield return AccessTools.Method(typeof(GameplayUI), nameof(GameplayUI.ShowJoinMenu));
+        }
+
+        private static void Prefix() => MapCommand.Instance?.LeaveForNativeFlow();
+    }
+}

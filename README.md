@@ -31,20 +31,34 @@ Needs a .NET SDK and a local Nuclear Option install with BepInEx 5.
 NUCLEAR_OPTION_GAME="/path/to/Nuclear Option" ./build.sh --install
 ```
 
-## Command bar
+## Using it
 
-Follow a friendly ship with the spectator camera and the bar appears.
+Follow a friendly ship with the spectator camera; the command bar appears and
+orders are given on the native map.
 
-- **Speed** — slider, or All stop / 1/3 / 2/3 / Full / Flank. "Release speed"
-  hands the throttle back to the native controller.
-- **Route** — "Waypoint ahead" sets a leg 5 km off the bow; "Clear route"
-  returns the ship to autonomous navigation.
-- **Engaging** — click a weapon, pick a salvo size, then click a contact on the
-  right. Contacts are ranked by what the selected weapon can actually hurt, and
-  ones it cannot are greyed out.
+- **Right-click the map** — set a course waypoint. Hold shift to append a leg.
+- **Right-click a contact** — opens a context menu: engage with, navigate,
+  engagement permissions, cease fire. With a weapon already selected, a
+  right-click on a contact orders the attack directly.
+- **Hover a contact** — bearing, range, altitude, speed, how stale the track is,
+  and whether the selected weapon can reach it.
+- **Bar** — speed slider and telegraph presets, clear route, rules of
+  engagement, cease fire, weapon selection and salvo size.
 
-Targets are chosen from the contact list rather than the map: native map and
-world input arbitration comes later.
+Weapons a contact is immune to are shown greyed as "ineffective", from the
+game's own RoleIdentity/TypeIdentity scoring rather than a table of our own.
+
+### Rules of engagement
+
+Vanilla ships carry no `FireControl`; `ShipAI` picks the ship's target and each
+`Turret` picks its own, so there is no single native decision to patch. Instead
+a turret whose current pick is not sanctioned has it cleared and is held manual.
+
+- **Weapons Free** — unrestricted automatic engagement.
+- **Weapons Tight** — inbound weapons, and units that have fired on this ship.
+- **Weapons Hold** — point defence against inbound weapons only.
+
+Mounts carrying an explicit order are left alone by the policy.
 
 ## Test harness keys
 

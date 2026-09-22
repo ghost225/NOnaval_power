@@ -26,7 +26,9 @@ namespace NavalPower
                 harmony = new Harmony(Id);
                 harmony.PatchAll(typeof(Plugin).Assembly);
                 gameObject.AddComponent<TestHarness>();
-                gameObject.AddComponent<CommandUi>();
+                var ui = gameObject.AddComponent<CommandUi>();
+                var map = gameObject.AddComponent<MapCommand>();
+                map.Ui = ui;
                 Log.LogInfo("Naval Power " + Version + " ready. " + NativeBindings.Report());
             }
             catch (Exception ex)

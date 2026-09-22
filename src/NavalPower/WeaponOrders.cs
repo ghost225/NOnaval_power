@@ -143,6 +143,16 @@ namespace NavalPower
             : (orders[0].Continuous ? "Continuous" : orders[0].Remaining + "/" + orders[0].Requested + " remaining")
               + " · " + orders.Count + " order(s) · " + lastStatus;
 
+        // True when an explicit order currently owns this mount, so the
+        // engagement policy leaves it alone.
+        internal static bool Holds(Ship ship, Turret turret)
+        {
+            var state = ship != null ? ship.GetComponent<ShipWeapons>() : null;
+            if (state == null || turret == null) return false;
+            foreach (Order order in state.orders) if (order.Turret == turret) return true;
+            return false;
+        }
+
         internal static ShipWeapons Ensure(Ship ship)
         {
             var state = ship.GetComponent<ShipWeapons>();
