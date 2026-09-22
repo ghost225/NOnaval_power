@@ -193,6 +193,17 @@ namespace NavalPower
                 }
             }
 
+            // Anything in the pattern for our deck, so the recovery picture is
+            // visible without opening a panel.
+            foreach (DeckMovement movement in DeckTraffic.Movements(ship))
+            {
+                if (movement.Phase != TrafficPhase.Recovering || movement.Aircraft == null) continue;
+                Vector2 inbound = Project(movement.Aircraft.GlobalPosition());
+                Color color = Theme.Dim(Theme.Warn, movement.Ours ? 0.9f : 0.5f);
+                Line(vh, inbound, center, color, 1.2f);
+                Diamond(vh, inbound, 5f, color);
+            }
+
             Unit hovered = MapCommand.Instance?.HoverUnit;
             if (hovered != null && hovered != ship && ship.NetworkHQ != null &&
                 ship.NetworkHQ.TryGetKnownPosition(hovered, out GlobalPosition known))

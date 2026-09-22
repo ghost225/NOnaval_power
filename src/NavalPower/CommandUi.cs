@@ -508,18 +508,52 @@ namespace NavalPower
                 return;
             }
             deckAircraft = CarrierOps.Available(ship);
-            StartPopup("Flight deck · " + CarrierOps.DeckStatus(ship), null, deckAircraft.Length + 2);
+            List<DeckMovement> traffic = DeckTraffic.Movements(ship);
+            DeckTraffic.Hangars(ship, out int ready, out int busy);
+
+            int rows = deckAircraft.Length + traffic.Count + (traffic.Count > 0 ? 3 : 2);
+            StartPopup("Flight deck  ·  " + ready + " ready" + (busy > 0 ? ", " + busy + " working" : ""), null, rows);
+
+            int row = 1;
             for (int i = 0; i < deckAircraft.Length; i++)
             {
                 DeckAircraft airframe = deckAircraft[i];
-                Row(airframe.Name + "  ·  " + (airframe.InReserve ? "in reserve" : "purchase " + airframe.Price.ToString("0")),
-                    i + 1, () =>
+                bool spare = ready > 0;
+                Button entry = Row(airframe.Name + "  ·  " +
+                    (airframe.InReserve ? "in reserve" : "purchase " + airframe.Price.ToString("0")) +
+                    (spare ? "" : "  ·  no hangar free"), row++, () =>
                     {
                         plan = CarrierOps.PlanFor(airframe.Definition);
                         LoadoutMenu();
                     });
+                if (!spare) entry.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
-            Row("Close", deckAircraft.Length + 1, ClosePopup);
+
+            if (traffic.Count > 0)
+            {
+                InformationRow("DECK TRAFFIC", row++);
+                foreach (DeckMovement movement in traffic)
+                {
+                    Button entry = Row((movement.Ours ? "▸ " : "") + movement.Name + "  ·  " +
+                        Phase(movement.Phase) + "  ·  " + movement.Detail, row++, () => { });
+                    entry.GetComponentInChildren<Text>().color =
+                        movement.Phase == TrafficPhase.Recovering ? Theme.Warn
+                        : movement.Phase == TrafficPhase.Queued ? Theme.TextMuted
+                        : movement.Ours ? Theme.Accent : Theme.Text;
+                }
+            }
+            Row("Close", row, ClosePopup);
+        }
+
+        private static string Phase(TrafficPhase phase) =>
+            phase == TrafficPhase.Queued ? "queued"
+            : phase == TrafficPhase.Launching ? "launching" : "recovering";
+
+        // A non-interactive caption row inside a popup.
+        private void InformationRow(string value, int row)
+        {
+            Text label = Label(popupContent, value, Theme.LabelSize, TextAnchor.MiddleLeft, Theme.TextFaint);
+            Place(label.rectTransform, 10, (row - 1) * 38 + 10, 376, 20);
         }
 
         // Every station listed individually. No presets: a named profile is
@@ -527,8 +561,11 @@ namespace NavalPower
         private void LoadoutMenu()
         {
             if (plan == null) { DeckMenu(); return; }
+            int armed = 0;
+            foreach (LoadoutStation st in plan.Stations) if (st.Selected != null) armed++;
             int rows = plan.Stations.Count + 3;
-            StartPopup(plan.Definition.unitName + " · loadout", null, rows);
+            StartPopup(plan.Definition.unitName + " · loadout" +
+                (armed > 0 ? "  ·  " + armed + " station(s) set" : "  ·  clean"), null, rows);
             for (int i = 0; i < plan.Stations.Count; i++)
             {
                 LoadoutStation station = plan.Stations[i];

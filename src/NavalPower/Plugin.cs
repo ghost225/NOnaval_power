@@ -29,7 +29,7 @@ namespace NavalPower
                 var ui = gameObject.AddComponent<CommandUi>();
                 var map = gameObject.AddComponent<MapCommand>();
                 map.Ui = ui;
-                Log.LogInfo("Naval Power " + Version + " ready. " + NativeBindings.Report() + "\n" + DamageControl.Report() + "\n" + StrikeDesignationPatch.Report());
+                Log.LogInfo("Naval Power " + Version + " ready. " + NativeBindings.Report() + "\n" + DamageControl.Report() + "\n" + StrikeDesignationPatch.Report() + "\n" + LaunchCapturePatch.Report() + "\n" + DeckTraffic.Report());
             }
             catch (Exception ex)
             {

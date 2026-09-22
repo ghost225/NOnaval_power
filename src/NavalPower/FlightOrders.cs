@@ -76,13 +76,56 @@ namespace NavalPower
         {
             internal Ship Ship;
             internal AircraftDefinition Definition;
+            internal NuclearOption.SavedMission.Loadout Loadout;   // identity of this launch
             internal float ExpiresAt;
         }
         private static readonly List<Pending> pending = new List<Pending>();
 
-        internal static void ExpectLaunch(Ship ship, AircraftDefinition definition)
+        internal static void ExpectLaunch(Ship ship, AircraftDefinition definition,
+            NuclearOption.SavedMission.Loadout loadout)
         {
-            pending.Add(new Pending { Ship = ship, Definition = definition, ExpiresAt = Time.unscaledTime + 60f });
+            pending.Add(new Pending
+            {
+                Ship = ship,
+                Definition = definition,
+                Loadout = loadout,
+                ExpiresAt = Time.unscaledTime + 90f
+            });
+        }
+
+        // Claimed the moment the hangar builds it, matched on the loadout we
+        // handed in, so a simultaneous AI launch of the same type cannot be
+        // mistaken for ours.
+        internal static Flight ClaimLaunch(NuclearOption.SavedMission.Loadout loadout, Aircraft aircraft)
+        {
+            if (loadout == null || aircraft == null) return null;
+            for (int i = 0; i < pending.Count; i++)
+            {
+                if (!ReferenceEquals(pending[i].Loadout, loadout)) continue;
+                Ship parent = pending[i].Ship;
+                pending.RemoveAt(i);
+                if (parent == null) return null;
+                var flight = new Flight
+                {
+                    Aircraft = aircraft,
+                    Parent = parent,
+                    Mode = FlightMode.Orbit,
+                    OrbitCentre = parent.GlobalPosition(),
+                    Altitude = 600f
+                };
+                flights.Add(flight);
+                return flight;
+            }
+            return null;
+        }
+
+        // Launches requested but not yet seen on deck.
+        internal static List<string> PendingNames(Ship ship)
+        {
+            var names = new List<string>();
+            foreach (Pending request in pending)
+                if (request.Ship == ship && request.Definition != null) names.Add(request.Definition.unitName);
+            return names;
         }
 
         public static List<Flight> For(Ship ship)
@@ -109,8 +152,12 @@ namespace NavalPower
             {
                 Pending request = pending[i];
                 if (request.Ship == null || Time.unscaledTime > request.ExpiresAt) { pending.RemoveAt(i); continue; }
+                // The spawn hook normally claims the aircraft outright; this
+                // only covers a build where that hook failed to bind.
                 Aircraft found = FindNew(request);
                 if (found == null) continue;
+                Plugin.Log.LogWarning("[deck] launch matched by proximity, not by loadout · " +
+                    (request.Definition?.unitName ?? "aircraft"));
                 pending.RemoveAt(i);
                 var flight = new Flight
                 {

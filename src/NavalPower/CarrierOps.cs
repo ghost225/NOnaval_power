@@ -101,6 +101,20 @@ namespace NavalPower
             return rows.ToArray();
         }
 
+        // What was last loaded on each airframe, so a second sortie starts from
+        // the previous choice rather than from empty stations.
+        private static readonly Dictionary<AircraftDefinition, Dictionary<int, string>> remembered =
+            new Dictionary<AircraftDefinition, Dictionary<int, string>>();
+
+        internal static void Remember(LoadoutPlan plan)
+        {
+            if (plan == null || plan.Definition == null) return;
+            var record = new Dictionary<int, string>();
+            foreach (LoadoutStation station in plan.Stations)
+                record[station.Index] = station.Selected != null ? station.Selected.name : null;
+            remembered[plan.Definition] = record;
+        }
+
         // Every station the airframe has, with every mount it will accept.
         public static LoadoutPlan PlanFor(AircraftDefinition definition)
         {
@@ -121,7 +135,14 @@ namespace NavalPower
                 if (set.weaponOptions != null)
                     foreach (WeaponMount mount in set.weaponOptions)
                         if (mount != null) station.Options.Add(mount);
-                // Default to nothing: the whole point is deliberate choice.
+                // Restore the last choice for this station when there was one,
+                // matched by name so it survives a different mount list.
+                if (remembered.TryGetValue(definition, out Dictionary<int, string> record) &&
+                    record.TryGetValue(i, out string chosen) && chosen != null)
+                {
+                    foreach (WeaponMount option in station.Options)
+                        if (option.name == chosen && Releasable(null, option)) { station.Selected = option; break; }
+                }
                 plan.Stations.Add(station);
             }
             return plan;
@@ -188,7 +209,8 @@ namespace NavalPower
                 return false;
             }
 
-            FlightOrders.ExpectLaunch(ship, plan.Definition);
+            Remember(plan);
+            FlightOrders.ExpectLaunch(ship, plan.Definition, loadout);
             reason = "Launching " + plan.Definition.unitName + " · " + plan.Summary() +
                 (purchased ? " · purchased" : " · from reserve");
             Plugin.Log.LogInfo("[deck] " + ship.definition?.unitName + ": " + reason);
