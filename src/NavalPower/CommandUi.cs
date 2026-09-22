@@ -335,7 +335,9 @@ namespace NavalPower
                 Button row = Row(station.Name + "   ·   " + station.SelectedName, i + 1, () => StationMenu(station));
                 if (station.Selected == null) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
-            Row("LAUNCH  ·  " + plan.Summary(), plan.Stations.Count + 1, () =>
+            // Just the verb: the loadout is listed row by row directly above,
+            // and spelling it out again overran the button.
+            Row("LAUNCH", plan.Stations.Count + 1, () =>
             {
                 CarrierOps.Launch(CommandState.Ship, plan, out string reason);
                 CommandState.Say(reason);
