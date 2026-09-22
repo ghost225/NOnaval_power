@@ -167,7 +167,11 @@ namespace NavalPower
             lastSent = destination;
             hasSentLeg = true;
             sendingOwnOrder = true;
-            try { ship.UnitCommand.SetDestination(destination, true); }
+            try
+            {
+                ship.SetHoldPosition(false);
+                ship.UnitCommand.SetDestination(destination, true);
+            }
             finally { sendingOwnOrder = false; }
         }
 
@@ -200,8 +204,36 @@ namespace NavalPower
             ownsRoute = false;
             ownsHeading = false;
             hasSentLeg = false;
-            // Hand steering back rather than freezing the ship in place.
-            if (ai != null) ai.ArriveAtCommandedDestination();
+            // Genuinely hand steering back: this is the one place the native
+            // controller should resume choosing its own destination.
+            if (ship != null) ship.SetHoldPosition(false);
+            if (ai != null && NativeBindings.AiCommandedDestination != null)
+                NativeBindings.AiCommandedDestination.SetValue(ai, false);
+        }
+
+        // Stop without surrendering navigation. ShipAI.ArriveAtCommandedDestination
+        // starts a timed hold that clears commandedDestination when it expires,
+        // and ShipAI.Update then calls ChooseTarget and sails off on its own --
+        // which is what made an ordered route silently revert to autonomous.
+        private void HoldNative()
+        {
+            if (ship == null || ai == null) return;
+            ship.SetHoldPosition(true);
+            ai.state = ShipAI.ShipAIState.holding;
+            PinCommanded();
+            ShipInputs inputs = ship.GetInputs();
+            if (inputs == null || ship.rb == null) return;
+            inputs.steering = 0f;
+            inputs.throttle = Mathf.Clamp(-Vector3.Dot(ship.rb.velocity, ship.transform.forward) * .1f, -1f, 1f);
+        }
+
+        // ShipAI.Update only re-chooses a destination while commandedDestination
+        // is false, so holding it true keeps our route authoritative without
+        // patching ChooseTarget -- which several ShipAI subclasses override.
+        private void PinCommanded()
+        {
+            if (ai != null && NativeBindings.AiCommandedDestination != null)
+                NativeBindings.AiCommandedDestination.SetValue(ai, true);
         }
 
         internal void OrderSpeed(float knots)
@@ -250,7 +282,9 @@ namespace NavalPower
                         HasSpeedOrder = false;
                         ownsRoute = false;
                         ownsHeading = false;
-                        if (ai != null) ai.ArriveAtCommandedDestination();
+                        if (ship != null) ship.SetHoldPosition(false);
+                        if (ai != null && NativeBindings.AiCommandedDestination != null)
+                            NativeBindings.AiCommandedDestination.SetValue(ai, false);
                     }
                     return;
                 }
@@ -267,7 +301,7 @@ namespace NavalPower
             {
                 route.RemoveAt(0);
                 if (route.Count > 0) Send(route[0]);
-                else if (ai != null) ai.ArriveAtCommandedDestination();
+                else HoldNative();
             }
         }
 
@@ -276,8 +310,9 @@ namespace NavalPower
         // next physics step, without patching a virtual that subclasses override.
         private void LateUpdate()
         {
-            if (!HasSpeedOrder || ship == null || ship.disabled || ship.rb == null) return;
-            if (!ship.IsServer || !ship.LocalSim) return;
+            if (ship == null || ship.disabled || !ship.IsServer || !ship.LocalSim) return;
+            if (OwnsNavigation) PinCommanded();
+            if (!HasSpeedOrder || ship.rb == null) return;
             if (ownsRoute && route.Count == 0) return;
 
             ShipInputs inputs = ship.GetInputs();
