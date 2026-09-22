@@ -71,9 +71,11 @@ namespace NavalPower
             Vector3 offset = destination - aircraft.GlobalPosition();
             float bearing = (Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg + 360f) % 360f;
             offset.y = 0f;
+            float verticalError = (destination - aircraft.GlobalPosition()).y;
             Plugin.Log.LogInfo("[flight] " + flight.Name + " · " + flight.Describe() +
                 " · dest bearing " + bearing.ToString("000") + "° range " + (offset.magnitude / 1000f).ToString("0.0") +
                 " km · alt " + aircraft.radarAlt.ToString("0") + " ordered " + flight.Altitude.ToString("0") +
+                " (dest dy " + verticalError.ToString("0") + ")" +
                 " · state " + (aircraft.autopilot != null ? aircraft.autopilot.GetType().Name : "none"));
         }
 
@@ -98,25 +100,37 @@ namespace NavalPower
             Steer(leg);
         }
 
-        // Aim at a point running ahead around the circle, so the aircraft flies
-        // a curve rather than converging on the centre and dithering there.
+        // Fly the tangent, not a point on the rim.
+        //
+        // Chasing a point 50 degrees around the circle put the destination two
+        // and a half kilometres away at a wide angle, which is the regime where
+        // AutopilotPlane starts adding pull-up and never settles. Steering along
+        // the tangent with a long look-ahead keeps the destination far off and
+        // nearly dead ahead, which is the cruise case the autopilot handles well.
+        private const float LookAhead = 6000f;
+
         private void FlyOrbit(GlobalPosition centre)
         {
             Vector3 offset = aircraft.GlobalPosition() - centre;
             offset.y = 0f;
             float radius = Mathf.Max(flight.OrbitRadius, 400f);
-            // Sitting exactly on the centre gives no bearing to work from; fall
-            // back to where the aircraft is pointing rather than a stale phase.
-            float bearing;
-            if (offset.sqrMagnitude > 1f) bearing = Mathf.Atan2(offset.x, offset.z);
-            else
-            {
-                Vector3 nose = aircraft.transform.forward;
-                bearing = Mathf.Atan2(nose.x, nose.z);
-            }
-            orbitPhase = bearing + 0.9f;                        // roughly 50 degrees ahead
-            Vector3 lead = new Vector3(Mathf.Sin(orbitPhase), 0f, Mathf.Cos(orbitPhase)) * radius;
-            Steer(centre + lead);
+
+            Vector3 outward = offset.sqrMagnitude > 1f ? offset.normalized : Flat(aircraft.transform.forward);
+            // Consistent left-hand circuit, the way a holding pattern is flown.
+            Vector3 tangent = new Vector3(-outward.z, 0f, outward.x);
+
+            // Steer back onto the circle in proportion to how far off it we are,
+            // so the aircraft closes the radius instead of spiralling.
+            float error = Mathf.Clamp((offset.magnitude - radius) / Mathf.Max(radius, 1f), -1f, 1f);
+            Vector3 heading = (tangent - outward * error).normalized;
+
+            Steer(aircraft.GlobalPosition() + heading * LookAhead);
+        }
+
+        private static Vector3 Flat(Vector3 value)
+        {
+            value.y = 0f;
+            return value.sqrMagnitude > 0.001f ? value.normalized : Vector3.forward;
         }
 
         private void FlyStation()

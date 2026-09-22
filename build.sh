@@ -17,6 +17,13 @@ done
 dotnet build -c Release --nologo ${args[@]+"${args[@]}"}
 
 if (( install )); then
+    # Overwriting the DLL while Mono has it mapped corrupts the loaded image and
+    # takes the game down with "BadImageFormatException: Method has zero rva".
+    if pgrep -f "NuclearOption" >/dev/null 2>&1; then
+        echo "REFUSING TO INSTALL: Nuclear Option is running." >&2
+        echo "Close the game first, then re-run with --install." >&2
+        exit 1
+    fi
     dest="$NUCLEAR_OPTION_GAME/BepInEx/plugins/NavalPower"
     mkdir -p "$dest"
     cp bin/Release/NavalPower.dll "$dest/"
