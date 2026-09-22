@@ -48,6 +48,22 @@ orders are given on the native map.
 Weapons a contact is immune to are shown greyed as "ineffective", from the
 game's own RoleIdentity/TypeIdentity scoring rather than a table of our own.
 
+### Air operations
+
+One surface for the whole activity: what is on deck, what is airborne, and what
+is in the pattern. A persistent strip along the command bar carries every
+flight as a chip with its state and fuel, so the air picture is visible while
+doing something else rather than only when a menu is open. Fuel is the
+constraint that actually governs carrier work and it leads the chip.
+
+### Task areas
+
+A flight is sent to work an area rather than a point. Right-click the map with
+a flight selected to set its task area; shift lays down an explicit route
+instead. The area is where the flight holds, and unless released it is also the
+only place it will prosecute anything -- which is the difference between a
+patrol and an aircraft that wanders off after the first contact it sees.
+
 ### Flights
 
 Aircraft launched from the deck are commanded, not released. A custom

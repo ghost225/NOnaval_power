@@ -149,6 +149,7 @@ namespace NavalPower
 
             RefreshWeapons();
             RefreshQuantities();
+            RefreshStrip();
             RefreshDamage();
             EngagementMode mode = EngagementPolicy.GetMode(ship);
             for (int i = 0; i < roeButtons.Count; i++)
@@ -256,7 +257,7 @@ namespace NavalPower
             Row("Navigate / speed…", 2, NavigationMenu);
             Row("Engagement permissions…", 3, RoeMenu);
             Row("Sensors / EMCON…", 6, SensorMenu);
-            if (CarrierOps.HasDeck(CommandState.Ship)) Row("Flight deck…", 7, DeckMenu);
+            if (CarrierOps.HasDeck(CommandState.Ship)) Row("Air operations…", 7, AirOpsMenu);
             Row("Cease fire", 4, () =>
             {
                 WeaponOrders.CeaseFire(CommandState.Ship, out string reason);
@@ -336,6 +337,68 @@ namespace NavalPower
             Row("Close", 3, ClosePopup);
         }
 
+        // ---- air operations -------------------------------------------------
+
+        // One surface for the whole activity: what is on deck, what is up, and
+        // what is coming back. Launching and commanding were split across two
+        // menus for no reason other than the order they were built in.
+        private void AirOpsMenu()
+        {
+            Ship ship = CommandState.Ship;
+            List<Flight> airborne = FlightOrders.For(ship);
+            List<DeckMovement> traffic = DeckTraffic.Movements(ship);
+            bool deck = CarrierOps.HasDeck(ship);
+            DeckTraffic.Hangars(ship, out int ready, out int busy);
+
+            int rows = 2 + (deck ? 2 : 0) + airborne.Count + (airborne.Count > 0 ? 2 : 0) + traffic.Count + (traffic.Count > 0 ? 1 : 0);
+            StartPopup("Air operations" + (deck ? "  ·  " + ready + " hangar(s) ready" + (busy > 0 ? ", " + busy + " working" : "") : ""),
+                null, rows);
+
+            int row = 1;
+            if (deck)
+            {
+                InformationRow("ON DECK", row++);
+                Row("Launch an aircraft…", row++, DeckMenu);
+            }
+
+            if (airborne.Count > 0)
+            {
+                InformationRow("AIRBORNE  ·  " + airborne.Count, row++);
+                for (int i = 0; i < airborne.Count; i++)
+                {
+                    Flight flight = airborne[i];
+                    Button entry = Row(flight.Name + "   ·   " + flight.Describe() +
+                        "   ·   " + flight.FuelPercent.ToString("0") + "% fuel", row++, () => FlightMenu(flight));
+                    entry.GetComponentInChildren<Text>().color =
+                        flight.FuelPercent < 25f ? Theme.Bad
+                        : flight.Threat == FlightThreat.Missile ? Theme.Bad
+                        : flight.Interrupted ? Theme.Warn : Theme.Text;
+                    if (CommandState.SelectedFlight == flight) entry.image.color = Theme.AccentFill;
+                }
+                Row("All flights recover", row++, () =>
+                {
+                    foreach (Flight flight in airborne) FlightOrders.ReturnToBase(flight);
+                    CommandState.Say(airborne.Count + " flight(s) recovering");
+                    AirOpsMenu();
+                });
+            }
+
+            if (traffic.Count > 0)
+            {
+                InformationRow("DECK TRAFFIC", row++);
+                foreach (DeckMovement movement in traffic)
+                {
+                    Button entry = Row((movement.Ours ? "▸ " : "") + movement.Name + "  ·  " +
+                        Phase(movement.Phase) + "  ·  " + movement.Detail, row++, () => { });
+                    entry.GetComponentInChildren<Text>().color =
+                        movement.Phase == TrafficPhase.Recovering ? Theme.Warn
+                        : movement.Phase == TrafficPhase.Queued ? Theme.TextMuted
+                        : movement.Ours ? Theme.Accent : Theme.Text;
+                }
+            }
+            Row("Close", row, ClosePopup);
+        }
+
         // ---- flights --------------------------------------------------------
 
         private void StrikeMenu(Unit target)
@@ -403,11 +466,11 @@ namespace NavalPower
             popupKey = "flight";
 
             string legs = flight.Route.Count > 0 ? flight.Route.Count + " leg(s) queued" : "no route";
-            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 11);
+            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 12);
 
             // The panel stays open, so this reads as standing guidance rather
             // than an instruction to be dismissed.
-            Button tasking = Row("TASKING  ·  right-click the map to add a leg  ·  " + legs, 1, () =>
+            Button tasking = Row("TASKING  ·  right-click the map to set a task area  ·  shift adds route legs  ·  " + legs, 1, () =>
             {
                 flight.Route.Clear();
                 FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());
@@ -417,9 +480,9 @@ namespace NavalPower
             tasking.image.color = Theme.AccentFill;
             tasking.GetComponentInChildren<Text>().color = Theme.Text;
 
-            Row("Orbit here", 2, () =>
+            Row("Hold here  ·  task area on the aircraft", 2, () =>
             {
-                FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());
+                FlightOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
                 CommandState.Say(flight.Name + " · holding overhead");
                 FlightMenu(flight);
             });
@@ -430,7 +493,15 @@ namespace NavalPower
                 FlightMenu(flight);
             });
             Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), 4, () => AltitudeMenu(flight));
-            Row("Orbit radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
+            Row("Task area radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
+            Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), 12, () =>
+            {
+                FlightOrders.SetConfined(flight, !flight.ConfineToArea);
+                CommandState.Say(flight.Name + (flight.ConfineToArea
+                    ? " · will fight only inside its task area"
+                    : " · released to engage anywhere in reach"));
+                FlightMenu(flight);
+            });
             Row("WEAPONS FREE  ·  hand to the AI", 6, () =>
             {
                 FlightOrders.Engage(flight);
@@ -450,7 +521,7 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · recovering");
                 FlightMenu(flight);
             });
-            Row("Other flights", 10, FlightsMenu);
+            Row("Other flights", 10, AirOpsMenu);
             Row("DONE  ·  return the map to the ship", 11, ClosePopup);
         }
 
@@ -496,8 +567,8 @@ namespace NavalPower
 
         private void RadiusMenu(Flight flight)
         {
-            float[] metres = { 2000f, 4000f, 8000f, 16000f, 28000f };
-            StartPopup(flight.Name + " · orbit radius", null, metres.Length + 1);
+            float[] metres = { 2000f, 4000f, 8000f, 16000f, 28000f, 45000f };
+            StartPopup(flight.Name + " · task area radius", null, metres.Length + 1);
             for (int i = 0; i < metres.Length; i++)
             {
                 float radius = metres[i];
@@ -787,6 +858,12 @@ namespace NavalPower
         }
 
         private Text emconPill, roePill, damagePill, trackPill;
+        private RectTransform flightStrip;
+        private Text flightStripLabel;
+        private readonly List<Button> flightChips = new List<Button>();
+        private readonly List<Text> flightChipLabels = new List<Text>();
+        private readonly List<Flight> chipFlights = new List<Flight>();
+        private const int MaxChips = 8;
 
         private void BuildBar()
         {
@@ -816,8 +893,7 @@ namespace NavalPower
             statusLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
             Place(statusLabel.rectTransform, 986, 13, 560, 24);
 
-            MakeButton(bar, "Flights", 1470, 11, 80, 28, () => TogglePopup("flights", FlightsMenu));
-            MakeButton(bar, "Flight deck", 1556, 11, 116, 28, () => TogglePopup("deck", DeckMenu));
+            MakeButton(bar, "Air ops", 1470, 11, 202, 28, () => TogglePopup("airops", AirOpsMenu));
             MakeButton(bar, "Damage", 1678, 11, 92, 28, () => { damageOpen = !damageOpen; Refresh(); });
             MakeButton(bar, "Sensors", 1776, 11, 92, 28, () => TogglePopup("sensors", SensorMenu));
 
@@ -884,8 +960,69 @@ namespace NavalPower
                     1514 + i * 72, 116, 66, 32, () => { CommandState.Quantity = count; Refresh(); }));
             }
 
+            // Band D: the air picture, always visible rather than behind a menu.
+            flightStrip = Box("Flights", bar, new Color(0, 0, 0, 0));
+            Place(flightStrip, 16, 150, 1888, 30);
+            flightStripLabel = Label(flightStrip, "", Theme.LabelSize, TextAnchor.MiddleLeft, Theme.TextFaint);
+            Place(flightStripLabel.rectTransform, 0, 8, 150, 16);
+            for (int i = 0; i < MaxChips; i++)
+            {
+                int index = i;
+                Button chip = MakeButton(flightStrip, "", 156 + i * 216, 0, 210, 28, () => SelectChip(index));
+                flightChips.Add(chip);
+                flightChipLabels.Add(chip.GetComponentInChildren<Text>());
+            }
+
             feedbackLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
-            Place(feedbackLabel.rectTransform, 16, 146, 1888, 22);
+            Place(feedbackLabel.rectTransform, 16, 186, 1888, 22);
+        }
+
+        private void SelectChip(int index)
+        {
+            if (index >= chipFlights.Count) return;
+            FlightMenu(chipFlights[index]);
+        }
+
+        // The bar grows only when there is an air picture to show.
+        private void RefreshStrip()
+        {
+            List<Flight> airborne = FlightOrders.For(CommandState.Ship);
+            bool any = airborne.Count > 0;
+            bar.sizeDelta = new Vector2(0, any ? Theme.BarHeight + 40f : Theme.BarHeight);
+            Place(feedbackLabel.rectTransform, 16, any ? 186 : 146, 1888, 22);
+            flightStrip.gameObject.SetActive(any);
+            if (!any) { chipFlights.Clear(); return; }
+
+            flightStripLabel.text = "FLIGHTS  " + airborne.Count;
+            chipFlights.Clear();
+            for (int i = 0; i < flightChips.Count; i++)
+            {
+                bool live = i < airborne.Count && i < MaxChips;
+                flightChips[i].gameObject.SetActive(live);
+                if (!live) continue;
+                Flight flight = airborne[i];
+                chipFlights.Add(flight);
+
+                string state = flight.Status ?? ShortTask(flight);
+                flightChipLabels[i].text = flight.ShortName + "  " + state + "\n" +
+                    flight.FuelPercent.ToString("0") + "% fuel";
+                flightChipLabels[i].color = flight.FuelPercent < 25f ? Theme.Bad : Theme.Text;
+                flightChips[i].image.color = CommandState.SelectedFlight == flight
+                    ? Theme.AccentFill : Theme.Dim(FlightIcons.For(flight), 0.22f);
+            }
+        }
+
+        private static string ShortTask(Flight flight)
+        {
+            switch (flight.Mode)
+            {
+                case FlightMode.Route: return "route " + flight.Route.Count;
+                case FlightMode.Orbit: return "on station";
+                case FlightMode.Station: return "escort";
+                case FlightMode.Strike: return "strike";
+                case FlightMode.Engage: return "free";
+                default: return "recovering";
+            }
         }
 
         private void BuildDamagePanel()

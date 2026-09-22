@@ -24,8 +24,9 @@ namespace NavalPower
         public Ship Parent;
         public FlightMode Mode = FlightMode.Orbit;
         public readonly List<GlobalPosition> Route = new List<GlobalPosition>();
-        public GlobalPosition OrbitCentre;
-        public float OrbitRadius = 3000f;
+        public GlobalPosition OrbitCentre;      // task area centre
+        public float OrbitRadius = 3000f;       // task area radius
+        public bool ConfineToArea = true;       // fight only inside the area
         public float Altitude = 900f;
         public Vector3 StationOffset;
         public bool Adopted;
@@ -37,6 +38,20 @@ namespace NavalPower
         public float ThreatClearedAt;
 
         public string Name => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
+
+        // 0-100. The constraint that actually governs carrier operations, and
+        // until now it was invisible until the automatic recovery fired.
+        public float FuelPercent => Aircraft != null ? Mathf.Clamp01(Aircraft.GetFuelLevel()) * 100f : 0f;
+
+        public string ShortName
+        {
+            get
+            {
+                string full = Name;
+                int space = full.IndexOf(' ');
+                return space > 0 ? full.Substring(0, space) : full;
+            }
+        }
 
         // Whatever the standing task is, what it is doing right now comes first.
         public string Status =>
@@ -56,7 +71,8 @@ namespace NavalPower
             switch (Mode)
             {
                 case FlightMode.Route: return Route.Count > 0 ? "Route · " + Route.Count + " leg(s)" : "Route complete";
-                case FlightMode.Orbit: return "Orbit · " + UnitConverter.DistanceReading(OrbitRadius);
+                case FlightMode.Orbit: return "Station area · " + UnitConverter.DistanceReading(OrbitRadius) +
+                    (ConfineToArea ? "" : " · unrestricted");
                 case FlightMode.Station: return "Station on " + (Parent?.definition?.unitName ?? "ship");
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
@@ -284,6 +300,33 @@ namespace NavalPower
             flight.Mode = FlightMode.Orbit;
         }
 
+        // A task area is where the flight works: it holds inside it and, unless
+        // released, will not prosecute anything outside it. That is the
+        // difference between a patrol and an aircraft that wanders off after the
+        // first contact it sees.
+        public static void SetArea(Flight flight, GlobalPosition centre, float radius)
+        {
+            if (flight == null) return;
+            flight.OrbitCentre = centre;
+            flight.OrbitRadius = Mathf.Clamp(radius, 500f, 60000f);
+            flight.Route.Clear();
+            flight.Mode = FlightMode.Orbit;
+        }
+
+        public static void SetConfined(Flight flight, bool confined)
+        {
+            if (flight != null) flight.ConfineToArea = confined;
+        }
+
+        // Does this flight have an area that limits where it may fight?
+        internal static bool HasArea(Flight flight) =>
+            flight != null && flight.ConfineToArea &&
+            (flight.Mode == FlightMode.Orbit || flight.Mode == FlightMode.Station);
+
+        internal static GlobalPosition AreaCentre(Flight flight) =>
+            flight.Mode == FlightMode.Station && flight.Parent != null
+                ? flight.Parent.GlobalPosition() : flight.OrbitCentre;
+
         public static void Station(Flight flight)
         {
             if (flight == null || flight.Parent == null) return;
@@ -401,7 +444,10 @@ namespace NavalPower
                     }
                     if (threat != FlightThreat.None) continue;
                     if (flight.Roe != FlightRoe.Free) continue;
-                    // Weapons free: something we can reach and hurt is enough.
+                    // Weapons free inside the task area: something we can reach
+                    // and hurt, that is also somewhere we were sent to fight.
+                    if (HasArea(flight) &&
+                        FastMath.Distance(unit.GlobalPosition(), AreaCentre(flight)) > flight.OrbitRadius) continue;
                     WeaponStation station = BestStationFor(aircraft, unit);
                     if (station == null) continue;
                     float range = FastMath.Distance(aircraft.GlobalPosition(), unit.GlobalPosition());

@@ -184,8 +184,13 @@ namespace NavalPower
                 }
                 else if (selected.Mode == FlightMode.Orbit)
                 {
+                    // The area it is working, plus a tether so it is obvious
+                    // which aircraft the area belongs to.
                     Circle(vh, selected.OrbitCentre, selected.OrbitRadius, Theme.Dim(color, 0.6f));
-                    Line(vh, at, Project(selected.OrbitCentre), Theme.Dim(color, 0.35f), 1.2f);
+                    Vector2 middle = Project(selected.OrbitCentre);
+                    Line(vh, at, middle, Theme.Dim(color, 0.3f), 1.2f);
+                    Line(vh, middle + Vector2.left * 5f, middle + Vector2.right * 5f, Theme.Dim(color, 0.8f), 1.6f);
+                    Line(vh, middle + Vector2.down * 5f, middle + Vector2.up * 5f, Theme.Dim(color, 0.8f), 1.6f);
                 }
                 else if (selected.Mode == FlightMode.Station && selected.Parent != null)
                 {

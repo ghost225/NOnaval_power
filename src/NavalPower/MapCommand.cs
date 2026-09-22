@@ -341,12 +341,11 @@ namespace NavalPower
                     CommandState.Say(tasking.Name + " · leg appended · shift-click to add more");
                     break;
                 case RightClickAction.ReplaceWaypoint when tasking != null:
-                    // With the panel open every click adds to the route; the
-                    // panel closing is what ends tasking, not the first order.
-                    FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), pinned);
-                    CommandState.Say(tasking.Name + (pinned
-                        ? " · leg added · " + tasking.Route.Count + " queued"
-                        : " · proceeding · map returned to the ship"));
+                    // A plain click sends the flight to work an area, which is
+                    // the common order; shift lays down an explicit route.
+                    FlightOrders.SetArea(tasking, map.GetCursorCoordinates(), tasking.OrbitRadius);
+                    CommandState.Say(tasking.Name + " · task area set · " +
+                        UnitConverter.DistanceReading(tasking.OrbitRadius) + " radius");
                     if (!pinned) CommandState.SelectedFlight = null;
                     break;
                 case RightClickAction.AppendWaypoint:
