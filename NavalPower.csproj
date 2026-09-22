@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>NavalPower</AssemblyName>
+    <RootNamespace>NavalPower</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <!-- Set GameDir, or export NUCLEAR_OPTION_GAME before building. -->
+    <GameDir Condition="'$(GameDir)' == ''">$(NUCLEAR_OPTION_GAME)</GameDir>
+    <Managed>$(GameDir)/NuclearOption_Data/Managed</Managed>
+    <BepInExCore>$(GameDir)/BepInEx/core</BepInExCore>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <Target Name="CheckGameDir" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(Managed)/Assembly-CSharp.dll')"
+           Text="Assembly-CSharp.dll not found under '$(Managed)'. Set NUCLEAR_OPTION_GAME or pass -p:GameDir=..." />
+  </Target>
+
+  <ItemGroup>
+    <!-- The game's managed assemblies, minus the BCL ones that would collide
+         with the SDK's own reference assemblies. -->
+    <Reference Include="$(Managed)/*.dll"
+               Exclude="$(Managed)/mscorlib.dll;$(Managed)/netstandard.dll;$(Managed)/System.dll;$(Managed)/System.Core.dll;$(Managed)/System.Xml.dll;$(Managed)/System.Xml.Linq.dll;$(Managed)/System.Runtime.dll;$(Managed)/System.Data.dll"
+               Private="false" />
+    <Reference Include="$(BepInExCore)/BepInEx.dll" Private="false" />
+    <Reference Include="$(BepInExCore)/0Harmony.dll" Private="false" />
+  </ItemGroup>
+
+</Project>
