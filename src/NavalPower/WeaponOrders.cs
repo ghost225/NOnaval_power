@@ -132,7 +132,7 @@ namespace NavalPower
             internal Turret Turret;
             internal int Remaining, Requested;
             internal bool Continuous;
-            internal float Created, NextShot;
+            internal float Created, NextShot, NextMountCheck;
         }
 
         private readonly List<Order> orders = new List<Order>(8);
@@ -211,15 +211,24 @@ namespace NavalPower
             float now = Time.timeSinceLevelLoad;
             if (now < order.NextShot) return;
 
+            // Re-assess the mount periodically: a turret that could bear when the
+            // order was issued may not after the ship or the target has turned.
+            if (order.Selected != null && now >= order.NextMountCheck)
+            {
+                order.NextMountCheck = now + .2f;
+                if (!NativeBindings.CanServe(order.Turret, ship, order.Target)) Release(order);
+            }
+
             if (order.Selected == null || !Usable(order.Selected))
             {
-                if (!AcquireMount(order, now)) { lastStatus = "Waiting for a usable mount"; order.NextShot = now + .25f; }
+                if (!AcquireMount(order, now)) { lastStatus = "Waiting for a mount that can bear"; order.NextShot = now + .1f; }
                 return;
             }
 
-            // The mount has to be pointing at the target before the trigger is
-            // meaningful. Launchers with no trainable turret skip this.
-            if (order.Turret != null && !order.Turret.IsOnTarget())
+            // A trainable mount must be pointing at the target first. A fixed
+            // launcher never assigns onTarget at all -- Turret.AimTurret returns
+            // a range test for those -- so gating on it would block forever.
+            if (order.Turret != null && !NativeBindings.FiresWithoutAiming(order.Turret) && !order.Turret.IsOnTarget())
             { NativeBindings.StopTrigger(order.Selected); lastStatus = "Mount turning onto target"; return; }
             if (order.Selected.Safety)
             { NativeBindings.StopTrigger(order.Selected); lastStatus = "Waiting for mount readiness"; return; }
@@ -250,7 +259,8 @@ namespace NavalPower
             {
                 if (station.Reloading) continue;
                 Weapon candidate = station.Weapons.FirstOrDefault(w =>
-                    WeaponOrders.Supported(w) && Usable(w) && (w.ammo > 0 || w is Laser));
+                    WeaponOrders.Supported(w) && Usable(w) && (w.ammo > 0 || w is Laser) &&
+                    NativeBindings.CanServe(w.GetComponentInParent<Turret>(), ship, order.Target));
                 if (candidate == null) continue;
 
                 order.Selected = candidate;
@@ -268,8 +278,10 @@ namespace NavalPower
                 }
                 candidate.SetTarget(order.Target);
                 order.NextShot = now + Time.fixedDeltaTime;
-                Plugin.Log.LogInfo("[mount] " + order.Key + " -> " + station.Number +
-                    " turret=" + (order.Turret != null ? order.Turret.name : "none"));
+                order.NextMountCheck = now + .2f;
+                Plugin.Log.LogInfo("[mount] " + order.Key + " -> station " + station.Number +
+                    " turret=" + (order.Turret != null ? order.Turret.name : "none") +
+                    " fixed=" + NativeBindings.FiresWithoutAiming(order.Turret));
                 return true;
             }
             return false;

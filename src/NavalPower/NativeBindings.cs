@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text;
 using HarmonyLib;
+using UnityEngine;
 
 namespace NavalPower
 {
@@ -16,6 +17,29 @@ namespace NavalPower
         internal static readonly FieldInfo LaserTrigger = AccessTools.Field(typeof(Laser), "fireCommanded");
         internal static readonly MethodInfo TurretChooseTarget = AccessTools.Method(typeof(Turret), "ChooseTarget");
         internal static readonly FieldInfo AiCommandedDestination = AccessTools.Field(typeof(ShipAI), "commandedDestination");
+        internal static readonly FieldInfo TurretFiresWithoutAiming = AccessTools.Field(typeof(Turret), "firesWithoutAiming");
+        internal static readonly FieldInfo TurretFiringCones = AccessTools.Field(typeof(Turret), "firingCones");
+
+        // Turret.AimTurret returns a plain range test for a fixed launcher and
+        // never assigns onTarget, so IsOnTarget() is permanently false on those
+        // mounts. Gating fire on it would block every VLS order forever.
+        internal static bool FiresWithoutAiming(Turret turret) =>
+            turret != null && TurretFiresWithoutAiming != null && (bool)TurretFiresWithoutAiming.GetValue(turret);
+
+        // Whether the mount can physically bear on the target. Picking a mount
+        // that can never train onto the contact is the main source of an order
+        // sitting idle instead of shooting.
+        internal static bool CanServe(Turret turret, Unit owner, Unit target)
+        {
+            if (turret == null) return true;
+            if (target == null || owner == null || owner.NetworkHQ == null) return false;
+            if (!owner.NetworkHQ.TryGetKnownPosition(target, out GlobalPosition known)) return false;
+            Vector3 direction = known - turret.transform.GlobalPosition();
+            if (direction.sqrMagnitude < .0001f) return false;
+            var cones = TurretFiringCones?.GetValue(turret) as FiringCone[];
+            return cones == null || cones.Length == 0 ||
+                FiringConeChecker.VectorWithinFiringCones(cones, direction, out _);
+        }
 
         internal static string Report()
         {
@@ -27,6 +51,8 @@ namespace NavalPower
             Append(text, "Laser.fireCommanded", LaserTrigger);
             Append(text, "Turret.ChooseTarget", TurretChooseTarget);
             Append(text, "ShipAI.commandedDestination", AiCommandedDestination);
+            Append(text, "Turret.firesWithoutAiming", TurretFiresWithoutAiming);
+            Append(text, "Turret.firingCones", TurretFiringCones);
             return text.ToString();
         }
 

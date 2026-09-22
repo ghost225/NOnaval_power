@@ -100,7 +100,7 @@ namespace NavalPower
                 if (info == null) continue;
                 foreach (Unit unit in UnitRegistry.allUnits)
                 {
-                    if (unit == null || unit == ship || unit.disabled) continue;
+                    if (unit == null || unit == ship || unit.disabled || unit is Missile) continue;
                     if (unit.NetworkHQ == null || unit.NetworkHQ == ship.NetworkHQ) continue;
                     float opportunity = WeaponOrders.Opportunity(info, unit);
                     if (opportunity <= 0.01f) continue;
