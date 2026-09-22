@@ -95,14 +95,19 @@ namespace NavalPower
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             if (nav != null)
             {
-                speedLabel.text = "Actual " + nav.ActualSpeedKnots.ToString("0.0") +
-                    " kt  /  Ordered " + nav.OrderedSpeedKnots.ToString("0.0") + " kt";
+                speedLabel.text = "Actual " + UnitConverter.SpeedReadingGround(
+                        nav.ActualSpeedKnots * CommandableShip.MetresPerSecondPerKnot) +
+                    "  /  Ordered " + UnitConverter.SpeedReadingGround(
+                        nav.OrderedSpeedKnots * CommandableShip.MetresPerSecondPerKnot);
                 updatingSlider = true;
                 speedSlider.minValue = nav.MinimumSpeedKnots;
                 speedSlider.maxValue = Mathf.Max(nav.MinimumSpeedKnots + 0.1f, nav.MaximumSpeedKnots);
                 speedSlider.value = Mathf.Clamp(nav.OrderedSpeedKnots, speedSlider.minValue, speedSlider.maxValue);
                 updatingSlider = false;
             }
+
+            if (CommandState.SelectedFlight != null)
+                SetPill(trackPill, "TASKING " + CommandState.SelectedFlight.Name.ToUpperInvariant(), Theme.Accent);
 
             string say = CommandState.Feedback;
             feedbackLabel.text = say ?? ((nav != null ? nav.Status + "  ·  " : "") +
@@ -339,8 +344,8 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · keeping company");
                 FlightsMenu();
             });
-            Row("Altitude  ·  " + (flight.Altitude * 3.28084f).ToString("0") + " ft", 4, () => AltitudeMenu(flight));
-            Row("Orbit radius  ·  " + (flight.OrbitRadius / 1852f).ToString("0.0") + " nm", 5, () => RadiusMenu(flight));
+            Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), 4, () => AltitudeMenu(flight));
+            Row("Orbit radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
             Row("WEAPONS FREE  ·  hand to the AI", 6, () =>
             {
                 FlightOrders.Engage(flight);
@@ -359,34 +364,34 @@ namespace NavalPower
 
         private void AltitudeMenu(Flight flight)
         {
-            float[] feet = { 300f, 600f, 1000f, 2000f, 5000f, 10000f, 20000f };
-            StartPopup(flight.Name + " · altitude", null, feet.Length + 1);
-            for (int i = 0; i < feet.Length; i++)
+            float[] metres = { 100f, 200f, 300f, 600f, 1500f, 3000f, 6000f };
+            StartPopup(flight.Name + " · altitude", null, metres.Length + 1);
+            for (int i = 0; i < metres.Length; i++)
             {
-                float ft = feet[i];
-                Row(ft.ToString("0") + " ft" + (ft <= 500f ? "  ·  terrain following" : ""), i + 1, () =>
+                float height = metres[i];
+                Row(UnitConverter.AltitudeReading(height) + (height < 400f ? "  ·  terrain following" : ""), i + 1, () =>
                 {
-                    FlightOrders.SetAltitude(flight, ft / 3.28084f);
+                    FlightOrders.SetAltitude(flight, height);
                     FlightMenu(flight);
                 });
             }
-            Row("Back", feet.Length + 1, () => FlightMenu(flight));
+            Row("Back", metres.Length + 1, () => FlightMenu(flight));
         }
 
         private void RadiusMenu(Flight flight)
         {
-            float[] miles = { 1f, 2f, 5f, 10f, 15f };
-            StartPopup(flight.Name + " · orbit radius", null, miles.Length + 1);
-            for (int i = 0; i < miles.Length; i++)
+            float[] metres = { 2000f, 4000f, 8000f, 16000f, 28000f };
+            StartPopup(flight.Name + " · orbit radius", null, metres.Length + 1);
+            for (int i = 0; i < metres.Length; i++)
             {
-                float nm = miles[i];
-                Row(nm.ToString("0") + " nm", i + 1, () =>
+                float radius = metres[i];
+                Row(UnitConverter.DistanceReading(radius), i + 1, () =>
                 {
-                    FlightOrders.SetOrbitRadius(flight, nm * 1852f);
+                    FlightOrders.SetOrbitRadius(flight, radius);
                     FlightMenu(flight);
                 });
             }
-            Row("Back", miles.Length + 1, () => FlightMenu(flight));
+            Row("Back", metres.Length + 1, () => FlightMenu(flight));
         }
 
         // ---- flight deck ----------------------------------------------------
@@ -497,7 +502,7 @@ namespace NavalPower
                     : sensor.Active ? (sensor.Jammed ? "RADIATING · JAMMED" : "RADIATING")
                     : "silent";
                 string detail = sensor.RangeMetres > 1f
-                    ? "  ·  " + (sensor.RangeMetres / 1852f).ToString("0") + " nm" : "";
+                    ? "  ·  " + UnitConverter.DistanceReading(sensor.RangeMetres) : "";
                 if (sensor.DetectedCount >= 0) detail += "  ·  " + sensor.DetectedCount + " tracked";
                 Button row = Row(sensor.Name + "  ·  " + state + detail, i + 3, () =>
                 {

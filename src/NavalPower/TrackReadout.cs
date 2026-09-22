@@ -15,11 +15,11 @@ namespace NavalPower
             text.Append("ESM ").Append(contact.Id).Append("  ·  ").Append(contact.Type);
             if (contact.Stale) text.Append("  ·  STALE");
             text.Append("\nBearing ").Append(contact.BearingDegrees.ToString("000")).Append("°  ·  estimated range ")
-                .Append((contact.RangeMetres / 1852f).ToString("0.0")).Append(" nm");
+                .Append(UnitConverter.DistanceReading(contact.RangeMetres));
             text.Append("\nLast heard ").Append(contact.AgeSeconds.ToString("0")).Append(" s ago");
-            text.Append("\nUncertainty ±").Append((contact.RadialUncertaintyMetres / 1852f).ToString("0.0"))
-                .Append(" nm along bearing · ±").Append((contact.CrossRangeUncertaintyMetres / 1852f).ToString("0.0"))
-                .Append(" nm across");
+            text.Append("\nUncertainty ±").Append(UnitConverter.DistanceReading(contact.RadialUncertaintyMetres))
+                .Append(" along bearing · ±").Append(UnitConverter.DistanceReading(contact.CrossRangeUncertaintyMetres))
+                .Append(" across");
             text.Append("\nPassive bearing only · not a fire-control track");
             return text.ToString();
         }
@@ -56,12 +56,11 @@ namespace NavalPower
             float bearing = (Mathf.Atan2(flat.x, flat.z) * Mathf.Rad2Deg + 360f) % 360f;
 
             text.Append("\nBearing ").Append(bearing.ToString("000")).Append("°  ·  range ")
-                .Append((range / 1852f).ToString("0.0")).Append(" nm (").Append((range / 1000f).ToString("0.0")).Append(" km)");
+                .Append(UnitConverter.DistanceReading(range));
 
             if (contact is Aircraft || contact.radarAlt > 50f)
-                text.Append("\nAltitude ").Append((contact.radarAlt * 3.28084f).ToString("0")).Append(" ft");
-            text.Append("\nSpeed ").Append((Mathf.Abs(contact.speed) / CommandableShip.MetresPerSecondPerKnot).ToString("0"))
-                .Append(" kt");
+                text.Append("\nAltitude ").Append(UnitConverter.AltitudeReading(contact.radarAlt));
+            text.Append("\nSpeed ").Append(UnitConverter.SpeedReading(Mathf.Abs(contact.speed)));
 
             if (!friendly && track != null)
             {
@@ -79,7 +78,7 @@ namespace NavalPower
                 text.Append("\n").Append(weapon.Name).Append(": ");
                 if (opportunity <= 0.01f) text.Append("cannot engage this target type");
                 else if (range > weapon.MaxRange) text.Append("beyond range (max ")
-                    .Append((weapon.MaxRange / 1852f).ToString("0.0")).Append(" nm)");
+                    .Append(UnitConverter.DistanceReading(weapon.MaxRange)).Append(")");
                 else if (range < weapon.MinRange) text.Append("inside minimum range");
                 else text.Append("in range · effectiveness ").Append(opportunity.ToString("0.00"));
             }

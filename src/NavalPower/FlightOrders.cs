@@ -28,7 +28,7 @@ namespace NavalPower
             switch (Mode)
             {
                 case FlightMode.Route: return Route.Count > 0 ? "Route · " + Route.Count + " leg(s)" : "Route complete";
-                case FlightMode.Orbit: return "Orbit · " + (OrbitRadius / 1852f).ToString("0.0") + " nm";
+                case FlightMode.Orbit: return "Orbit · " + UnitConverter.DistanceReading(OrbitRadius);
                 case FlightMode.Station: return "Station on " + (Parent?.definition?.unitName ?? "ship");
                 case FlightMode.Engage: return "Weapons free · AI engaging";
                 default: return "Returning to base";

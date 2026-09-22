@@ -309,6 +309,7 @@ namespace NavalPower
             }
 
             if (PointerOnForeignUi(onMap ? map : null)) return;
+            Flight tasking = CommandState.SelectedFlight;
             Ui?.ClosePopup();
             bool append = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
 
@@ -330,13 +331,17 @@ namespace NavalPower
                     CommandState.Say((CommandState.SelectedWeapon()?.Name ?? "This weapon") +
                         " needs a target. Right-click a compatible contact.");
                     break;
-                case RightClickAction.AppendWaypoint when CommandState.SelectedFlight != null:
-                    FlightOrders.SetRoute(CommandState.SelectedFlight, map.GetCursorCoordinates(), true);
-                    CommandState.Say(CommandState.SelectedFlight.Name + " · leg appended");
+                // Shift keeps tasking the flight so a multi-leg route can be
+                // laid down; a plain click sends it and hands the map back to
+                // the ship, so orders never silently keep going to the aircraft.
+                case RightClickAction.AppendWaypoint when tasking != null:
+                    FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), true);
+                    CommandState.Say(tasking.Name + " · leg appended · shift-click to add more");
                     break;
-                case RightClickAction.ReplaceWaypoint when CommandState.SelectedFlight != null:
-                    FlightOrders.SetRoute(CommandState.SelectedFlight, map.GetCursorCoordinates(), false);
-                    CommandState.Say(CommandState.SelectedFlight.Name + " · proceeding");
+                case RightClickAction.ReplaceWaypoint when tasking != null:
+                    FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), false);
+                    CommandState.Say(tasking.Name + " · proceeding · map returned to the ship");
+                    CommandState.SelectedFlight = null;
                     break;
                 case RightClickAction.AppendWaypoint:
                     NavigationOrders.AppendWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string appendReason);

@@ -13,6 +13,7 @@ namespace NavalPower
     {
         private Flight flight;
         private float orbitPhase;
+        private float nextReport;
 
         internal static void Install(Pilot pilot, Flight flight)
         {
@@ -45,6 +46,8 @@ namespace NavalPower
                 Plugin.Log.LogInfo("[flight] " + flight.Name + " returning · fuel");
             }
 
+            Report();
+
             switch (flight.Mode)
             {
                 case FlightMode.Route: FlyRoute(); break;
@@ -53,6 +56,21 @@ namespace NavalPower
                 case FlightMode.Engage: HandBackToCombat(pilot); break;
                 case FlightMode.ReturnToBase: HandBackToLanding(pilot); break;
             }
+        }
+
+        // Periodic trace: if a flight wanders, this says whether it was given
+        // the wrong destination or simply refused to fly to the right one.
+        private void Report()
+        {
+            if (Time.timeSinceLevelLoad < nextReport) return;
+            nextReport = Time.timeSinceLevelLoad + 5f;
+            Vector3 offset = destination - aircraft.GlobalPosition();
+            float bearing = (Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg + 360f) % 360f;
+            offset.y = 0f;
+            Plugin.Log.LogInfo("[flight] " + flight.Name + " · " + flight.Describe() +
+                " · dest bearing " + bearing.ToString("000") + "° range " + (offset.magnitude / 1000f).ToString("0.0") +
+                " km · alt " + aircraft.radarAlt.ToString("0") + " ordered " + flight.Altitude.ToString("0") +
+                " · state " + (aircraft.autopilot != null ? aircraft.autopilot.GetType().Name : "none"));
         }
 
         private void FlyRoute()
@@ -83,7 +101,15 @@ namespace NavalPower
             Vector3 offset = aircraft.GlobalPosition() - centre;
             offset.y = 0f;
             float radius = Mathf.Max(flight.OrbitRadius, 400f);
-            float bearing = offset.sqrMagnitude > 1f ? Mathf.Atan2(offset.x, offset.z) : orbitPhase;
+            // Sitting exactly on the centre gives no bearing to work from; fall
+            // back to where the aircraft is pointing rather than a stale phase.
+            float bearing;
+            if (offset.sqrMagnitude > 1f) bearing = Mathf.Atan2(offset.x, offset.z);
+            else
+            {
+                Vector3 nose = aircraft.transform.forward;
+                bearing = Mathf.Atan2(nose.x, nose.z);
+            }
             orbitPhase = bearing + 0.9f;                        // roughly 50 degrees ahead
             Vector3 lead = new Vector3(Mathf.Sin(orbitPhase), 0f, Mathf.Cos(orbitPhase)) * radius;
             Steer(centre + lead);
