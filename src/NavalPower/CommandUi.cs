@@ -67,7 +67,7 @@ namespace NavalPower
             if (ship == null) return;
 
             shipLabel.text = ship.definition?.unitName ?? ship.name;
-            statusLabel.text = WeaponOrders.GetStatus(ship);
+            statusLabel.text = (Sensors.IsSilent(ship) ? "EMCON SILENT  ·  " : "") + WeaponOrders.GetStatus(ship);
 
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             if (nav != null)
@@ -177,10 +177,11 @@ namespace NavalPower
             string title = target != null
                 ? (target.definition?.unitName ?? target.name)
                 : (CommandState.Ship?.definition?.unitName ?? "Ship");
-            StartPopup(title, screenPosition, 5);
+            StartPopup(title, screenPosition, 6);
             Row("Engage with…", 1, WeaponMenu);
             Row("Navigate / speed…", 2, NavigationMenu);
             Row("Engagement permissions…", 3, RoeMenu);
+            Row("Sensors / EMCON…", 6, SensorMenu);
             Row("Cease fire", 4, () =>
             {
                 WeaponOrders.CeaseFire(CommandState.Ship, out string reason);
@@ -239,6 +240,46 @@ namespace NavalPower
                 ClosePopup();
             });
             Row("Close", 8, ClosePopup);
+        }
+
+        private void SensorMenu()
+        {
+            SensorSnapshot[] sensors = Sensors.GetSensors(CommandState.Ship);
+            StartPopup(Sensors.IsSilent(CommandState.Ship) ? "Sensors · EMCON SILENT" : "Sensors",
+                null, sensors.Length + 3);
+            Row("EMCON · all emitters silent", 1, () =>
+            {
+                Sensors.SetAllEmitting(CommandState.Ship, false, out string reason);
+                CommandState.Say(reason);
+                SensorMenu();
+            });
+            Row("Radiate · all emitters on", 2, () =>
+            {
+                Sensors.SetAllEmitting(CommandState.Ship, true, out string reason);
+                CommandState.Say(reason);
+                SensorMenu();
+            });
+            for (int i = 0; i < sensors.Length; i++)
+            {
+                SensorSnapshot sensor = sensors[i];
+                string state = !sensor.Operational ? "UNAVAILABLE"
+                    : !sensor.IsEmitter ? "passive"
+                    : sensor.Active ? (sensor.Jammed ? "RADIATING · JAMMED" : "RADIATING")
+                    : "silent";
+                string detail = sensor.RangeMetres > 1f
+                    ? "  ·  " + (sensor.RangeMetres / 1852f).ToString("0") + " nm" : "";
+                if (sensor.DetectedCount >= 0) detail += "  ·  " + sensor.DetectedCount + " tracked";
+                Button row = Row(sensor.Name + "  ·  " + state + detail, i + 3, () =>
+                {
+                    if (!sensor.IsEmitter) { CommandState.Say(sensor.Name + " is passive; it emits nothing to shut down."); return; }
+                    Sensors.SetEmitting(CommandState.Ship, sensor.Id, !sensor.Active, out string reason);
+                    CommandState.Say(reason);
+                    SensorMenu();
+                });
+                if (!sensor.Operational || !sensor.IsEmitter)
+                    row.GetComponentInChildren<Text>().color = MutedColor;
+            }
+            Row("Close", sensors.Length + 3, ClosePopup);
         }
 
         private void RoeMenu()
@@ -348,6 +389,7 @@ namespace NavalPower
             Place(shipLabel.rectTransform, 16, 8, 560, 28);
             statusLabel = Label(bar, "", 16, TextAnchor.MiddleLeft, MutedColor);
             Place(statusLabel.rectTransform, 588, 8, 900, 28);
+            MakeButton(bar, "Sensors / EMCON", 1496, 8, 170, 30, () => TogglePopup("sensors", SensorMenu));
             Button exit = MakeButton(bar, "Exit command", 1740, 8, 164, 30,
                 () => MapCommand.Instance?.LeaveForNativeFlow());
 

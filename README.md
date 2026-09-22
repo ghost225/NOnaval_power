@@ -48,6 +48,22 @@ orders are given on the native map.
 Weapons a contact is immune to are shown greyed as "ineffective", from the
 game's own RoleIdentity/TypeIdentity scoring rather than a table of our own.
 
+### Sensors and EMCON
+
+`Radar` derives from `TargetDetector`, so a hull carries a mix of emitters and
+passive sensors. EMCON silences only the emitters: switching off a passive
+sensor would not reduce the ship's signature, it would just blind it.
+
+The sensor menu lists each sensor with its state, range and track count, and
+toggles emitters individually or all at once. Active emitter coverage is drawn
+on the map, so going silent visibly shuts the picture down.
+
+Component names are made readable by convention rather than a per-ship lookup
+table, so modded hulls get the same treatment: `CIWS_FL` reads as "Forward Port
+CIWS". Short position codes are read as fore/aft then port/starboard, and a lone
+trailing `R` is taken as rear rather than right, which matches how these hulls
+are actually named.
+
 ### Rules of engagement
 
 Vanilla ships carry no `FireControl`; `ShipAI` picks the ship's target and each

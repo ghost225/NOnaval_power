@@ -14,11 +14,13 @@ namespace NavalPower
         private static readonly Color MinRangeColor = new Color(1f, 0.8f, 0.24f, 0.9f);
         private static readonly Color EngageColor = new Color(1f, 0.38f, 0.32f, 0.9f);
         private static readonly Color TrackColor = new Color(1f, 0.75f, 0.3f, 0.95f);
+        private static readonly Color RadarColor = new Color(0.45f, 0.95f, 0.6f, 0.4f);
 
         private DynamicMap map;
         private Rect clip;
         private readonly Vector3[] corners = new Vector3[4];
         private readonly List<Unit> engaged = new List<Unit>();
+        private readonly List<float> radarRanges = new List<float>();
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {
@@ -44,6 +46,12 @@ namespace NavalPower
             }
 
             Vector2 center = Project(ship.GlobalPosition());
+
+            // What the ship is currently lighting up. Nothing is drawn under
+            // EMCON, which is the point: the picture goes quiet with the ship.
+            radarRanges.Clear();
+            Sensors.CollectActiveRanges(ship, radarRanges);
+            foreach (float range in radarRanges) Circle(vh, ship.GlobalPosition(), range, RadarColor);
 
             WeaponCommandInfo weapon = CommandState.SelectedWeapon();
             if (weapon != null)
