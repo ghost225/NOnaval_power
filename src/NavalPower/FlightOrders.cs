@@ -207,7 +207,8 @@ namespace NavalPower
                         // Hand it over: the native pilot evades and fights far
                         // better than a navigation loop ever will.
                         flight.Interrupted = true;
-                        if (crew.AICombatState != null) crew.SwitchStateNew(crew.AICombatState);
+                        PilotBaseState combat = CombatStateFor(crew);
+                        if (combat != null) crew.SwitchStateNew(combat);
                         Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
                             (flight.Threat == FlightThreat.Missile ? "evading" : "engaging"));
                     }
@@ -230,8 +231,9 @@ namespace NavalPower
                 // handoff never happened once we already had the aircraft.
                 if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage)
                 {
-                    if (pilot.AICombatState != null && !(pilot.currentState is AIPilotCombatModes))
-                        pilot.SwitchStateNew(pilot.AICombatState);
+                    PilotBaseState combat = CombatStateFor(pilot);
+                    if (combat != null && !ReferenceEquals(pilot.currentState, combat))
+                        pilot.SwitchStateNew(combat);
                     flight.Adopted = true;
                     Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
                         (flight.Mode == FlightMode.Strike
@@ -240,7 +242,11 @@ namespace NavalPower
                     continue;
                 }
 
-                if (!(pilot.currentState is AIPilotCombatModes)) continue;   // still on the deck or climbing out
+                // Wait until it is actually flying, but do not name the state it
+                // must be in: a helicopter goes to AIHeloCombatState and never
+                // to AIPilotCombatModes, so testing for the latter meant rotary
+                // flights were never taken under command at all.
+                if (StillLeaving(pilot)) continue;
                 if (!NavalPilotState.CanBeFlown(flight.Aircraft))
                 {
                     // Better the native AI than an aircraft nobody is flying.
@@ -264,6 +270,21 @@ namespace NavalPower
                 if (pilot != null && !pilot.dead && !pilot.ejected) return pilot;
             return null;
         }
+
+        // On the deck, taxiing, or climbing out: taking over now would fight
+        // the native launch sequence.
+        internal static bool StillLeaving(Pilot pilot) =>
+            pilot.currentState is PilotParkedState ||
+            pilot.currentState is AIPilotTaxiState ||
+            pilot.currentState is AIPilotTakeoffState ||
+            pilot.currentState is AIHeloTakeoffState;
+
+        internal static bool IsRotary(Pilot pilot) => pilot != null && pilot.AIHeloCombatState != null;
+
+        // The combat state that suits this airframe.
+        internal static PilotBaseState CombatStateFor(Pilot pilot) =>
+            IsRotary(pilot) && pilot.AIHeloCombatState != null
+                ? (PilotBaseState)pilot.AIHeloCombatState : pilot.AICombatState;
 
         private static Aircraft FindNew(Pending request)
         {
@@ -420,12 +441,36 @@ namespace NavalPower
 
         // ---- threats -------------------------------------------------------
 
+        private static readonly System.Reflection.FieldInfo HeloTarget =
+            HarmonyLib.AccessTools.Field(typeof(AIHeloCombatState), "currentTarget");
+
+        // The fixed-wing designation runs as a patch on AssessHQTargets, which
+        // the helicopter state does not have. Pin its target directly instead.
+        private static void PinHelicopterTargets()
+        {
+            if (HeloTarget == null) return;
+            foreach (Flight flight in flights)
+            {
+                if (flight.Mode != FlightMode.Strike || flight.Target == null || flight.Target.disabled) continue;
+                Pilot pilot = FirstPilot(flight.Aircraft);
+                if (pilot == null || !(pilot.currentState is AIHeloCombatState helo)) continue;
+                if (ReferenceEquals(HeloTarget.GetValue(helo), flight.Target)) continue;
+                HeloTarget.SetValue(helo, flight.Target);
+                if (flight.Aircraft.weaponManager != null)
+                {
+                    flight.Aircraft.weaponManager.ClearTargetList();
+                    flight.Aircraft.weaponManager.AddTargetList(flight.Target);
+                }
+            }
+        }
+
         private static float nextThreatScan;
 
         private static void AssessThreats()
         {
             if (Time.unscaledTime < nextThreatScan) return;
             nextThreatScan = Time.unscaledTime + 0.25f;
+            PinHelicopterTargets();
 
             foreach (Flight flight in flights)
             {

@@ -226,21 +226,20 @@ namespace NavalPower
         {
             // No combat state to hand to: keep flying it ourselves rather than
             // leaving the aircraft with nobody at the controls.
-            if (pilot.AICombatState == null) { FlyOrbit(flight.OrbitCentre); return; }
+            PilotBaseState combat = FlightOrders.CombatStateFor(pilot);
+            if (combat == null) { FlyOrbit(flight.OrbitCentre); return; }
             Plugin.Log.LogInfo("[flight] " + flight.Name + " · handing to the combat pilot · " + flight.Describe());
-            pilot.SwitchStateNew(pilot.AICombatState);
+            pilot.SwitchStateNew(combat);
         }
 
         private void HandBackToLanding(Pilot pilot)
         {
-            PilotBaseState landing = pilot.AIHeloLandingState != null && IsRotary(pilot)
+            PilotBaseState landing = FlightOrders.IsRotary(pilot) && pilot.AIHeloLandingState != null
                 ? (PilotBaseState)pilot.AIHeloLandingState : pilot.AILandingState;
             if (landing == null) { FlyOrbit(aircraft.GlobalPosition()); return; }
             Plugin.Log.LogInfo("[flight] " + flight.Name + " recovering");
             pilot.SwitchStateNew(landing);
         }
-
-        private static bool IsRotary(Pilot pilot) => pilot.AIHeloCombatState != null;
 
         private static float Horizontal(GlobalPosition a, GlobalPosition b)
         {

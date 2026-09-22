@@ -29,12 +29,14 @@ namespace NavalPower
     public static class DeckTraffic
     {
         private static readonly FieldInfo LandingAirbase = AccessTools.Field(typeof(AIPilotLandingState), "airbase");
-        private static readonly FieldInfo HeloLandingAirbase = AccessTools.Field(typeof(AIHeloLandingState), "airbase");
+        // AIHeloLandingState declares no airbase of its own; it recovers to the
+        // one PilotBaseState found.
+        private static readonly FieldInfo HeloLandingAirbase = AccessTools.Field(typeof(PilotBaseState), "nearestAirbase");
 
         internal static string Report() =>
             "deck traffic:" +
             "\n  " + (LandingAirbase != null ? "ok      " : "MISSING ") + "AIPilotLandingState.airbase" +
-            "\n  " + (HeloLandingAirbase != null ? "ok      " : "MISSING ") + "AIHeloLandingState.airbase";
+            "\n  " + (HeloLandingAirbase != null ? "ok      " : "MISSING ") + "PilotBaseState.nearestAirbase";
 
         public static void Hangars(Ship ship, out int ready, out int busy)
         {
