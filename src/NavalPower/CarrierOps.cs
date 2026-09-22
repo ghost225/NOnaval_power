@@ -127,6 +127,20 @@ namespace NavalPower
             return plan;
         }
 
+        // Mirrors Loadout.AllowedByHQ per mount, so a station never offers a
+        // weapon the faction would refuse at launch -- nuclear stores before
+        // release authority, and anything on the HQ's restricted list.
+        public static bool Releasable(Ship ship, WeaponMount mount)
+        {
+            if (mount == null) return false;
+            FactionHQ hq = ship != null ? ship.NetworkHQ : null;
+            if (hq != null && hq.restrictedWeapons != null && hq.restrictedWeapons.Contains(mount.name)) return false;
+            if (mount.info == null || !mount.info.nuclear) return true;
+            if (!MissionManager.AllowTactical()) return false;
+            if (mount.info.strategic && !MissionManager.AllowStrategic()) return false;
+            return true;
+        }
+
         public static bool Launch(Ship ship, LoadoutPlan plan, out string reason)
         {
             if (!CommandableShip.CanCommand(ship, out reason)) return false;

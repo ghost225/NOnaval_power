@@ -13,6 +13,7 @@ namespace NavalPower
     {
 
         private Font font;
+        private Canvas canvas;
         private GameObject root;
         private RectTransform bar, popup, popupContent, hover, weaponRow;
         private Text shipLabel, statusLabel, speedLabel, feedbackLabel, hoverText;
@@ -35,6 +36,7 @@ namespace NavalPower
         private bool contextAppend;
         private string popupKey;
         private bool placed;
+        private Vector2 popupAnchor;
 
         private readonly List<Button> weaponButtons = new List<Button>();
         private readonly List<Text> weaponLabels = new List<Text>();
@@ -167,11 +169,13 @@ namespace NavalPower
                 : TrackReadout.Describe(CommandState.Ship, unit, CommandState.SelectedWeapon());
             Vector2 size = new Vector2(Mathf.Max(260f, hoverText.preferredWidth + 24f), hoverText.preferredHeight + 18f);
             hover.sizeDelta = size;
+            float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
+            Vector2 pixels = size * scale;
             Vector2 point = Input.mousePosition;
             // Flip toward the screen centre so the card never leaves the view.
             float x = point.x + 18f, y = point.y - 18f;
-            if (x + size.x > Screen.width) x = point.x - 18f - size.x;
-            if (y - size.y < 0f) y = point.y + 18f + size.y;
+            if (x + pixels.x > Screen.width) x = point.x - 18f - pixels.x;
+            if (y - pixels.y < 0f) y = point.y + 18f + pixels.y;
             hover.position = new Vector2(x, y);
         }
 
@@ -343,11 +347,14 @@ namespace NavalPower
 
         private void StationMenu(LoadoutStation station)
         {
-            StartPopup(station.Name, null, station.Options.Count + 2);
+            StartPopup(station.Name, null, CountReleasable(station) + 2);
             Row("Empty", 1, () => { station.Selected = null; LoadoutMenu(); });
-            for (int i = 0; i < station.Options.Count; i++)
+            var allowed = new List<WeaponMount>();
+            foreach (WeaponMount option in station.Options)
+                if (CarrierOps.Releasable(CommandState.Ship, option)) allowed.Add(option);
+            for (int i = 0; i < allowed.Count; i++)
             {
-                WeaponMount mount = station.Options[i];
+                WeaponMount mount = allowed[i];
                 string detail = mount.info != null ? "  ·  " + mount.info.weaponName : "";
                 if (mount.ammo > 1) detail += " ×" + mount.ammo;
                 if (mount.radar) detail += "  ·  RADAR";
@@ -355,7 +362,15 @@ namespace NavalPower
                 if (mount.Cargo) detail += "  ·  CARGO";
                 Row(mount.mountName + detail, i + 2, () => { station.Selected = mount; LoadoutMenu(); });
             }
-            Row("Close", station.Options.Count + 2, ClosePopup);
+            Row("Close", allowed.Count + 2, ClosePopup);
+        }
+
+        private static int CountReleasable(LoadoutStation station)
+        {
+            int count = 0;
+            foreach (WeaponMount option in station.Options)
+                if (CarrierOps.Releasable(CommandState.Ship, option)) count++;
+            return count;
         }
 
         private void SensorMenu()
@@ -426,18 +441,30 @@ namespace NavalPower
         private void StartPopup(string title, Vector2? screenPosition, int rows)
         {
             Ensure();
-            foreach (Transform child in popupContent) Destroy(child.gameObject);
+            for (int i = popupContent.childCount - 1; i >= 0; i--)
+            {
+                Transform child = popupContent.GetChild(i);
+                child.SetParent(null, false);
+                Destroy(child.gameObject);
+            }
             popup.gameObject.SetActive(true);
             float height = rows * 38f + 46f;
             popup.sizeDelta = new Vector2(392, height);
-            // Without an explicit point -- a menu opened from the bar, or a
-            // submenu replacing its parent -- keep the last position rather than
-            // collapsing to the canvas origin underneath the command bar.
-            Vector2 target = screenPosition ?? (placed ? popup.position : new Vector2(Screen.width * 0.5f - 196f, 200f + height));
+            // An explicit point sets the anchor; submenus reuse it unchanged.
+            // Reading the position back each time made every taller menu shove
+            // the popup further up the screen until it left the view.
+            if (screenPosition.HasValue) { popupAnchor = screenPosition.Value; placed = true; }
+            else if (!placed) { popupAnchor = new Vector2(Screen.width * 0.5f - 196f, Theme.BarHeight + 24f); placed = true; }
+
+            // sizeDelta is in canvas units, Input/Screen are in pixels, and the
+            // two only agree at the 1920 reference width. Convert before clamping.
+            float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
+            float pixelWidth = 392f * scale, pixelHeight = height * scale;
+            // Pivot is bottom-left and the panel extends upward, so the bottom
+            // edge must leave room for the whole height above it.
             popup.position = new Vector2(
-                Mathf.Clamp(target.x, 0f, Mathf.Max(0f, Screen.width - 392f)),
-                Mathf.Clamp(target.y, height, Screen.height));
-            placed = true;
+                Mathf.Clamp(popupAnchor.x, 4f, Mathf.Max(4f, Screen.width - pixelWidth - 4f)),
+                Mathf.Clamp(popupAnchor.y, 4f, Mathf.Max(4f, Screen.height - pixelHeight - 4f)));
             Text header = Label(popup, title, Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
             Place(header.rectTransform, 12, 9, 368, 26);
             RectTransform rule = Box("rule", popup, Theme.Divider);
@@ -480,7 +507,7 @@ namespace NavalPower
 
             root = new GameObject("Naval Power", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.transform.SetParent(transform, false);
-            var canvas = root.GetComponent<Canvas>();
+            canvas = root.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 120;
             var scaler = root.GetComponent<CanvasScaler>();
@@ -604,7 +631,7 @@ namespace NavalPower
             }
 
             feedbackLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
-            Place(feedbackLabel.rectTransform, 16, 148, 1888, 18);
+            Place(feedbackLabel.rectTransform, 16, 146, 1888, 22);
         }
 
         private void BuildDamagePanel()

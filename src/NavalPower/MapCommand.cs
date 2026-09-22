@@ -1,3 +1,4 @@
+using NuclearOption.Networking;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -81,6 +82,14 @@ namespace NavalPower
         private EventSystem pointerEvents;
         private float pickedUnitDistance;
 
+        private static readonly System.Reflection.FieldInfo DebugFollowing =
+            AccessTools.Field(typeof(UnitDebug), "followingUnit");
+        private CanvasGroup nativeBar;
+        private bool addedNativeBar;
+        private float nativeAlpha;
+        private bool nativeInteractable, nativeBlocks;
+        private Player creditedPlayer;
+
         internal Unit HoverUnit { get; private set; }
         internal EsmContact HoverEsm { get; private set; }
         private float pickedEsmDistance;
@@ -118,6 +127,8 @@ namespace NavalPower
             CommandState.SelectedKey = null;
             CommandState.Quantity = 1;
             Esm.Configure(ship);
+            HideNativeBar(ship);
+            CreditKillsToCommander(ship);
             CursorManager.SetFlag(CommandCursor, true);
             CommandState.Say("Command active · right-click map: waypoint · shift: append · right-click contact: menu");
         }
@@ -125,6 +136,8 @@ namespace NavalPower
         internal void Leave()
         {
             if (!CommandState.Active) return;
+            ReleaseKillCredit();
+            RestoreNativeBar();
             CommandState.Clear();
             Ui?.ClosePopup();
             CursorManager.SetFlag(CommandCursor, false);
@@ -135,6 +148,78 @@ namespace NavalPower
             if (!CommandState.Active) return;
             Leave();
             suppressEntryFrame = Time.frameCount;
+        }
+
+        private void LateUpdate()
+        {
+            // The native bar re-shows itself as the spectator UI updates, so the
+            // suppression has to be reapplied rather than set once.
+            if (CommandState.Active && nativeBar != null)
+            {
+                nativeBar.alpha = 0f;
+                nativeBar.interactable = false;
+                nativeBar.blocksRaycasts = false;
+            }
+        }
+
+        // UnitDebug is the game's spectator status and weapon strip. Ours sits
+        // on top of it, and its text shows through the translucent panel.
+        private void HideNativeBar(Ship ship)
+        {
+            RestoreNativeBar();
+            foreach (UnitDebug candidate in Resources.FindObjectsOfTypeAll<UnitDebug>())
+            {
+                if (!candidate.gameObject.scene.IsValid()) continue;
+                if (DebugFollowing != null && DebugFollowing.GetValue(candidate) as Unit != ship) continue;
+                nativeBar = candidate.GetComponent<CanvasGroup>();
+                addedNativeBar = nativeBar == null;
+                if (addedNativeBar) nativeBar = candidate.gameObject.AddComponent<CanvasGroup>();
+                nativeAlpha = nativeBar.alpha;
+                nativeInteractable = nativeBar.interactable;
+                nativeBlocks = nativeBar.blocksRaycasts;
+                nativeBar.alpha = 0f;
+                nativeBar.interactable = false;
+                nativeBar.blocksRaycasts = false;
+                break;
+            }
+        }
+
+        private void RestoreNativeBar()
+        {
+            if (nativeBar != null)
+            {
+                nativeBar.alpha = nativeAlpha;
+                nativeBar.interactable = nativeInteractable;
+                nativeBar.blocksRaycasts = nativeBlocks;
+                if (addedNativeBar) Destroy(nativeBar);
+            }
+            nativeBar = null;
+            addedNativeBar = false;
+        }
+
+        // Unit.ReportKilled splits rewards by damage credit, then pays the
+        // individual only when the crediting unit's PersistentUnit has a player.
+        // A ship never does, so a commander's kills paid the faction but never
+        // the player. The game already uses this field for owned ground
+        // vehicles, so filling it in is how the credit is meant to flow.
+        private void CreditKillsToCommander(Ship ship)
+        {
+            ReleaseKillCredit();
+            if (!GameManager.GetLocalPlayer<Player>(out Player player) || player == null) return;
+            if (!UnitRegistry.TryGetPersistentUnit(ship.persistentID, out PersistentUnit persistent) || persistent == null) return;
+            if (persistent.player != null) return;          // already owned; leave it alone
+            persistent.player = player;
+            creditedPlayer = player;
+        }
+
+        private void ReleaseKillCredit()
+        {
+            Ship ship = CommandState.Ship;
+            if (creditedPlayer == null || ship == null) { creditedPlayer = null; return; }
+            if (UnitRegistry.TryGetPersistentUnit(ship.persistentID, out PersistentUnit persistent) &&
+                persistent != null && persistent.player == creditedPlayer)
+                persistent.player = null;
+            creditedPlayer = null;
         }
 
         private void Update()
