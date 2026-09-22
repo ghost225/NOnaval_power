@@ -101,6 +101,15 @@ namespace NavalPower
                 Pilot pilot = FirstPilot(flight.Aircraft);
                 if (pilot == null || pilot.playerControlled) continue;
                 if (!(pilot.currentState is AIPilotCombatModes)) continue;   // still on the deck or climbing out
+                if (!NavalPilotState.CanBeFlown(flight.Aircraft))
+                {
+                    // Better the native AI than an aircraft nobody is flying.
+                    Plugin.Log.LogWarning("[flight] " + flight.Name +
+                        " has no usable autopilot; leaving it to the native AI");
+                    flight.Mode = FlightMode.Engage;
+                    flight.Adopted = true;
+                    continue;
+                }
                 NavalPilotState.Install(pilot, flight);
                 flight.Adopted = true;
             }

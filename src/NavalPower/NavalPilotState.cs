@@ -101,20 +101,45 @@ namespace NavalPower
             FlyOrbit(anchor);
         }
 
-        private void Steer(GlobalPosition destination)
+        // The two AutoAim overloads are implemented by different autopilots:
+        // AutopilotPlane overrides the nine-argument one, AutopilotHelo and
+        // AutopilotTiltwing the five-argument one. Everything else falls through
+        // to an empty virtual on the base class, which issues no control inputs
+        // at all -- a fixed-wing given the helicopter call simply coasts on
+        // stale inputs until it stalls and goes in. Dispatch on the real type.
+        private void Steer(GlobalPosition target)
         {
-            if (aircraft.autopilot == null) return;
-            // altitudeHold is an offset above the destination point, not an
-            // absolute altitude -- Autopilot.Hover reads it as
-            // (destination.y - aircraft.y) + altitudeHold. Passing an absolute
-            // figure against a destination at sea level commanded a descent
-            // into the water. Put the altitude into the destination instead and
-            // hold zero offset.
-            destination = AtAltitude(destination, flight.Altitude);
-            this.destination = destination;
-            bool followTerrain = flight.Altitude < 400f;
-            aircraft.autopilot.AutoAim(destination, 0f, Vector3.zero, Vector3.zero, followTerrain);
+            Autopilot autopilot = aircraft.autopilot;
+            if (autopilot == null) return;
+
+            float aboveGround = Mathf.Max(flight.Altitude, MinimumClearance);
+            bool followTerrain = aboveGround < 400f;
+            GlobalPosition point = AtAltitude(target, aboveGround);
+            destination = point;
+
+            if (autopilot is AutopilotPlane)
+            {
+                // Mirrors the native combat state's call. altitudeHold is only
+                // consulted for terrain following; otherwise the destination's
+                // own height carries the altitude. Bank is held well short of
+                // the 180 degrees the combat state allows, since this is
+                // transit rather than evasion.
+                autopilot.AutoAim(point, aimVelocity: true, ignoreCollisions: false, runwayAlign: false,
+                    effort: 1f, bankAllowed: 70f, followTerrain: followTerrain,
+                    altitudeHold: aboveGround, targetVelocity: Vector3.zero);
+            }
+            else
+            {
+                autopilot.AutoAim(point, 0f, Vector3.zero, Vector3.zero, followTerrain);
+            }
         }
+
+        // Only these autopilots actually implement an AutoAim; anything else
+        // would be flown by a method with an empty body.
+        internal static bool CanBeFlown(Aircraft aircraft) =>
+            aircraft != null && (aircraft.autopilot is AutopilotPlane
+                || aircraft.autopilot is AutopilotHelo
+                || aircraft.autopilot is AutopilotTiltwing);
 
         // Ground clearance at the destination, the way Autopilot.TerrainWaypoint
         // does it: sample terrain, fall back to sea level, then add the ordered
