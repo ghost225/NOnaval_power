@@ -396,22 +396,25 @@ namespace NavalPower
             return result;
         }
 
-        // The fitted station with the best native opportunity against this
-        // target type; null when the aircraft simply cannot hurt it.
+        // The fitted station best suited to this target, falling back to a gun.
+        // A gun will hurt almost anything given the chance, so "no dedicated
+        // weapon for this" should not mean "cannot attack at all" -- but a
+        // flight with nothing at all still has to be told no rather than sent.
         internal static WeaponStation BestStationFor(Aircraft aircraft, Unit target)
         {
             if (aircraft == null || target == null || aircraft.weaponStations == null) return null;
-            WeaponStation best = null;
+            WeaponStation best = null, gun = null;
             float bestScore = 0.01f;
             foreach (WeaponStation station in aircraft.weaponStations)
             {
                 if (station == null || station.WeaponInfo == null || station.Ammo <= 0) continue;
+                if (station.WeaponInfo.gun && gun == null) gun = station;
                 float score = WeaponOrders.Opportunity(station.WeaponInfo, target);
                 if (score <= bestScore) continue;
                 bestScore = score;
                 best = station;
             }
-            return best;
+            return best ?? gun;
         }
 
         public static void Engage(Flight flight)

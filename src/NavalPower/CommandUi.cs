@@ -470,7 +470,7 @@ namespace NavalPower
 
             // The panel stays open, so this reads as standing guidance rather
             // than an instruction to be dismissed.
-            Button tasking = Row("TASKING  ·  right-click the map to set a task area  ·  shift adds route legs  ·  " + legs, 1, () =>
+            Button tasking = Row("TASKING  ·  right-click a contact to attack it, the map to set a task area  ·  " + legs, 1, () =>
             {
                 flight.Route.Clear();
                 FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());

@@ -350,6 +350,23 @@ namespace NavalPower
 
             if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }
 
+            // A selected flight takes the contact rather than opening a menu:
+            // with a flight in hand, right-clicking a hostile plainly means
+            // "attack that". Refuse rather than send it when nothing aboard can.
+            if (tasking != null && pointed != null && pointed != CommandState.Ship &&
+                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Ship.NetworkHQ)
+            {
+                string contact = pointed.definition?.unitName ?? pointed.name;
+                if (FlightOrders.BestStationFor(tasking.Aircraft, pointed) == null)
+                {
+                    CommandState.Say(tasking.Name + " carries nothing that can attack " + contact);
+                    return;
+                }
+                FlightOrders.Strike(tasking, pointed);
+                CommandState.Say(tasking.Name + " striking " + contact);
+                return;
+            }
+
             RightClickAction action = InputPolicy.RightClick(CommandState.Active, onMap,
                 pointed != null, CommandState.Armed, append);
 

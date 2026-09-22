@@ -34,7 +34,7 @@ namespace NavalPower
             // Score with CombatAI's own analyzer rather than a heuristic of our
             // own, so the station chosen is one the attack logic will agree is
             // viable when it runs its own checks a moment later.
-            WeaponStation best = null;
+            WeaponStation best = null, gun = null;
             float bestScore = 0f;
             bool anyAmmo = false;
             foreach (WeaponStation station in aircraft.weaponStations)
@@ -42,10 +42,18 @@ namespace NavalPower
                 if (station == null || station.WeaponInfo == null) continue;
                 if (station.Ammo <= 0) continue;
                 anyAmmo = true;
+                if (station.WeaponInfo.gun && gun == null) gun = station;
                 float score = CombatAI.AnalyzeTarget(station, aircraft, track).opportunity;
                 if (score <= bestScore) continue;
                 bestScore = score;
                 best = station;
+            }
+
+            // Nothing scores against it, but a gun run is still a gun run.
+            if (best == null && gun != null)
+            {
+                best = gun;
+                bestScore = 0.01f;
             }
 
             if (best == null)
