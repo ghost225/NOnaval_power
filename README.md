@@ -5,8 +5,9 @@ rather than one specific hull. A BepInEx 5 plugin, no dependency on other mods.
 
 ## Status
 
-Early. Steps 1 and 2 of the plan are implemented; the UI does not exist yet and
-orders are issued through a keybind test harness while the core is validated.
+Early but usable. Course, speed and manual weapon orders work on stock hulls.
+A screen-space command bar appears whenever the spectator camera follows a
+commandable ship; the keybind harness below is kept for diagnostics.
 
 ## Design
 
@@ -29,6 +30,21 @@ Needs a .NET SDK and a local Nuclear Option install with BepInEx 5.
 ```bash
 NUCLEAR_OPTION_GAME="/path/to/Nuclear Option" ./build.sh --install
 ```
+
+## Command bar
+
+Follow a friendly ship with the spectator camera and the bar appears.
+
+- **Speed** — slider, or All stop / 1/3 / 2/3 / Full / Flank. "Release speed"
+  hands the throttle back to the native controller.
+- **Route** — "Waypoint ahead" sets a leg 5 km off the bow; "Clear route"
+  returns the ship to autonomous navigation.
+- **Engaging** — click a weapon, pick a salvo size, then click a contact on the
+  right. Contacts are ranked by what the selected weapon can actually hurt, and
+  ones it cannot are greyed out.
+
+Targets are chosen from the contact list rather than the map: native map and
+world input arbitration comes later.
 
 ## Test harness keys
 
