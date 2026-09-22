@@ -23,10 +23,12 @@ namespace NavalPower
         protected override void OnPopulateMesh(VertexHelper vh)
         {
             vh.Clear();
+            drewLastFrame = false;
             Ship ship = CommandState.Ship;
             if (ship == null || !DynamicMap.mapMaximized) return;
             map = SceneSingleton<DynamicMap>.i;
             if (map == null || map.mapImage == null || !map.gameObject.activeInHierarchy) return;
+            drewLastFrame = true;
 
             clip = rectTransform.rect;
             clip.yMin += 170;                      // Keep strokes clear of the command bar.
@@ -82,11 +84,15 @@ namespace NavalPower
             }
         }
 
+        private bool drewLastFrame;
+
         private void Update()
         {
             // The map pans and zooms under us, so the mesh is rebuilt each frame
-            // while it is open rather than on order changes alone.
-            if (CommandState.Active && DynamicMap.mapMaximized) SetVerticesDirty();
+            // while it is open. One further rebuild after it closes is needed to
+            // clear the last mesh, or the strokes stay burnt onto the screen.
+            bool live = CommandState.Active && DynamicMap.mapMaximized;
+            if (live || drewLastFrame) SetVerticesDirty();
         }
 
         private bool Intersect(RectTransform boundary)

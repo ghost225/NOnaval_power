@@ -110,7 +110,8 @@ namespace NavalPower
         private readonly List<GlobalPosition> route = new List<GlobalPosition>();
         private Ship ship;
         private ShipAI ai;
-        private bool ownsRoute, ownsHeading, sendingOwnOrder;
+        private bool ownsRoute, ownsHeading, sendingOwnOrder, hasSentLeg;
+        private GlobalPosition lastSent;
         private Vector3 orderedHeading;
         private GlobalPosition headingDestination;
         private float speedIntegral, lastGovernorUpdate, nextAuthorityCheck;
@@ -142,10 +143,14 @@ namespace NavalPower
         internal GlobalPosition[] CopyWaypoints() => route.ToArray();
 
         // A destination we did not send is a newer player order and supersedes
-        // the queued route. Our own legs re-enter here and must be ignored.
+        // the queued route. Two things are not that, and must not clear it:
+        // our own leg re-entering synchronously, and anything that re-issues
+        // the ship's current destination -- opening and closing the map does
+        // exactly that, and treating it as a new order silently ate the route.
         private void OnNativeDestination(ref UnitCommand.Command command)
         {
             if (sendingOwnOrder) return;
+            if (hasSentLeg && Same(command.position, lastSent)) return;
             route.Clear();
             ownsRoute = false;
             ownsHeading = false;
@@ -159,10 +164,17 @@ namespace NavalPower
 
         private void Send(GlobalPosition destination)
         {
+            lastSent = destination;
+            hasSentLeg = true;
             sendingOwnOrder = true;
             try { ship.UnitCommand.SetDestination(destination, true); }
             finally { sendingOwnOrder = false; }
         }
+
+        // One metre is far below any meaningful order difference and well above
+        // the round-trip noise of a re-issued position.
+        private static bool Same(GlobalPosition a, GlobalPosition b) =>
+            Mathf.Abs(a.x - b.x) < 1f && Mathf.Abs(a.y - b.y) < 1f && Mathf.Abs(a.z - b.z) < 1f;
 
         internal void Replace(GlobalPosition waypoint)
         {
@@ -187,6 +199,7 @@ namespace NavalPower
             route.Clear();
             ownsRoute = false;
             ownsHeading = false;
+            hasSentLeg = false;
             // Hand steering back rather than freezing the ship in place.
             if (ai != null) ai.ArriveAtCommandedDestination();
         }
