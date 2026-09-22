@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    public enum FlightMode { Route, Orbit, Station, Engage, ReturnToBase }
+    public enum FlightMode { Route, Orbit, Station, Strike, Engage, ReturnToBase }
 
     // A flight this ship launched and still commands. Aircraft are meant to
     // feel owned, like a deployed vehicle: they hold what they are given and do
@@ -20,6 +20,8 @@ namespace NavalPower
         public float Altitude = 900f;
         public Vector3 StationOffset;
         public bool Adopted;
+        public Unit Target;                 // designated for a strike
+        public FlightMode PreviousMode = FlightMode.Orbit;
 
         public string Name => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
 
@@ -30,6 +32,8 @@ namespace NavalPower
                 case FlightMode.Route: return Route.Count > 0 ? "Route · " + Route.Count + " leg(s)" : "Route complete";
                 case FlightMode.Orbit: return "Orbit · " + UnitConverter.DistanceReading(OrbitRadius);
                 case FlightMode.Station: return "Station on " + (Parent?.definition?.unitName ?? "ship");
+                case FlightMode.Strike: return Target != null && !Target.disabled
+                    ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
                 case FlightMode.Engage: return "Weapons free · AI engaging";
                 default: return "Returning to base";
             }
@@ -97,6 +101,11 @@ namespace NavalPower
             // over during taxi or takeoff would fight the native sequence.
             foreach (Flight flight in flights)
             {
+                if (flight.Mode == FlightMode.Strike && (flight.Target == null || flight.Target.disabled))
+                {
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · target destroyed, breaking off");
+                    BreakOff(flight);
+                }
                 if (flight.Adopted || flight.Aircraft == null) continue;
                 Pilot pilot = FirstPilot(flight.Aircraft);
                 if (pilot == null || pilot.playerControlled) continue;
@@ -108,6 +117,14 @@ namespace NavalPower
                         " has no usable autopilot; leaving it to the native AI");
                     flight.Mode = FlightMode.Engage;
                     flight.Adopted = true;
+                    continue;
+                }
+                if (flight.Mode == FlightMode.Strike)
+                {
+                    if (pilot.AICombatState != null) pilot.SwitchStateNew(pilot.AICombatState);
+                    flight.Adopted = true;
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · striking " +
+                        (flight.Target?.definition?.unitName ?? "target"));
                     continue;
                 }
                 NavalPilotState.Install(pilot, flight);
@@ -169,6 +186,61 @@ namespace NavalPower
             // Abeam and slightly ahead: clear of the ship, still close aboard.
             flight.StationOffset = new Vector3(2200f, 0f, 1200f);
             flight.Mode = FlightMode.Station;
+        }
+
+        // Designating a target hands the flight to the native combat pilot,
+        // which knows how to run an attack, while a patch pins its target to
+        // ours. When the target dies the flight comes back under command rather
+        // than wandering off hunting.
+        public static void Strike(Flight flight, Unit target)
+        {
+            if (flight == null || target == null) return;
+            if (flight.Mode != FlightMode.Strike) flight.PreviousMode = flight.Mode;
+            flight.Target = target;
+            flight.Route.Clear();
+            flight.Mode = FlightMode.Strike;
+            flight.Adopted = false;                 // let Tick hand it to the combat state
+        }
+
+        public static void BreakOff(Flight flight)
+        {
+            if (flight == null) return;
+            flight.Target = null;
+            flight.Mode = flight.PreviousMode == FlightMode.Strike ? FlightMode.Orbit : flight.PreviousMode;
+            if (flight.Mode == FlightMode.Orbit && flight.Aircraft != null)
+                flight.OrbitCentre = flight.Aircraft.GlobalPosition();
+            flight.Adopted = false;                 // reclaim on the next tick
+        }
+
+        // Every flight that could usefully be sent at this contact.
+        public static List<Flight> CapableOf(Ship ship, Unit target)
+        {
+            var result = new List<Flight>();
+            if (target == null) return result;
+            foreach (Flight flight in For(ship))
+            {
+                if (flight.Aircraft == null) continue;
+                if (BestStationFor(flight.Aircraft, target) != null) result.Add(flight);
+            }
+            return result;
+        }
+
+        // The fitted station with the best native opportunity against this
+        // target type; null when the aircraft simply cannot hurt it.
+        internal static WeaponStation BestStationFor(Aircraft aircraft, Unit target)
+        {
+            if (aircraft == null || target == null || aircraft.weaponStations == null) return null;
+            WeaponStation best = null;
+            float bestScore = 0.01f;
+            foreach (WeaponStation station in aircraft.weaponStations)
+            {
+                if (station == null || station.WeaponInfo == null || station.Ammo <= 0) continue;
+                float score = WeaponOrders.Opportunity(station.WeaponInfo, target);
+                if (score <= bestScore) continue;
+                bestScore = score;
+                best = station;
+            }
+            return best;
         }
 
         public static void Engage(Flight flight)

@@ -23,6 +23,7 @@ namespace NavalPower
             if (flight == null) return Theme.Accent;
             switch (flight.Mode)
             {
+                case FlightMode.Strike: return Theme.Weapon;
                 case FlightMode.Engage: return Theme.Bad;
                 case FlightMode.ReturnToBase: return Theme.Warn;
                 case FlightMode.Station: return Theme.OwnTrack;

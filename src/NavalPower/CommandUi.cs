@@ -215,8 +215,12 @@ namespace NavalPower
             string title = target != null
                 ? (target.definition?.unitName ?? target.name)
                 : (CommandState.Ship?.definition?.unitName ?? "Ship");
-            StartPopup(title, screenPosition, CarrierOps.HasDeck(CommandState.Ship) ? 7 : 6);
+            int rows = CarrierOps.HasDeck(CommandState.Ship) ? 7 : 6;
+            if (target != null && FlightOrders.For(CommandState.Ship).Count > 0) rows = 8;
+            StartPopup(title, screenPosition, rows);
             Row("Engage with…", 1, WeaponMenu);
+            if (target != null && FlightOrders.For(CommandState.Ship).Count > 0)
+                Row("Strike with flights…", 8, () => StrikeMenu(target));
             Row("Navigate / speed…", 2, NavigationMenu);
             Row("Engagement permissions…", 3, RoeMenu);
             Row("Sensors / EMCON…", 6, SensorMenu);
@@ -302,6 +306,38 @@ namespace NavalPower
 
         // ---- flights --------------------------------------------------------
 
+        private void StrikeMenu(Unit target)
+        {
+            List<Flight> capable = FlightOrders.CapableOf(CommandState.Ship, target);
+            List<Flight> all = FlightOrders.For(CommandState.Ship);
+            string name = target.definition?.unitName ?? target.name;
+            StartPopup("Strike " + name, null, all.Count + 3);
+
+            Row(capable.Count > 0 ? "ALL CAPABLE  ·  " + capable.Count + " flight(s)" : "No flight can hurt this target",
+                1, () =>
+                {
+                    foreach (Flight flight in capable) FlightOrders.Strike(flight, target);
+                    CommandState.Say(capable.Count + " flight(s) striking " + name);
+                    ClosePopup();
+                });
+
+            for (int i = 0; i < all.Count; i++)
+            {
+                Flight flight = all[i];
+                bool able = capable.Contains(flight);
+                Button row = Row(flight.Name + "   ·   " + (able ? flight.Describe() : "cannot engage this target"),
+                    i + 2, () =>
+                    {
+                        if (!able) { CommandState.Say(flight.Name + " carries nothing that can hurt " + name); return; }
+                        FlightOrders.Strike(flight, target);
+                        CommandState.Say(flight.Name + " striking " + name);
+                        ClosePopup();
+                    });
+                if (!able) row.GetComponentInChildren<Text>().color = Theme.TextFaint;
+            }
+            Row("Close", all.Count + 2, ClosePopup);
+        }
+
         private void FlightsMenu()
         {
             List<Flight> airborne = FlightOrders.For(CommandState.Ship);
@@ -330,7 +366,7 @@ namespace NavalPower
         private void FlightMenu(Flight flight)
         {
             CommandState.SelectedFlight = flight;
-            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 9);
+            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 10);
             Row("Right-click the map to route this flight", 1, ClosePopup);
             Row("Orbit here", 2, () =>
             {
@@ -352,14 +388,20 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
                 FlightsMenu();
             });
-            Row("Return to base", 7, () =>
+            Row(flight.Mode == FlightMode.Strike ? "Break off the attack" : "Break off  ·  no attack running", 7, () =>
+            {
+                FlightOrders.BreakOff(flight);
+                CommandState.Say(flight.Name + " · breaking off");
+                FlightsMenu();
+            });
+            Row("Return to base", 8, () =>
             {
                 FlightOrders.ReturnToBase(flight);
                 CommandState.Say(flight.Name + " · recovering");
                 FlightsMenu();
             });
-            Row("Back to flights", 8, FlightsMenu);
-            Row("Close", 9, ClosePopup);
+            Row("Back to flights", 9, FlightsMenu);
+            Row("Close", 10, ClosePopup);
         }
 
         private void AltitudeMenu(Flight flight)
