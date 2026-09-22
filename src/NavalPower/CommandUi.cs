@@ -46,6 +46,24 @@ namespace NavalPower
 
         internal bool PopupOpen => popup != null && popup.gameObject.activeSelf;
 
+        // The flight panel is a working surface, not a one-shot menu: while it
+        // is open the map keeps tasking the selected flight and clicks do not
+        // dismiss it, so a multi-leg route can be laid down without reopening
+        // anything between points.
+        internal bool Pinned => PopupOpen && popupKey == "flight";
+
+        private float nextPinnedRefresh;
+        private Flight pinnedFlight;
+
+        internal void RefreshPinned()
+        {
+            if (!Pinned || pinnedFlight == null) return;
+            // Never rebuild under the cursor: recreating rows mid-click eats it.
+            if (PointerInside() || Time.unscaledTime < nextPinnedRefresh) return;
+            nextPinnedRefresh = Time.unscaledTime + 1f;
+            FlightMenu(pinnedFlight);
+        }
+
         internal bool Contains(Transform candidate) =>
             root != null && candidate != null && (candidate == root.transform || candidate.IsChildOf(root.transform));
 
@@ -367,19 +385,35 @@ namespace NavalPower
         private void FlightMenu(Flight flight)
         {
             CommandState.SelectedFlight = flight;
+            pinnedFlight = flight;
+            popupKey = "flight";
+
+            string legs = flight.Route.Count > 0 ? flight.Route.Count + " leg(s) queued" : "no route";
             StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 11);
-            Row("Right-click the map to route this flight", 1, ClosePopup);
+
+            // The panel stays open, so this reads as standing guidance rather
+            // than an instruction to be dismissed.
+            Button tasking = Row("TASKING  ·  right-click the map to add a leg  ·  " + legs, 1, () =>
+            {
+                flight.Route.Clear();
+                FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());
+                CommandState.Say(flight.Name + " · route cleared");
+                FlightMenu(flight);
+            });
+            tasking.image.color = Theme.AccentFill;
+            tasking.GetComponentInChildren<Text>().color = Theme.Text;
+
             Row("Orbit here", 2, () =>
             {
                 FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());
                 CommandState.Say(flight.Name + " · holding overhead");
-                FlightsMenu();
+                FlightMenu(flight);
             });
             Row("Station on the ship  ·  offboard sensor", 3, () =>
             {
                 FlightOrders.Station(flight);
                 CommandState.Say(flight.Name + " · keeping company");
-                FlightsMenu();
+                FlightMenu(flight);
             });
             Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), 4, () => AltitudeMenu(flight));
             Row("Orbit radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
@@ -387,23 +421,23 @@ namespace NavalPower
             {
                 FlightOrders.Engage(flight);
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
-                FlightsMenu();
+                FlightMenu(flight);
             });
             Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), 7, () => FlightRoeMenu(flight));
             Row(flight.Mode == FlightMode.Strike ? "Break off the attack" : "Break off  ·  no attack running", 8, () =>
             {
                 FlightOrders.BreakOff(flight);
                 CommandState.Say(flight.Name + " · breaking off");
-                FlightsMenu();
+                FlightMenu(flight);
             });
             Row("Return to base", 9, () =>
             {
                 FlightOrders.ReturnToBase(flight);
                 CommandState.Say(flight.Name + " · recovering");
-                FlightsMenu();
+                FlightMenu(flight);
             });
-            Row("Back to flights", 10, FlightsMenu);
-            Row("Close", 11, ClosePopup);
+            Row("Other flights", 10, FlightsMenu);
+            Row("DONE  ·  return the map to the ship", 11, ClosePopup);
         }
 
         private void FlightRoeMenu(Flight flight)
@@ -645,6 +679,9 @@ namespace NavalPower
             popup.gameObject.SetActive(false);
             contextTarget = null;
             popupKey = null;
+            // Closing the flight panel is what hands the map back to the ship.
+            pinnedFlight = null;
+            CommandState.SelectedFlight = null;
         }
 
         private void TogglePopup(string key, Action open)

@@ -237,6 +237,7 @@ namespace NavalPower
                 return;
             }
             RefreshHover();
+            Ui?.RefreshPinned();
         }
 
         private void UpdateGesture()
@@ -293,7 +294,7 @@ namespace NavalPower
             // Native left-drag orbits the world camera; do not pick there.
             if (left && !onMap)
             {
-                if (Ui != null && Ui.PopupOpen) { leftGesture.Claim(); Ui.ClosePopup(); }
+                if (Ui != null && Ui.PopupOpen && !Ui.Pinned) { leftGesture.Claim(); Ui.ClosePopup(); }
                 return;
             }
 
@@ -304,13 +305,14 @@ namespace NavalPower
 
             if (left)
             {
-                if (Ui != null && Ui.PopupOpen) { leftGesture.Claim(); Ui.ClosePopup(); }
+                if (Ui != null && Ui.PopupOpen && !Ui.Pinned) { leftGesture.Claim(); Ui.ClosePopup(); }
                 return;
             }
 
             if (PointerOnForeignUi(onMap ? map : null)) return;
             Flight tasking = CommandState.SelectedFlight;
-            Ui?.ClosePopup();
+            bool pinned = Ui != null && Ui.Pinned && tasking != null;
+            if (!pinned) Ui?.ClosePopup();
             bool append = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
 
             if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }
@@ -339,9 +341,13 @@ namespace NavalPower
                     CommandState.Say(tasking.Name + " · leg appended · shift-click to add more");
                     break;
                 case RightClickAction.ReplaceWaypoint when tasking != null:
-                    FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), false);
-                    CommandState.Say(tasking.Name + " · proceeding · map returned to the ship");
-                    CommandState.SelectedFlight = null;
+                    // With the panel open every click adds to the route; the
+                    // panel closing is what ends tasking, not the first order.
+                    FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), pinned);
+                    CommandState.Say(tasking.Name + (pinned
+                        ? " · leg added · " + tasking.Route.Count + " queued"
+                        : " · proceeding · map returned to the ship"));
+                    if (!pinned) CommandState.SelectedFlight = null;
                     break;
                 case RightClickAction.AppendWaypoint:
                     NavigationOrders.AppendWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string appendReason);
