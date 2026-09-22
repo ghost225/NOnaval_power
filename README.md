@@ -64,6 +64,28 @@ CIWS". Short position codes are read as fore/aft then port/starboard, and a lone
 trailing `R` is taken as rear rather than right, which matches how these hulls
 are actually named.
 
+### ESM
+
+Passive detection of radars that are transmitting, so it keeps working with
+every one of our own emitters shut down -- that is the pairing with EMCON. An
+emitter is heard at roughly twice its own radar range, which is the asymmetry
+that makes going silent worth doing.
+
+Estimates are bearings, not fixes: a stable per receiver/emitter bias stops a
+stationary emitter averaging out into a perfect position, and uncertainty grows
+with how far that class of emitter could have moved since it was last heard.
+Symbols distinguish airborne, surface and land emitters; the contact under the
+cursor shows its error ellipse. An estimate is suppressed while the faction
+already holds a live track on the same unit.
+
+### Tracks on the map
+
+- Filled cross — held by this ship's own sensors
+- Hollow diamond — datalink, with the reporting consort named on hover
+- Orange caret / half-diamond / square — airborne, surface and land emission
+  estimates from ESM
+- Red — our own weapons in flight, each drawn to whatever it is chasing
+
 ### Rules of engagement
 
 Vanilla ships carry no `FireControl`; `ShipAI` picks the ship's target and each

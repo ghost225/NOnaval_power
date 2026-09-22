@@ -19,12 +19,15 @@ namespace NavalPower
         private static readonly Color DatalinkColor = new Color(0.55f, 0.7f, 1f, 0.7f);
         private static readonly Color EsmColor = new Color(1f, 0.62f, 0.2f, 0.92f);
         private static readonly Color EsmStaleColor = new Color(1f, 0.62f, 0.2f, 0.42f);
+        private static readonly Color OwnWeaponColor = new Color(1f, 0.32f, 0.26f, 0.95f);
 
         private DynamicMap map;
         private Rect clip;
         private readonly Vector3[] corners = new Vector3[4];
         private readonly List<Unit> engaged = new List<Unit>();
         private readonly List<float> radarRanges = new List<float>();
+        private readonly List<Missile> ownMissiles = new List<Missile>();
+        private float nextMissileSweep;
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {
@@ -62,6 +65,33 @@ namespace NavalPower
             {
                 Circle(vh, ship.GlobalPosition(), weapon.MaxRange, MaxRangeColor);
                 Circle(vh, ship.GlobalPosition(), weapon.MinRange, MinRangeColor);
+            }
+
+            // Our own weapons in flight, so they are distinguishable from every
+            // other missile on the map. Scanning the registry every frame is
+            // wasteful; four times a second is finer than the map reads.
+            if (Time.unscaledTime >= nextMissileSweep)
+            {
+                nextMissileSweep = Time.unscaledTime + 0.25f;
+                ownMissiles.Clear();
+                foreach (Unit unit in UnitRegistry.allUnits)
+                    if (unit is Missile missile && !missile.disabled && missile.owner == ship)
+                        ownMissiles.Add(missile);
+            }
+            foreach (Missile missile in ownMissiles)
+            {
+                if (missile == null || missile.disabled) continue;
+                Vector2 at = Project(missile.GlobalPosition());
+                // A stub along the flight vector reads as a weapon rather than
+                // a contact, even before the target line is resolved.
+                Vector3 velocity = missile.rb != null ? missile.rb.velocity : Vector3.zero;
+                Vector2 heading = new Vector2(velocity.x, velocity.z);
+                if (heading.sqrMagnitude > 1f)
+                    Line(vh, at, at - heading.normalized * 9f, OwnWeaponColor, 2f);
+                Line(vh, at + new Vector2(-3f, -3f), at + new Vector2(3f, 3f), OwnWeaponColor, 2f);
+                Line(vh, at + new Vector2(-3f, 3f), at + new Vector2(3f, -3f), OwnWeaponColor, 2f);
+                if (UnitRegistry.TryGetUnit(missile.targetID, out Unit aimed) && aimed != null && !aimed.disabled)
+                    Line(vh, at, Project(aimed.GlobalPosition()), OwnWeaponColor, 1.2f);
             }
 
             engaged.Clear();
