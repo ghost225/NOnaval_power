@@ -14,6 +14,7 @@ namespace NavalPower
 
         private Font font;
         private Canvas canvas;
+        private TargetFeed feedView;
         private GameObject root;
         private RectTransform bar, popup, popupContent, hover, weaponRow;
         private Text shipLabel, statusLabel, speedLabel, feedbackLabel, hoverText;
@@ -840,6 +841,8 @@ namespace NavalPower
             scaler.matchWidthOrHeight = 0f;
 
             BuildOverlay();
+            feedView = gameObject.AddComponent<TargetFeed>();
+            feedView.Build((RectTransform)root.transform, font);
             BuildBar();
             BuildDamagePanel();
             BuildPopup();

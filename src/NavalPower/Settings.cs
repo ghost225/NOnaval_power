@@ -25,6 +25,10 @@ namespace NavalPower
         internal static ConfigEntry<int> DamageControlConcentration;
         internal static ConfigEntry<int> DamageControlRate;
         internal static ConfigEntry<bool> DamageControlPreserveCapacity;
+        internal static ConfigEntry<bool> TargetFeed;
+        internal static ConfigEntry<int> FeedResolution;
+        internal static ConfigEntry<float> FeedWidth;
+        internal static ConfigEntry<float> FeedFieldOfView;
         internal static ConfigEntry<bool> ShowFlightStrip;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
@@ -114,6 +118,22 @@ namespace NavalPower
                     "from the compartments being withheld. The ship's total capacity is unchanged either " +
                     "way; this caps how sharply it can be focused.",
                     new AcceptableValueRange<int>(1, 20)));
+
+            TargetFeed = config.Bind("Interface", "Target feed", true,
+                "Show a camera view of whatever the ship is engaging, and of our weapons while they fly. " +
+                "Costs a second camera render; turn it off if it hurts the frame rate.");
+
+            FeedResolution = config.Bind("Interface", "Target feed resolution", 480,
+                new ConfigDescription("Render width of the feed in pixels. Height follows at sixteen by nine.",
+                    new AcceptableValueRange<int>(160, 1920)));
+
+            FeedWidth = config.Bind("Interface", "Target feed size", 420f,
+                new ConfigDescription("On-screen width of the feed panel.",
+                    new AcceptableValueRange<float>(200f, 900f)));
+
+            FeedFieldOfView = config.Bind("Interface", "Target feed field of view", 35f,
+                new ConfigDescription("Narrower reads like a sensor feed; wider shows more context.",
+                    new AcceptableValueRange<float>(10f, 80f)));
 
             ShowFlightStrip = config.Bind("Interface", "Flight strip", true,
                 "Show airborne flights as chips along the command bar.");
