@@ -224,6 +224,24 @@ namespace NavalPower
         }
 
         private static float nextWork;
+        private static readonly List<Ship> commanded = new List<Ship>();
+
+        // A ship keeps its crew's tempo once commanded, rather than reverting
+        // the moment the camera moves elsewhere.
+        internal static void Adopt(Ship ship)
+        {
+            if (ship != null && !commanded.Contains(ship)) commanded.Add(ship);
+        }
+
+        internal static void WorkAll()
+        {
+            for (int i = commanded.Count - 1; i >= 0; i--)
+            {
+                Ship ship = commanded[i];
+                if (ship == null || ship.disabled) { commanded.RemoveAt(i); continue; }
+                Work(ship);
+            }
+        }
 
         // Concentrate the ship's effort rather than merely withholding it.
         //
@@ -238,9 +256,26 @@ namespace NavalPower
             if (ship == null || !ship.IsServer || !ship.LocalSim) return;
             if (Time.timeSinceLevelLoad < nextWork) return;
             nextWork = Time.timeSinceLevelLoad + 1f;                 // the native cadence
+            if (ship.damageControlAvailable <= 0f) return;
+
+            // Bring the whole ship up to the ordered tempo first. The native
+            // rate resolves flooding over something like a thousand seconds,
+            // which is far longer than a fight lasts, so at this game's pace
+            // nothing damage control does is ever seen.
+            int rate = Mathf.Max(1, Settings.DamageControlRate.Value);
+            if (rate > 1)
+            {
+                for (int i = 0; i < ship.damageables.Count; i++)
+                {
+                    var part = ship.damageables[i].Damageable as ShipPart;
+                    if (!Repairable(part)) continue;
+                    for (int pass = 1; pass < rate && ship.damageControlAvailable > 0f; pass++)
+                        RepairStep(ship, part);
+                }
+            }
 
             HashSet<int> priority = Priorities(ship);
-            if (priority.Count == 0 || ship.damageControlAvailable <= 0f) return;
+            if (priority.Count == 0) return;
 
             int leaking = 0, chosen = 0;
             for (int i = 0; i < ship.damageables.Count; i++)
@@ -280,7 +315,11 @@ namespace NavalPower
             LeakRate.SetValue(part, Mathf.Max(Read(LeakRate, part, 0f) - plug, 0f));
             Displacement.SetValue(part,
                 Mathf.Min(Read(Displacement, part, 0f) + pump, part.GetOriginalDisplacement()));
-            ship.damageControlAvailable -= 10f * plug + pump;
+            // Charging for every pass keeps the ship's total capacity what the
+            // game intended: the same damage control, delivered sooner. Not
+            // charging makes the crew genuinely better rather than faster.
+            if (Settings.DamageControlPreserveCapacity.Value)
+                ship.damageControlAvailable -= 10f * plug + pump;
         }
 
         internal static bool IsDeprioritised(ShipPart part)

@@ -131,6 +131,7 @@ namespace NavalPower
             CommandState.SelectedKey = null;
             CommandState.Quantity = 1;
             Esm.Configure(ship);
+            DamageControl.Adopt(ship);
             HideNativeBar(ship);
             CreditKillsToCommander(ship);
             CursorManager.SetFlag(CommandCursor, true);
@@ -231,7 +232,7 @@ namespace NavalPower
         private void Update()
         {
             FlightOrders.Tick();
-            if (CommandState.Ship != null) DamageControl.Work(CommandState.Ship);
+            DamageControl.WorkAll();
             FlightIcons.Refresh(CommandState.Ship);
             UpdateGesture();
             if (!CommandState.Active) { TryResume(); return; }

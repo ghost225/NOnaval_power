@@ -23,6 +23,8 @@ namespace NavalPower
         internal static ConfigEntry<float> FlareInterval;
 
         internal static ConfigEntry<int> DamageControlConcentration;
+        internal static ConfigEntry<int> DamageControlRate;
+        internal static ConfigEntry<bool> DamageControlPreserveCapacity;
         internal static ConfigEntry<bool> ShowFlightStrip;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
@@ -94,6 +96,17 @@ namespace NavalPower
                 new ConfigDescription("Seconds between flare releases while egressing with a heat-seeker " +
                     "inbound. The native pilot runs its own countermeasures once it has the aircraft.",
                     new AcceptableValueRange<float>(0.5f, 10f)));
+
+            DamageControlRate = config.Bind("Damage control", "Work rate", 5,
+                new ConfigDescription("How much faster damage control works on ships you command. The game's " +
+                    "own rate dewaters a compartment in something like a thousand seconds, which is far " +
+                    "longer than an engagement lasts, so nothing it does is visible at this pace.",
+                    new AcceptableValueRange<int>(1, 20)));
+
+            DamageControlPreserveCapacity = config.Bind("Damage control", "Preserve total capacity", true,
+                "Charge the reserve for the extra work, so a faster crew gets through the same total amount " +
+                "of damage control, just sooner. Turn this off to make damage control genuinely more capable " +
+                "rather than merely quicker, at the cost of the game's own balance.");
 
             DamageControlConcentration = config.Bind("Damage control", "Concentration limit", 6,
                 new ConfigDescription("How many extra shares of effort a prioritised compartment may take " +
