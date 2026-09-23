@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Reflection;
+using HarmonyLib;
 using UnityEngine;
 
 namespace NavalPower
@@ -26,9 +29,61 @@ namespace NavalPower
             return true;
         }
 
+        // May this shot leave the ship? Anything we did not order, from a ship
+        // under command, has to satisfy the rules of engagement.
+        internal static bool Allows(Unit owner, Unit target)
+        {
+            if (ShipWeapons.Firing) return true;              // our own explicit order
+            if (!(owner is Ship ship)) return true;
+            var state = ship.GetComponent<ShipEngagement>();
+            if (state == null || state.Mode == EngagementMode.WeaponsFree) return true;
+            return state.Permits(target);
+        }
+
         public static string Describe(EngagementMode mode) =>
             mode == EngagementMode.WeaponsFree ? "Weapons Free"
             : mode == EngagementMode.WeaponsTight ? "Weapons Tight" : "Weapons Hold";
+    }
+
+    // Denial at the weapon rather than at the turret.
+    //
+    // Holding a turret manual stops the base Turret firing on its own, but it
+    // is not the only way a shot can leave a ship: a turret subclass or a
+    // modded mount can drive its weapon by another path, and then weapons tight
+    // and weapons hold are quietly advisory. Every shot goes through
+    // Weapon.Fire, so the rules are enforced there instead.
+    //
+    // Fire is virtual and subclasses override it, so patching the base type
+    // alone would miss exactly the weapons that need catching -- each declared
+    // override is targeted individually.
+    [HarmonyPatch]
+    internal static class WeaponReleasePatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            var signature = new[]
+            {
+                typeof(Unit), typeof(Unit), typeof(Vector3), typeof(WeaponStation), typeof(GlobalPosition)
+            };
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public |
+                                       BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types;
+                try { types = assembly.GetTypes(); }
+                catch { continue; }
+                foreach (Type type in types)
+                {
+                    if (!typeof(Weapon).IsAssignableFrom(type)) continue;
+                    MethodInfo fire;
+                    try { fire = type.GetMethod("Fire", flags, null, signature, null); }
+                    catch { continue; }
+                    if (fire != null && !fire.IsAbstract) yield return fire;
+                }
+            }
+        }
+
+        private static bool Prefix(Unit owner, Unit target) => EngagementPolicy.Allows(owner, target);
     }
 
     internal sealed class ShipEngagement : MonoBehaviour
@@ -78,6 +133,15 @@ namespace NavalPower
                 inbound.Add(missile);
                 if (missile.owner != null) attackers.Add(missile.owner.persistentID.Id);
             }
+        }
+
+        // The same rules the turret sweep applies, asked of a single shot.
+        internal bool Permits(Unit target)
+        {
+            if (target == null) return false;
+            if (target is Missile) return inbound.Contains(target);
+            if (Mode == EngagementMode.WeaponsHold) return false;
+            return attackers.Contains(target.persistentID.Id);
         }
 
         private bool Sanctioned(Turret turret, Unit target)

@@ -114,7 +114,7 @@ namespace NavalPower
         private GlobalPosition lastSent;
         private Vector3 orderedHeading;
         private GlobalPosition headingDestination;
-        private float speedIntegral, lastGovernorUpdate, nextAuthorityCheck;
+        private float speedIntegral, lastGovernorUpdate, nextAuthorityCheck, nextTrace;
 
         internal Player Issuer;
         internal bool HasSpeedOrder { get; private set; }
@@ -290,6 +290,8 @@ namespace NavalPower
                 }
             }
 
+            Trace();
+
             if (ownsHeading && FastMath.Distance(ship.GlobalPosition(), headingDestination) < 2000f)
                 ContinueHeading();
 
@@ -303,6 +305,30 @@ namespace NavalPower
                 if (route.Count > 0) Send(route[0]);
                 else HoldNative();
             }
+        }
+
+        // Says whether the ship was given the right course and refused it, or
+        // was never given one -- the same question the flight trace answers.
+        private void Trace()
+        {
+            if (!Settings.NavigationTrace.Value || Time.timeSinceLevelLoad < nextTrace) return;
+            nextTrace = Time.timeSinceLevelLoad + 5f;
+            ShipInputs inputs = ship.GetInputs();
+            float forward = ship.rb != null
+                ? Vector3.Dot(ship.rb.velocity, ship.transform.forward) / CommandableShip.MetresPerSecondPerKnot : 0f;
+            bool commanded = ai != null && NativeBindings.AiCommandedDestination != null &&
+                (bool)NativeBindings.AiCommandedDestination.GetValue(ai);
+            string leg = route.Count > 0
+                ? FastMath.Distance(ship.GlobalPosition(), route[0]).ToString("0") + " m to leg 1"
+                : "no leg";
+            Plugin.Log.LogInfo("[nav] " + (ship.definition?.unitName ?? ship.name) +
+                " · " + Status + " · route " + route.Count + " · " + leg +
+                " · speed " + forward.ToString("0.0") + "/" + (HasSpeedOrder ? OrderedSpeedKnots.ToString("0.0") : "free") +
+                " kt · throttle " + (inputs != null ? inputs.throttle.ToString("0.00") : "?") +
+                " · ownsRoute " + ownsRoute + " ownsHeading " + ownsHeading +
+                " · commandedDestination " + commanded +
+                " · ai " + (ai != null ? ai.GetType().Name : "none") +
+                " · holdPosition " + ship.holdPosition);
         }
 
         // ShipAI.Steer runs inside Update and rewrites throttle every 0.2 s.

@@ -135,6 +135,10 @@ namespace NavalPower
             internal float Created, NextShot, NextMountCheck;
         }
 
+        // Set while an explicit order pulls the trigger, so the engagement
+        // policy can tell our own shots from the ship's automatic ones.
+        [System.ThreadStatic] internal static bool Firing;
+
         private readonly List<Order> orders = new List<Order>(8);
         private Ship ship;
         private string lastStatus = "Automatic engagement";
@@ -253,8 +257,14 @@ namespace NavalPower
                 now - NativeBindings.LastFired(launcher) < NativeBindings.FireInterval(launcher)) return;
 
             int before = order.Selected.ammo;
-            order.Selected.Fire(ship, order.Target, ship.rb != null ? ship.rb.velocity : Vector3.zero,
-                order.Station, default(GlobalPosition));
+            bool previous = Firing;
+            Firing = true;
+            try
+            {
+                order.Selected.Fire(ship, order.Target, ship.rb != null ? ship.rb.velocity : Vector3.zero,
+                    order.Station, default(GlobalPosition));
+            }
+            finally { Firing = previous; }
 
             if (order.Continuous)
             {

@@ -29,6 +29,7 @@ namespace NavalPower
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
         internal static ConfigEntry<bool> FlightTrace;
+        internal static ConfigEntry<bool> NavigationTrace;
         internal static ConfigEntry<bool> HarnessKeys;
         internal static ConfigEntry<KeyboardShortcut> ReportKey;
         internal static ConfigEntry<KeyboardShortcut> OrderNearestKey;
@@ -123,6 +124,11 @@ namespace NavalPower
             FlightTrace = config.Bind("Diagnostics", "Flight trace", false,
                 "Log each flight's task, destination bearing and range, and altitude every five seconds. " +
                 "Useful for diagnosing a flight that will not go where it is sent.");
+
+            NavigationTrace = config.Bind("Diagnostics", "Navigation trace", false,
+                "Log the commanded ship's route state, ordered against actual speed, throttle and whether " +
+                "the native controller is being held off its own choices. For diagnosing a ship that will " +
+                "not follow the course it was given.");
 
             HarnessKeys = config.Bind("Diagnostics", "Test harness keys", false,
                 "Enable the keyboard test harness. Superseded by the command interface; kept for diagnosis.");
