@@ -17,6 +17,7 @@ namespace NavalPower
         internal static ConfigEntry<float> StandoffMetres;
         internal static ConfigEntry<float> EgressSeconds;
         internal static ConfigEntry<bool> ReattackAfterEgress;
+        internal static ConfigEntry<float> StrikePatience;
         internal static ConfigEntry<float> JammingStandoff;
         internal static ConfigEntry<float> EgressAltitude;
         internal static ConfigEntry<float> RadarHandover;
@@ -82,6 +83,12 @@ namespace NavalPower
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
                 "Press the attack again once clear, while ordnance remains and the target lives. " +
                 "Off means one pass per order.");
+
+            StrikePatience = config.Bind("Flights", "Strike patience", 120f,
+                new ConfigDescription("How long a flight may press an attack without anything leaving the " +
+                    "rails before trying a different store, and then giving up. Long enough to reach the " +
+                    "target and acquire it, short enough not to circle forever.",
+                    new AcceptableValueRange<float>(20f, 600f)));
 
             JammingStandoff = config.Bind("Flights", "Jamming standoff", 18000f,
                 new ConfigDescription("How far a jamming aircraft holds off the emitter it is suppressing. " +

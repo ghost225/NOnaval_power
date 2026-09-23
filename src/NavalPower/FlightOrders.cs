@@ -33,6 +33,8 @@ namespace NavalPower
         public Unit Target;                 // designated for a strike
         public string PreferredWeapon;      // WeaponInfo.name, or null for whatever suits best
         public bool WarnedAboutTrack;
+        public float StrikeStarted;
+        public int StrikeStartAmmo = -1;
         public FlightMode PreviousMode = FlightMode.Orbit;
         public FlightRoe Roe = FlightRoe.Tight;
         public int AmmoAtAttack = -1;       // total rounds when the run began
@@ -333,6 +335,41 @@ namespace NavalPower
                     BreakOff(flight);
                 }
 
+                // Pressing an attack that never produces a release. The usual
+                // cause is bombs against a track the AI will not drop on, but
+                // the symptom is the same whatever the reason: passes without
+                // rounds leaving. Give it time to arrive and acquire first,
+                // then try something else, then give up honestly.
+                if (flight.Mode == FlightMode.Strike && flight.StrikeStartAmmo >= 0 &&
+                    Time.timeSinceLevelLoad - flight.StrikeStarted > Settings.StrikePatience.Value &&
+                    TotalAmmo(flight.Aircraft) >= flight.StrikeStartAmmo)
+                {
+                    WeaponStation alternative = null;
+                    foreach (WeaponStation station in ArmedStations(flight.Aircraft))
+                    {
+                        WeaponInfo info = station.WeaponInfo;
+                        if (info.bomb || info.glideBomb) continue;          // the likely culprit
+                        if (info.name == flight.PreferredWeapon) continue;  // already tried
+                        if (WeaponOrders.Opportunity(info, flight.Target) <= 0.01f && !info.gun) continue;
+                        alternative = station;
+                        break;
+                    }
+
+                    if (alternative != null)
+                    {
+                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · no release after " +
+                            Settings.StrikePatience.Value.ToString("0") + " s, switching to " +
+                            alternative.WeaponInfo.weaponName);
+                        Strike(flight, flight.Target, alternative.WeaponInfo.name);
+                    }
+                    else
+                    {
+                        Plugin.Log.LogWarning("[flight] " + flight.Name +
+                            " · cannot get a release on this target, breaking off");
+                        BreakOff(flight);
+                    }
+                }
+
                 // A shot has left the aircraft: stop pressing.
                 if (flight.Mode == FlightMode.Strike && flight.AmmoAtAttack >= 0)
                 {
@@ -551,6 +588,8 @@ namespace NavalPower
             if (flight == null || target == null) return;
             flight.PreferredWeapon = preferredWeapon;
             flight.WarnedAboutTrack = false;
+            flight.StrikeStarted = Time.timeSinceLevelLoad;
+            flight.StrikeStartAmmo = TotalAmmo(flight.Aircraft);
             if (flight.Mode != FlightMode.Strike && flight.Mode != FlightMode.Egress) flight.PreviousMode = flight.Mode;
             flight.Target = target;
             flight.AmmoAtAttack = TotalAmmo(flight.Aircraft);
@@ -735,12 +774,15 @@ namespace NavalPower
             return null;
         }
 
-        // Bombs need a precise track before the AI will release: it refuses to
-        // enter its bombing mode without one, and LookForBombingTargets demands
-        // the position be accurate to fifty metres. Given a loose track the
-        // aircraft flies the run, drops nothing, turns around and tries again
-        // forever -- so a bomb is not a usable store against such a target.
-        internal static bool CanRelease(Aircraft aircraft, WeaponInfo info, Unit target)
+        // Whether a bomb could be released on this target *right now*. The AI
+        // will not enter its bombing mode without a track good to fifty metres.
+        //
+        // This is a live condition, not a property of the order: an aircraft
+        // forty kilometres out has no eyes on anything, and acquires the target
+        // when it arrives -- its own sensors feed the same faction picture this
+        // asks about. So it is a hint for choosing between stores, never a
+        // reason to refuse the mission.
+        internal static bool CanReleaseNow(Aircraft aircraft, WeaponInfo info, Unit target)
         {
             if (info == null || target == null) return false;
             if (!info.bomb && !info.glideBomb) return true;
@@ -757,7 +799,7 @@ namespace NavalPower
             {
                 if (station == null || station.WeaponInfo == null || station.Ammo <= 0) continue;
                 if (station.WeaponInfo.gun && gun == null) gun = station;
-                if (!CanRelease(aircraft, station.WeaponInfo, target)) continue;
+
                 float score = WeaponOrders.Opportunity(station.WeaponInfo, target);
                 if (score <= bestScore) continue;
                 bestScore = score;
