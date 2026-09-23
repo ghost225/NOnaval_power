@@ -317,7 +317,12 @@ namespace NavalPower
         private void Release(Order order)
         {
             if (order.Selected != null) NativeBindings.StopTrigger(order.Selected);
-            if (order.Turret != null) order.Turret.SetManual(false);
+            // Hand the mount back to the engagement policy, not to its own
+            // devices. Releasing it outright unlocked the turret until the
+            // policy swept again a quarter-second later, which was long enough
+            // for a mount to ripple off shots the rules forbade -- firing one
+            // manual round under weapons hold effectively freed the weapon.
+            if (order.Turret != null) EngagementPolicy.HandBack(ship, order.Turret);
             order.Selected = null;
             order.Station = null;
             order.Turret = null;

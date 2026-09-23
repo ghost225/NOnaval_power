@@ -40,6 +40,24 @@ namespace NavalPower
             return state.Permits(target);
         }
 
+        // A mount finishing an explicit order returns to whatever the standing
+        // rules say, rather than to autonomous fire.
+        internal static void HandBack(Ship ship, Turret turret)
+        {
+            if (turret == null) return;
+            var state = ship != null ? ship.GetComponent<ShipEngagement>() : null;
+            if (state == null || state.Mode == EngagementMode.WeaponsFree)
+            {
+                turret.SetManual(false);
+                return;
+            }
+            // Clear the target it was just given, or it re-engages the moment
+            // it is no longer held.
+            if (NativeBindings.TurretChooseTarget != null && turret.GetTarget() != null)
+                NativeBindings.TurretChooseTarget.Invoke(turret, new object[] { true });
+            turret.SetManual(true);
+        }
+
         public static string Describe(EngagementMode mode) =>
             mode == EngagementMode.WeaponsFree ? "Weapons Free"
             : mode == EngagementMode.WeaponsTight ? "Weapons Tight" : "Weapons Hold";
