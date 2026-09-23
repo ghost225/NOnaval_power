@@ -67,6 +67,7 @@ namespace NavalPower
                 case FlightMode.Orbit: FlyOrbit(flight.OrbitCentre); break;
                 case FlightMode.Station: FlyStation(); break;
                 case FlightMode.Egress: FlyEgress(); break;
+                case FlightMode.Jam: FlyJamming(); break;
                 // Both hand the aircraft to the native combat pilot; the
                 // difference is that a strike has a designated target pinned
                 // onto it. Missing this case left nothing driving the aircraft.
@@ -175,6 +176,31 @@ namespace NavalPower
             flight.Altitude = Mathf.Min(ordered, Settings.EgressAltitude.Value);
             Steer(flight.EgressPoint);
             flight.Altitude = ordered;
+        }
+
+        // Hold off the emitter and keep the pod on it. The pod switches itself
+        // off in LateUpdate unless Fire is called again, so jamming has to be
+        // asserted every frame rather than commanded once.
+        private void FlyJamming()
+        {
+            Unit target = flight.Target;
+            if (target == null || target.disabled) { FlyOrbit(aircraft.GlobalPosition()); return; }
+
+            float standoff = Mathf.Max(Settings.JammingStandoff.Value, 1000f);
+            float radius = flight.OrbitRadius;
+            flight.OrbitRadius = standoff;
+            FlyOrbit(target.GlobalPosition());
+            flight.OrbitRadius = radius;
+
+            WeaponStation station = FlightOrders.JammerOn(aircraft);
+            if (station == null) return;
+            foreach (Weapon weapon in station.Weapons)
+            {
+                if (!(weapon is JammingPod pod)) continue;
+                pod.SetTarget(target);
+                pod.Fire(aircraft, target, aircraft.rb != null ? aircraft.rb.velocity : Vector3.zero,
+                    station, default(GlobalPosition));
+            }
         }
 
         private void FlyStation()

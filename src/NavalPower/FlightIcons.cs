@@ -27,6 +27,7 @@ namespace NavalPower
             switch (flight.Mode)
             {
                 case FlightMode.Strike: return Theme.Weapon;
+                case FlightMode.Jam: return Theme.Passive;
                 case FlightMode.Egress: return Theme.Warn;
                 case FlightMode.Engage: return Theme.Bad;
                 case FlightMode.ReturnToBase: return Theme.Warn;

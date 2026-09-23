@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    public enum FlightMode { Route, Orbit, Station, Strike, Egress, Engage, ReturnToBase }
+    public enum FlightMode { Route, Orbit, Station, Strike, Jam, Egress, Engage, ReturnToBase }
 
     public enum FlightRoe
     {
@@ -84,6 +84,8 @@ namespace NavalPower
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
                 case FlightMode.Egress: return "Egressing · weapons away";
+                case FlightMode.Jam: return Target != null && !Target.disabled
+                    ? "Jamming · " + (Target.definition?.unitName ?? Target.name) : "Jamming · target gone";
                 case FlightMode.Engage: return "Weapons free · AI engaging";
                 default: return "Returning to base";
             }
@@ -201,6 +203,12 @@ namespace NavalPower
             // over during taxi or takeoff would fight the native sequence.
             foreach (Flight flight in flights)
             {
+                if (flight.Mode == FlightMode.Jam && (flight.Target == null || flight.Target.disabled))
+                {
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · jamming target gone");
+                    BreakOff(flight);
+                }
+
                 if (flight.Mode == FlightMode.Strike && (flight.Target == null || flight.Target.disabled))
                 {
                     Plugin.Log.LogInfo("[flight] " + flight.Name + " · target destroyed, breaking off");
@@ -497,6 +505,40 @@ namespace NavalPower
             flight.EgressPoint = here + away * Settings.StandoffMetres.Value;
         }
 
+        // A jamming pod is a weapon, so the aircraft carrying one can be sent
+        // to suppress a specific emitter. Unlike a strike this never closes:
+        // the flight holds at standoff and keeps the pod on the target, which
+        // is the whole point of sending it rather than something with bombs.
+        public static void Jam(Flight flight, Unit target)
+        {
+            if (flight == null || target == null) return;
+            if (flight.Mode != FlightMode.Jam) flight.PreviousMode = flight.Mode;
+            flight.Target = target;
+            flight.Route.Clear();
+            flight.Mode = FlightMode.Jam;
+            flight.Adopted = false;                 // ours to fly, not the combat pilot's
+        }
+
+        internal static WeaponStation JammerOn(Aircraft aircraft)
+        {
+            if (aircraft == null || aircraft.weaponStations == null) return null;
+            foreach (WeaponStation station in aircraft.weaponStations)
+            {
+                if (station == null || station.Weapons == null) continue;
+                foreach (Weapon weapon in station.Weapons)
+                    if (weapon is JammingPod) return station;
+            }
+            return null;
+        }
+
+        public static List<Flight> JammersFor(Ship ship)
+        {
+            var result = new List<Flight>();
+            foreach (Flight flight in For(ship))
+                if (JammerOn(flight.Aircraft) != null) result.Add(flight);
+            return result;
+        }
+
         public static void BreakOff(Flight flight)
         {
             if (flight == null) return;
@@ -643,6 +685,8 @@ namespace NavalPower
         private static bool ShouldYield(Flight flight)
         {
             if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage) return true;
+            // Jamming holds station; only an actual shot takes it off the job.
+            if (flight.Mode == FlightMode.Jam) return flight.Threat == FlightThreat.Missile;
 
             // Leaving outranks evading, up to a point. Turning to fight a shot
             // that is still thirty kilometres away just keeps the aircraft in

@@ -407,7 +407,7 @@ namespace NavalPower
             List<Flight> capable = FlightOrders.CapableOf(CommandState.Ship, target);
             List<Flight> all = FlightOrders.For(CommandState.Ship);
             string name = target.definition?.unitName ?? target.name;
-            StartPopup("Strike " + name, null, all.Count + 3);
+            StartPopup("Strike " + name, null, all.Count + 4);
 
             Row(capable.Count > 0 ? "ALL CAPABLE  ·  " + capable.Count + " flight(s)" : "No flight can hurt this target",
                 1, () =>
@@ -1023,6 +1023,7 @@ namespace NavalPower
                 case FlightMode.Orbit: return "on station";
                 case FlightMode.Station: return "escort";
                 case FlightMode.Strike: return "strike";
+                case FlightMode.Jam: return "jamming";
                 case FlightMode.Egress: return "egress";
                 case FlightMode.Engage: return "free";
                 default: return "recovering";
