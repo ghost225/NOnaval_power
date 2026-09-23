@@ -25,7 +25,7 @@ namespace NavalPower
             {
                 Settings.Bind(Config);
                 harmony = new Harmony(Id);
-                harmony.PatchAll(typeof(Plugin).Assembly);
+                ApplyPatches();
                 gameObject.AddComponent<TestHarness>();
                 var ui = gameObject.AddComponent<CommandUi>();
                 var map = gameObject.AddComponent<MapCommand>();
@@ -38,6 +38,31 @@ namespace NavalPower
                 Log.LogError("Naval Power could not bind to this game version: " + ex);
                 enabled = false;
             }
+        }
+
+        // Patch each class on its own. PatchAll abandons the whole assembly on
+        // the first failure, so one patch that cannot bind on a given build --
+        // or against a mod that renamed something -- took the entire interface
+        // down with it. A feature that cannot attach should lose that feature,
+        // not the mod.
+        private void ApplyPatches()
+        {
+            int applied = 0, failed = 0;
+            foreach (Type type in typeof(Plugin).Assembly.GetTypes())
+            {
+                if (type.GetCustomAttributes(typeof(HarmonyPatch), true).Length == 0) continue;
+                try
+                {
+                    harmony.CreateClassProcessor(type).Patch();
+                    applied++;
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    Log.LogError("Could not apply " + type.Name + "; that feature is disabled. " + ex.Message);
+                }
+            }
+            Log.LogInfo("Patches applied: " + applied + (failed > 0 ? ", failed: " + failed : ""));
         }
 
         private void OnDestroy()

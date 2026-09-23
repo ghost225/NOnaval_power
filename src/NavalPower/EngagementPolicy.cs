@@ -101,7 +101,11 @@ namespace NavalPower
             }
         }
 
-        private static bool Prefix(Unit owner, Unit target) => EngagementPolicy.Allows(owner, target);
+        // Positional, not by name: overrides rename the parameters -- Gun.Fire
+        // calls the first one firingUnit, not owner -- and Harmony binds
+        // prefix arguments by name, so naming them fails on exactly the
+        // subclasses this patch exists to catch.
+        private static bool Prefix(Unit __0, Unit __1) => EngagementPolicy.Allows(__0, __1);
     }
 
     internal sealed class ShipEngagement : MonoBehaviour
