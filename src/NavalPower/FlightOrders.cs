@@ -32,6 +32,7 @@ namespace NavalPower
         public bool Adopted;
         public Unit Target;                 // designated for a strike
         public string PreferredWeapon;      // WeaponInfo.name, or null for whatever suits best
+        public bool WarnedAboutTrack;
         public FlightMode PreviousMode = FlightMode.Orbit;
         public FlightRoe Roe = FlightRoe.Tight;
         public int AmmoAtAttack = -1;       // total rounds when the run began
@@ -549,6 +550,7 @@ namespace NavalPower
         {
             if (flight == null || target == null) return;
             flight.PreferredWeapon = preferredWeapon;
+            flight.WarnedAboutTrack = false;
             if (flight.Mode != FlightMode.Strike && flight.Mode != FlightMode.Egress) flight.PreviousMode = flight.Mode;
             flight.Target = target;
             flight.AmmoAtAttack = TotalAmmo(flight.Aircraft);
@@ -733,6 +735,19 @@ namespace NavalPower
             return null;
         }
 
+        // Bombs need a precise track before the AI will release: it refuses to
+        // enter its bombing mode without one, and LookForBombingTargets demands
+        // the position be accurate to fifty metres. Given a loose track the
+        // aircraft flies the run, drops nothing, turns around and tries again
+        // forever -- so a bomb is not a usable store against such a target.
+        internal static bool CanRelease(Aircraft aircraft, WeaponInfo info, Unit target)
+        {
+            if (info == null || target == null) return false;
+            if (!info.bomb && !info.glideBomb) return true;
+            FactionHQ hq = aircraft != null ? aircraft.NetworkHQ : null;
+            return hq != null && hq.IsTargetPositionAccurate(target, 50f);
+        }
+
         internal static WeaponStation BestStationFor(Aircraft aircraft, Unit target)
         {
             if (aircraft == null || target == null || aircraft.weaponStations == null) return null;
@@ -742,6 +757,7 @@ namespace NavalPower
             {
                 if (station == null || station.WeaponInfo == null || station.Ammo <= 0) continue;
                 if (station.WeaponInfo.gun && gun == null) gun = station;
+                if (!CanRelease(aircraft, station.WeaponInfo, target)) continue;
                 float score = WeaponOrders.Opportunity(station.WeaponInfo, target);
                 if (score <= bestScore) continue;
                 bestScore = score;

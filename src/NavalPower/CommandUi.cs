@@ -418,14 +418,17 @@ namespace NavalPower
                 WeaponStation station = armed[i];
                 WeaponInfo info = station.WeaponInfo;
                 float worth = WeaponOrders.Opportunity(info, target);
+                bool releasable = FlightOrders.CanRelease(flight.Aircraft, info, target);
                 Button row = Row(info.weaponName + "  ·  " + station.Ammo + " remaining  ·  " +
-                    (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), i + 2, () =>
+                    (!releasable ? "needs a precise track"
+                        : worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), i + 2, () =>
                     {
                         FlightOrders.Strike(flight, target, info.name);
                         CommandState.Say(flight.Name + " striking " + name + " with " + info.weaponName);
                         ClosePopup();
                     });
-                if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
+                if (!releasable) row.GetComponentInChildren<Text>().color = Theme.Bad;
+                else if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
             Row("Back", armed.Count + 2, () => StrikeMenu(target));
             Row("Close", armed.Count + 3, ClosePopup);

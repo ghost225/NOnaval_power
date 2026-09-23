@@ -40,6 +40,18 @@ namespace NavalPower
             // else -- a cheap rocket on a small target rather than the missile
             // the analyser would spend on it.
             WeaponStation chosen = FlightOrders.NamedStation(aircraft, flight.PreferredWeapon);
+            if (chosen != null && !FlightOrders.CanRelease(aircraft, chosen.WeaponInfo, target))
+            {
+                // Named weapon, but the track is too loose for it to drop.
+                // Say so once rather than letting it fly runs forever.
+                if (!flight.WarnedAboutTrack)
+                {
+                    flight.WarnedAboutTrack = true;
+                    Plugin.Log.LogWarning("[flight] " + flight.Name + " · " + chosen.WeaponInfo.weaponName +
+                        " needs a track accurate to 50 m; falling back to what it can release");
+                }
+                chosen = null;
+            }
             if (chosen != null)
             {
                 __result = new CombatAI.TargetSearchResults(target, chosen,
@@ -56,6 +68,9 @@ namespace NavalPower
                 if (station.Ammo <= 0) continue;
                 anyAmmo = true;
                 if (station.WeaponInfo.gun && gun == null) gun = station;
+                // Never hand the pilot a bomb against a track it will refuse to
+                // release on; it would fly the run and turn away, repeatedly.
+                if (!FlightOrders.CanRelease(aircraft, station.WeaponInfo, target)) continue;
                 float score = CombatAI.AnalyzeTarget(station, aircraft, track).opportunity;
                 if (score <= bestScore) continue;
                 bestScore = score;
