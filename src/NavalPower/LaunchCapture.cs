@@ -20,25 +20,24 @@ namespace NavalPower
         internal static string Report() =>
             "launch capture:\n  " + (SpawnedObject != null ? "ok      " : "MISSING ") + "Hangar.spawnedObject";
 
-        private static void Postfix(Loadout loadout)
+        private static void Postfix(Hangar __instance, Loadout loadout)
         {
-            if (loadout == null || SpawnedObject == null) return;      // an AI spawn
-            Flight claimed = FlightOrders.ClaimLaunch(loadout, Spawned());
+            if (SpawnedObject == null || __instance == null) return;
+            // The hangar records what it just built, so read that one rather
+            // than searching the registry for something that looks similar.
+            if (!(SpawnedObject.GetValue(__instance) is GameObject spawned) || spawned == null) return;
+            Aircraft aircraft = spawned.GetComponent<Aircraft>();
+            if (aircraft == null) return;
+
+            // Note every launch off a ship's deck, ours or the faction AI's:
+            // deck traffic is about this deck, not about whatever happens to be
+            // flying nearby.
+            if (__instance.attachedUnit is Ship ship) DeckTraffic.NoteLaunch(ship, aircraft);
+
+            if (loadout == null) return;                                // an AI spawn
+            Flight claimed = FlightOrders.ClaimLaunch(loadout, aircraft);
             if (claimed != null)
                 Plugin.Log.LogInfo("[deck] launch identified · " + claimed.Name);
-        }
-
-        private static Aircraft Spawned()
-        {
-            // Read the hangar's own record of what it just built rather than
-            // searching the registry for something that looks similar.
-            foreach (Hangar hangar in Object.FindObjectsOfType<Hangar>())
-            {
-                if (!(SpawnedObject.GetValue(hangar) is GameObject spawned) || spawned == null) continue;
-                Aircraft aircraft = spawned.GetComponent<Aircraft>();
-                if (aircraft != null && !aircraft.disabled && FlightOrders.Of(aircraft) == null) return aircraft;
-            }
-            return null;
         }
     }
 }

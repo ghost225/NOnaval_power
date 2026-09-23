@@ -38,6 +38,29 @@ namespace NavalPower
             "\n  " + (LandingAirbase != null ? "ok      " : "MISSING ") + "AIPilotLandingState.airbase" +
             "\n  " + (HeloLandingAirbase != null ? "ok      " : "MISSING ") + "PilotBaseState.nearestAirbase";
 
+        // Aircraft that actually came off a given ship's hangars. Proximity is
+        // no test at all: a nearby airfield, or another carrier in company,
+        // fills the list with movements that have nothing to do with this deck.
+        private static readonly Dictionary<Aircraft, Ship> launchedFrom = new Dictionary<Aircraft, Ship>();
+
+        internal static void NoteLaunch(Ship ship, Aircraft aircraft)
+        {
+            if (ship == null || aircraft == null) return;
+            launchedFrom[aircraft] = ship;
+        }
+
+        private static bool CameFrom(Ship ship, Aircraft aircraft) =>
+            aircraft != null && launchedFrom.TryGetValue(aircraft, out Ship from) && from == ship;
+
+        private static void Forget()
+        {
+            if (launchedFrom.Count == 0) return;
+            var gone = new List<Aircraft>();
+            foreach (KeyValuePair<Aircraft, Ship> entry in launchedFrom)
+                if (entry.Key == null || entry.Key.disabled || entry.Value == null) gone.Add(entry.Key);
+            foreach (Aircraft aircraft in gone) launchedFrom.Remove(aircraft);
+        }
+
         public static void Hangars(Ship ship, out int ready, out int busy)
         {
             ready = 0; busy = 0;
@@ -55,6 +78,7 @@ namespace NavalPower
             Airbase deck = CarrierOps.Deck(ship);
             if (deck == null || ship.NetworkHQ == null) return rows;
             Hangars(ship, out int ready, out _);
+            Forget();
 
             // Our own requested launches that have not appeared yet.
             foreach (string waiting in FlightOrders.PendingNames(ship))
@@ -77,12 +101,12 @@ namespace NavalPower
                 bool ours = FlightOrders.Of(aircraft) != null;
                 string name = aircraft.definition?.unitName ?? aircraft.name;
 
-                // Getting off the deck: only count aircraft still close aboard,
-                // or every airfield launch in the faction would appear here.
+                // Getting off the deck: this deck specifically, recorded when
+                // the hangar built the aircraft.
                 if (pilot.currentState is AIPilotTaxiState || pilot.currentState is AIPilotTakeoffState ||
                     pilot.currentState is AIHeloTakeoffState)
                 {
-                    if (range > 2500f) continue;
+                    if (!CameFrom(ship, aircraft)) continue;
                     rows.Add(new DeckMovement
                     {
                         Phase = TrafficPhase.Launching,
