@@ -392,6 +392,11 @@ namespace NavalPower
                     FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), true);
                     CommandState.Say(tasking.Name + " · leg appended · shift-click to add more");
                     break;
+                case RightClickAction.ReplaceWaypoint when tasking != null && tasking.Mode == FlightMode.Cargo:
+                    FlightOrders.Deliver(tasking, map.GetCursorCoordinates(), tasking.Airdrop);
+                    CommandState.Say(tasking.Name + " · " +
+                        (tasking.Airdrop ? "airdropping at" : "landing at") + " the marked zone");
+                    break;
                 case RightClickAction.ReplaceWaypoint when tasking != null:
                     // A plain click sends the flight to work an area, which is
                     // the common order; shift lays down an explicit route.

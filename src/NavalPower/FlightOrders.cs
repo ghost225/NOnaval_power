@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    public enum FlightMode { Route, Orbit, Station, Strike, Jam, Egress, Engage, ReturnToBase }
+    public enum FlightMode { Route, Orbit, Station, Strike, Jam, Cargo, Egress, Engage, ReturnToBase }
 
     public enum FlightRoe
     {
@@ -34,6 +34,8 @@ namespace NavalPower
         public FlightMode PreviousMode = FlightMode.Orbit;
         public FlightRoe Roe = FlightRoe.Tight;
         public int AmmoAtAttack = -1;       // total rounds when the run began
+        public GlobalPosition CargoPoint;
+        public bool Airdrop;
         public GlobalPosition EgressPoint;
         public float EgressUntil;
         public float NextEgressPlan;
@@ -49,6 +51,27 @@ namespace NavalPower
         // 0-100. The constraint that actually governs carrier operations, and
         // until now it was invisible until the automatic recovery fired.
         public float FuelPercent => Aircraft != null ? Mathf.Clamp01(Aircraft.GetFuelLevel()) * 100f : 0f;
+
+        // What it still has to fight with. A flight that has shot itself dry is
+        // just fuel and risk, and that should be visible without opening it.
+        public int RoundsRemaining => FlightOrders.TotalAmmo(Aircraft);
+
+        public string Stores
+        {
+            get
+            {
+                if (Aircraft == null || Aircraft.weaponStations == null) return "";
+                var parts = new List<string>();
+                foreach (WeaponStation station in Aircraft.weaponStations)
+                {
+                    if (station?.WeaponInfo == null || station.Ammo <= 0) continue;
+                    parts.Add(station.WeaponInfo.shortName is string shortName && shortName.Length > 0
+                        ? shortName + " " + station.Ammo
+                        : station.WeaponInfo.weaponName + " " + station.Ammo);
+                }
+                return parts.Count == 0 ? "no stores" : string.Join(", ", parts.ToArray());
+            }
+        }
 
         public string ShortName
         {
@@ -84,6 +107,7 @@ namespace NavalPower
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
                 case FlightMode.Egress: return "Egressing · weapons away";
+                case FlightMode.Cargo: return (Airdrop ? "Airdrop" : "Delivery") + " · inbound to the zone";
                 case FlightMode.Jam: return Target != null && !Target.disabled
                     ? "Jamming · " + (Target.definition?.unitName ?? Target.name) : "Jamming · target gone";
                 case FlightMode.Engage: return "Weapons free · AI engaging";
@@ -283,6 +307,17 @@ namespace NavalPower
                 // and can be handed over from our own state as well as from
                 // the native one -- gating it on the native state meant the
                 // handoff never happened once we already had the aircraft.
+                if (flight.Mode == FlightMode.Cargo)
+                {
+                    if (pilot.AIHeloTransportState != null &&
+                        !(pilot.currentState is AIHeloTransportState))
+                        pilot.SwitchStateNew(pilot.AIHeloTransportState);
+                    flight.Adopted = true;
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
+                        (flight.Airdrop ? "airdropping" : "delivering") + " cargo");
+                    continue;
+                }
+
                 if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage)
                 {
                     PilotBaseState combat = CombatStateFor(pilot);
@@ -539,6 +574,26 @@ namespace NavalPower
             return result;
         }
 
+        // The native transport state flies the delivery; we only tell it where.
+        public static void Deliver(Flight flight, GlobalPosition where, bool airdrop)
+        {
+            if (flight == null) return;
+            if (flight.Mode != FlightMode.Cargo) flight.PreviousMode = flight.Mode;
+            flight.CargoPoint = where;
+            flight.Airdrop = airdrop;
+            flight.Route.Clear();
+            flight.Mode = FlightMode.Cargo;
+            flight.Adopted = false;
+        }
+
+        public static List<Flight> CarriersFor(Ship ship)
+        {
+            var result = new List<Flight>();
+            foreach (Flight flight in For(ship))
+                if (CargoMissions.CanCarry(flight.Aircraft)) result.Add(flight);
+            return result;
+        }
+
         public static void BreakOff(Flight flight)
         {
             if (flight == null) return;
@@ -685,6 +740,7 @@ namespace NavalPower
         private static bool ShouldYield(Flight flight)
         {
             if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage) return true;
+            if (flight.Mode == FlightMode.Cargo) return false;       // the transport state has it
             // Jamming holds station; only an actual shot takes it off the job.
             if (flight.Mode == FlightMode.Jam) return flight.Threat == FlightThreat.Missile;
 

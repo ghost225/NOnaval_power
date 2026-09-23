@@ -369,7 +369,8 @@ namespace NavalPower
                 {
                     Flight flight = airborne[i];
                     Button entry = Row(flight.Name + "   ·   " + flight.Describe() +
-                        "   ·   " + flight.FuelPercent.ToString("0") + "% fuel", row++, () => FlightMenu(flight));
+                        "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.Stores,
+                        row++, () => FlightMenu(flight));
                     entry.GetComponentInChildren<Text>().color =
                         flight.FuelPercent < 25f ? Theme.Bad
                         : flight.Threat == FlightThreat.Missile ? Theme.Bad
@@ -467,7 +468,8 @@ namespace NavalPower
             popupKey = "flight";
 
             string legs = flight.Route.Count > 0 ? flight.Route.Count + " leg(s) queued" : "no route";
-            StartPopup(flight.Name + "  ·  " + flight.Describe(), null, 12);
+            StartPopup(flight.Name + "  ·  " + flight.Describe() +
+                "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.Stores, null, 13);
 
             // The panel stays open, so this reads as standing guidance rather
             // than an instruction to be dismissed.
@@ -493,6 +495,10 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · keeping company");
                 FlightMenu(flight);
             });
+            if (CargoMissions.CanCarry(flight.Aircraft))
+                Row(flight.Mode == FlightMode.Cargo
+                        ? "Cargo  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change"
+                        : "Cargo delivery…", 13, () => CargoMenu(flight));
             Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), 4, () => AltitudeMenu(flight));
             Row("Task area radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
             Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), 12, () =>
@@ -548,6 +554,29 @@ namespace NavalPower
             }
             Row("Back", 4, () => FlightMenu(flight));
             Row("Close", 5, ClosePopup);
+        }
+
+        private void CargoMenu(Flight flight)
+        {
+            StartPopup(flight.Name + " · cargo delivery", null, 4);
+            Row(flight.Airdrop ? "Mode  ·  airdrop  ·  switch to landing" : "Mode  ·  landing  ·  switch to airdrop", 1, () =>
+            {
+                flight.Airdrop = !flight.Airdrop;
+                if (flight.Mode == FlightMode.Cargo)
+                    FlightOrders.Deliver(flight, flight.CargoPoint, flight.Airdrop);
+                CargoMenu(flight);
+            });
+            Row("Deliver at the ship", 2, () =>
+            {
+                if (flight.Parent != null)
+                {
+                    FlightOrders.Deliver(flight, flight.Parent.GlobalPosition(), flight.Airdrop);
+                    CommandState.Say(flight.Name + " · delivering to the ship");
+                }
+                FlightMenu(flight);
+            });
+            InformationRow("Right-click the map to set the landing zone", 3);
+            Row("Back", 4, () => FlightMenu(flight));
         }
 
         private void AltitudeMenu(Flight flight)
@@ -1007,9 +1036,11 @@ namespace NavalPower
                 chipFlights.Add(flight);
 
                 string state = flight.Status ?? ShortTask(flight);
+                int rounds = flight.RoundsRemaining;
                 flightChipLabels[i].text = flight.ShortName + "  " + state + "\n" +
-                    flight.FuelPercent.ToString("0") + "% fuel";
-                flightChipLabels[i].color = flight.FuelPercent < 25f ? Theme.Bad : Theme.Text;
+                    flight.FuelPercent.ToString("0") + "% fuel  ·  " +
+                    (rounds > 0 ? rounds + " rds" : "DRY");
+                flightChipLabels[i].color = flight.FuelPercent < 25f || rounds <= 0 ? Theme.Bad : Theme.Text;
                 flightChips[i].image.color = CommandState.SelectedFlight == flight
                     ? Theme.AccentFill : Theme.Dim(FlightIcons.For(flight), 0.22f);
             }
@@ -1024,6 +1055,7 @@ namespace NavalPower
                 case FlightMode.Station: return "escort";
                 case FlightMode.Strike: return "strike";
                 case FlightMode.Jam: return "jamming";
+                case FlightMode.Cargo: return "cargo";
                 case FlightMode.Egress: return "egress";
                 case FlightMode.Engage: return "free";
                 default: return "recovering";
