@@ -17,6 +17,8 @@ namespace NavalPower
         internal static ConfigEntry<float> StandoffMetres;
         internal static ConfigEntry<float> EgressSeconds;
         internal static ConfigEntry<bool> ReattackAfterEgress;
+        internal static ConfigEntry<bool> CarrierApproachFix;
+        internal static ConfigEntry<float> CarrierApproachFactor;
         internal static ConfigEntry<float> StrikePatience;
         internal static ConfigEntry<float> JammingStandoff;
         internal static ConfigEntry<float> EgressAltitude;
@@ -83,6 +85,16 @@ namespace NavalPower
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
                 "Press the attack again once clear, while ordnance remains and the target lives. " +
                 "Off means one pass per order.");
+
+            CarrierApproachFix = config.Bind("Flights", "Slow deck approaches", true,
+                "Approach a ship's deck more slowly than a runway. The game computes one landing speed for " +
+                "both -- the branch meant to distinguish them returns the same number either way -- so " +
+                "aircraft arrive at a flattop fast and high, fail to stabilise and go around repeatedly.");
+
+            CarrierApproachFactor = config.Bind("Flights", "Deck approach factor", 0.75f,
+                new ConfigDescription("Fraction of the normal approach speed used when recovering to a ship. " +
+                    "Lower settles sooner but risks arriving slow; only affects ship decks.",
+                    new AcceptableValueRange<float>(0.4f, 1f)));
 
             StrikePatience = config.Bind("Flights", "Strike patience", 120f,
                 new ConfigDescription("How long a flight may press an attack without anything leaving the " +
