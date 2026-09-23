@@ -356,8 +356,8 @@ namespace NavalPower
                 {
                     Flight flight = airborne[i];
                     Button entry = Row(flight.Name + "   ·   " + flight.Describe() +
-                        "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.Stores,
-                        row++, () => FlightMenu(flight));
+                        "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.StoresSummary +
+                        "   ·   " + flight.Stores, row++, () => FlightMenu(flight));
                     entry.GetComponentInChildren<Text>().color =
                         flight.FuelPercent < 25f ? Theme.Bad
                         : flight.Threat == FlightThreat.Missile ? Theme.Bad
@@ -456,7 +456,8 @@ namespace NavalPower
 
             string legs = flight.Route.Count > 0 ? flight.Route.Count + " leg(s) queued" : "no route";
             StartPopup(flight.Name + "  ·  " + flight.Describe() +
-                "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.Stores, null, 13);
+                "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.StoresSummary +
+                "   ·   " + flight.Stores, null, 13);
 
             // The panel stays open, so this reads as standing guidance rather
             // than an instruction to be dismissed.
@@ -1065,11 +1066,14 @@ namespace NavalPower
                 chipFlights.Add(flight);
 
                 string state = flight.Status ?? ShortTask(flight);
-                int rounds = flight.RoundsRemaining;
-                flightChipLabels[i].text = flight.ShortName + "  " + state + "\n" +
-                    flight.FuelPercent.ToString("0") + "% fuel  ·  " +
-                    (rounds > 0 ? rounds + " rds" : "DRY");
-                flightChipLabels[i].color = flight.FuelPercent < 25f || rounds <= 0 ? Theme.Bad : Theme.Text;
+                flightChipLabels[i].text = flight.ShortName + "  " + state + "  ·  " +
+                    flight.FuelPercent.ToString("0") + "%\n" + flight.StoresSummary;
+                // Red when it is low on fuel, or when anything it launched with
+                // has run out -- a strike flight with no bombs left needs
+                // bringing home even with a full load of air-to-air.
+                flightChipLabels[i].color =
+                    flight.FuelPercent < 25f || flight.RoundsRemaining <= 0 || flight.AnyRoleExhausted
+                        ? Theme.Bad : Theme.Text;
                 flightChips[i].image.color = CommandState.SelectedFlight == flight
                     ? Theme.AccentFill : Theme.Dim(FlightIcons.For(flight), 0.22f);
             }

@@ -52,9 +52,67 @@ namespace NavalPower
         // until now it was invisible until the automatic recovery fired.
         public float FuelPercent => Aircraft != null ? Mathf.Clamp01(Aircraft.GetFuelLevel()) * 100f : 0f;
 
-        // What it still has to fight with. A flight that has shot itself dry is
-        // just fuel and risk, and that should be visible without opening it.
+        // What it still has to fight with. A bare total is misleading: a strike
+        // flight out of bombs but holding air-to-air rounds reads as armed
+        // while being useless for the job it was sent to do. Group by role
+        // instead, using the same effectiveness the game targets with.
         public int RoundsRemaining => FlightOrders.TotalAmmo(Aircraft);
+
+        // Role label -> rounds now. Peak keeps what it ever carried, so a role
+        // that has run out still shows as a zero rather than vanishing.
+        internal readonly Dictionary<string, int> RoleStores = new Dictionary<string, int>();
+        internal readonly Dictionary<string, int> RolePeak = new Dictionary<string, int>();
+
+        internal void RefreshStores()
+        {
+            RoleStores.Clear();
+            if (Aircraft == null || Aircraft.weaponStations == null) return;
+            foreach (WeaponStation station in Aircraft.weaponStations)
+            {
+                if (station?.WeaponInfo == null) continue;
+                string role = FlightOrders.RoleOf(station.WeaponInfo);
+                int ammo = Mathf.Max(0, station.Ammo);
+                RoleStores.TryGetValue(role, out int running);
+                RoleStores[role] = running + ammo;
+            }
+            foreach (KeyValuePair<string, int> entry in RoleStores)
+            {
+                RolePeak.TryGetValue(entry.Key, out int peak);
+                if (entry.Value > peak) RolePeak[entry.Key] = entry.Value;
+            }
+        }
+
+        // Short enough for a chip: "A/S 0  A/A 4  GUN 240".
+        public string StoresSummary
+        {
+            get
+            {
+                if (RolePeak.Count == 0) return "no stores";
+                var parts = new List<string>();
+                foreach (string role in FlightOrders.RoleOrder)
+                {
+                    if (!RolePeak.ContainsKey(role) || RolePeak[role] <= 0) continue;
+                    RoleStores.TryGetValue(role, out int now);
+                    parts.Add(role + " " + now);
+                }
+                return parts.Count == 0 ? "no stores" : string.Join("  ", parts.ToArray());
+            }
+        }
+
+        // True when something it launched with has run out.
+        public bool AnyRoleExhausted
+        {
+            get
+            {
+                foreach (KeyValuePair<string, int> entry in RolePeak)
+                {
+                    if (entry.Value <= 0) continue;
+                    RoleStores.TryGetValue(entry.Key, out int now);
+                    if (now <= 0) return true;
+                }
+                return false;
+            }
+        }
 
         public string Stores
         {
@@ -179,6 +237,23 @@ namespace NavalPower
             return names;
         }
 
+        internal static readonly string[] RoleOrder = { "A/S", "A/A", "ARM", "PD", "GUN" };
+
+        // Which job this weapon is for, from the game's own effectiveness
+        // profile rather than a list of weapon names.
+        internal static string RoleOf(WeaponInfo info)
+        {
+            if (info == null) return "GUN";
+            if (info.gun) return "GUN";
+            RoleIdentity role = info.effectiveness;
+            float best = role.antiSurface;
+            string label = "A/S";
+            if (role.antiAir > best) { best = role.antiAir; label = "A/A"; }
+            if (role.antiRadar > best) { best = role.antiRadar; label = "ARM"; }
+            if (role.antiMissile > best) { best = role.antiMissile; label = "PD"; }
+            return best <= 0.001f ? "GUN" : label;
+        }
+
         public static List<Flight> For(Ship ship)
         {
             var result = new List<Flight>();
@@ -198,6 +273,7 @@ namespace NavalPower
             AssessThreats();
             for (int i = flights.Count - 1; i >= 0; i--)
                 if (flights[i].Aircraft == null || flights[i].Aircraft.disabled) flights.RemoveAt(i);
+            foreach (Flight flight in flights) flight.RefreshStores();
 
             for (int i = pending.Count - 1; i >= 0; i--)
             {
