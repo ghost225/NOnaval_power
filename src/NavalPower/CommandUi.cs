@@ -16,7 +16,7 @@ namespace NavalPower
         private Canvas canvas;
         private TargetFeed feedView;
         private GameObject root;
-        private RectTransform bar, popup, popupContent, hover, weaponRow;
+        private RectTransform bar, airBar, popup, popupContent, hover, weaponRow;
         private Text shipLabel, statusLabel, speedLabel, feedbackLabel, hoverText;
         private Slider speedSlider;
         private bool updatingSlider;
@@ -128,19 +128,6 @@ namespace NavalPower
             if (CommandState.SelectedFlight != null)
                 SetPill(trackPill, "TASKING " + CommandState.SelectedFlight.Name.ToUpperInvariant(), Theme.Accent);
 
-            if (CarrierOps.HasDeck(ship))
-            {
-                int queued = 0, launching = 0, recovering = 0;
-                foreach (DeckMovement movement in DeckTraffic.Movements(ship))
-                {
-                    if (movement.Phase == TrafficPhase.Queued) queued++;
-                    else if (movement.Phase == TrafficPhase.Launching) launching++;
-                    else recovering++;
-                }
-                if (queued + launching + recovering > 0)
-                    statusLabel.text = "DECK  ·  " + queued + " queued, " + launching + " launching, " +
-                        recovering + " recovering   ·   " + statusLabel.text;
-            }
 
             string say = CommandState.Feedback;
             feedbackLabel.text = say ?? ((nav != null ? nav.Status + "  ·  " : "") +
@@ -870,6 +857,7 @@ namespace NavalPower
             scaler.matchWidthOrHeight = 0f;
 
             BuildOverlay();
+            BuildAirBar();
             feedView = gameObject.AddComponent<TargetFeed>();
             feedView.Build((RectTransform)root.transform, font);
             BuildBar();
@@ -891,11 +879,11 @@ namespace NavalPower
 
         private Text emconPill, roePill, damagePill, trackPill;
         private RectTransform flightStrip;
-        private Text flightStripLabel;
+        private Text flightStripLabel, deckLabel;
         private readonly List<Button> flightChips = new List<Button>();
         private readonly List<Text> flightChipLabels = new List<Text>();
         private readonly List<Flight> chipFlights = new List<Flight>();
-        private const int MaxChips = 8;
+        private const int MaxChips = 6;
 
         private void BuildBar()
         {
@@ -992,21 +980,43 @@ namespace NavalPower
                     1514 + i * 72, 116, 66, 32, () => { CommandState.Quantity = count; Refresh(); }));
             }
 
-            // Band D: the air picture, always visible rather than behind a menu.
-            flightStrip = Box("Flights", bar, new Color(0, 0, 0, 0));
-            Place(flightStrip, 16, 150, 1888, 30);
-            flightStripLabel = Label(flightStrip, "", Theme.LabelSize, TextAnchor.MiddleLeft, Theme.TextFaint);
-            Place(flightStripLabel.rectTransform, 0, 8, 150, 16);
+            feedbackLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
+            Place(feedbackLabel.rectTransform, 16, 146, 1888, 22);
+        }
+
+        // Air operations get their own bar across the top rather than a fourth
+        // band crammed under the ship controls. They are a separate activity on
+        // a separate cadence, and the bottom bar was already dense.
+        private void BuildAirBar()
+        {
+            airBar = Box("Air operations bar", (RectTransform)root.transform, Theme.Surface);
+            airBar.anchorMin = new Vector2(0, 1);
+            airBar.anchorMax = new Vector2(1, 1);
+            airBar.pivot = new Vector2(0.5f, 1);
+            airBar.sizeDelta = new Vector2(0, Theme.AirBarHeight);
+            airBar.anchoredPosition = Vector2.zero;
+
+            RectTransform edge = Box("edge", airBar, Theme.Dim(Theme.Accent, 0.5f));
+            edge.anchorMin = new Vector2(0, 0); edge.anchorMax = new Vector2(1, 0);
+            edge.pivot = new Vector2(0.5f, 0);
+            edge.sizeDelta = new Vector2(0, 2f);
+            edge.anchoredPosition = Vector2.zero;
+
+            flightStripLabel = Label(airBar, "", Theme.LabelSize, TextAnchor.MiddleLeft, Theme.TextFaint);
+            Place(flightStripLabel.rectTransform, 16, 16, 130, 18);
+
+            flightStrip = Box("Flights", airBar, new Color(0, 0, 0, 0));
+            Place(flightStrip, 150, 8, 1300, 32);
             for (int i = 0; i < MaxChips; i++)
             {
                 int index = i;
-                Button chip = MakeButton(flightStrip, "", 156 + i * 216, 0, 210, 28, () => SelectChip(index));
+                Button chip = MakeButton(flightStrip, "", i * 216, 0, 210, 32, () => SelectChip(index));
                 flightChips.Add(chip);
                 flightChipLabels.Add(chip.GetComponentInChildren<Text>());
             }
 
-            feedbackLabel = Label(bar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.TextMuted);
-            Place(feedbackLabel.rectTransform, 16, 186, 1888, 22);
+            deckLabel = Label(airBar, "", Theme.CaptionSize, TextAnchor.MiddleRight, Theme.TextMuted);
+            Place(deckLabel.rectTransform, 1460, 15, 444, 20);
         }
 
         private void SelectChip(int index)
@@ -1015,17 +1025,36 @@ namespace NavalPower
             FlightMenu(chipFlights[index]);
         }
 
-        // The bar grows only when there is an air picture to show.
+        // The air bar shows only when there is an air picture to show.
         private void RefreshStrip()
         {
-            List<Flight> airborne = FlightOrders.For(CommandState.Ship);
-            bool any = airborne.Count > 0 && Settings.ShowFlightStrip.Value;
-            bar.sizeDelta = new Vector2(0, any ? Theme.BarHeight + 40f : Theme.BarHeight);
-            Place(feedbackLabel.rectTransform, 16, any ? 186 : 146, 1888, 22);
-            flightStrip.gameObject.SetActive(any);
+            Ship ship = CommandState.Ship;
+            List<Flight> airborne = FlightOrders.For(ship);
+            List<DeckMovement> traffic = CarrierOps.HasDeck(ship)
+                ? DeckTraffic.Movements(ship) : new List<DeckMovement>();
+
+            bool any = (airborne.Count > 0 || traffic.Count > 0) && Settings.ShowFlightStrip.Value;
+            airBar.gameObject.SetActive(any);
+            if (feedView != null) feedView.SetTopInset(any ? Theme.AirBarHeight : 0f);
             if (!any) { chipFlights.Clear(); return; }
 
-            flightStripLabel.text = "FLIGHTS  " + airborne.Count;
+            flightStripLabel.text = airborne.Count > 0 ? "AIR OPS  " + airborne.Count : "AIR OPS";
+
+            if (traffic.Count > 0)
+            {
+                int queued = 0, launching = 0, recovering = 0;
+                foreach (DeckMovement movement in traffic)
+                {
+                    if (movement.Phase == TrafficPhase.Queued) queued++;
+                    else if (movement.Phase == TrafficPhase.Launching) launching++;
+                    else recovering++;
+                }
+                deckLabel.text = "DECK  ·  " + queued + " queued  ·  " + launching + " launching  ·  " +
+                    recovering + " recovering";
+                deckLabel.color = recovering > 0 ? Theme.Warn : Theme.TextMuted;
+            }
+            else deckLabel.text = "";
+
             chipFlights.Clear();
             for (int i = 0; i < flightChips.Count; i++)
             {

@@ -19,6 +19,15 @@ namespace NavalPower
         private Text caption;
         private Font font;
 
+        private float baseInset = 12f;
+
+        // Keeps the feed clear of the air operations bar when that is showing.
+        internal void SetTopInset(float inset)
+        {
+            if (panel == null) return;
+            panel.anchoredPosition = new Vector2(-12f, -(baseInset + inset));
+        }
+
         private Unit subject;
         private bool chasing;          // subject is a weapon of ours, not a target
         private float nextSubjectCheck;
@@ -49,6 +58,7 @@ namespace NavalPower
             panel.pivot = new Vector2(1, 1);
             panel.sizeDelta = new Vector2(Settings.FeedWidth.Value, Settings.FeedWidth.Value * 9f / 16f + 26f);
             panel.anchoredPosition = new Vector2(-12f, -12f);
+            baseInset = 12f;
 
             RectTransform edge = Box("edge", panel, Theme.Dim(Theme.Accent, 0.6f));
             edge.anchorMin = new Vector2(0, 1); edge.anchorMax = new Vector2(1, 1);

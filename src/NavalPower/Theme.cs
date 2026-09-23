@@ -48,7 +48,7 @@ namespace NavalPower
 
         // --- type and spacing scale -----------------------------------------
         public const int TitleSize = 19, BodySize = 15, CaptionSize = 13, LabelSize = 11;
-        public const float Gap = 8f, RowHeight = 30f, BarHeight = 174f;
+        public const float Gap = 8f, RowHeight = 30f, BarHeight = 174f, AirBarHeight = 48f;
 
         public static Color Dim(Color color, float alpha) => new Color(color.r, color.g, color.b, alpha);
 
