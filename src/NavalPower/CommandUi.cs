@@ -37,6 +37,7 @@ namespace NavalPower
         private bool contextAppend;
         private string popupKey;
         private Text popupHeader;
+        private ScrollRect popupScroll;
 
         private readonly List<Button> weaponButtons = new List<Button>();
         private readonly List<Text> weaponLabels = new List<Text>();
@@ -790,8 +791,14 @@ namespace NavalPower
                 Destroy(child.gameObject);
             }
             popup.gameObject.SetActive(true);
-            float height = rows * 38f + 46f;
+            // The panel is only as tall as it needs to be, up to what the screen
+            // can show between the two bars; past that the rows scroll.
+            float content = rows * 38f + 8f;
+            float room = Mathf.Max(200f, 1080f - Theme.AirBarHeight - Theme.BarHeight - 60f);
+            float height = Mathf.Min(content, room) + 46f;
             popup.sizeDelta = new Vector2(392, height);
+            popupContent.sizeDelta = new Vector2(0, content);
+            popupContent.anchoredPosition = Vector2.zero;        // every menu opens at the top
             // sizeDelta is in canvas units, Input/Screen are in pixels, and the
             // two only agree at the 1920 reference width. Convert before placing.
             float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
@@ -1230,11 +1237,32 @@ namespace NavalPower
             RectTransform popupRule = Box("rule", popup, Theme.Divider);
             Place(popupRule, 8, 37, 376, 1f);
 
-            popupContent = Box("Popup content", popup, new Color(0, 0, 0, 0));
+            // A menu can be longer than the screen -- a weapon station with a
+            // lot of modded ordnance on it, or a deck with a full inventory --
+            // so the rows live in a clipped viewport that scrolls rather than
+            // running off the top.
+            RectTransform viewport = Box("Popup viewport", popup, new Color(0f, 0f, 0f, 0.004f));
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = Vector2.zero;
+            viewport.offsetMax = new Vector2(0f, -42f);
+            viewport.gameObject.AddComponent<RectMask2D>();
+
+            popupContent = Box("Popup content", viewport, new Color(0, 0, 0, 0));
             popupContent.anchorMin = new Vector2(0, 1); popupContent.anchorMax = new Vector2(1, 1);
             popupContent.pivot = new Vector2(0, 1);
-            popupContent.anchoredPosition = new Vector2(0, -42);
+            popupContent.anchoredPosition = Vector2.zero;
             popupContent.sizeDelta = new Vector2(0, 0);
+
+            popupScroll = popup.gameObject.AddComponent<ScrollRect>();
+            popupScroll.viewport = viewport;
+            popupScroll.content = popupContent;
+            popupScroll.horizontal = false;
+            popupScroll.vertical = true;
+            popupScroll.movementType = ScrollRect.MovementType.Clamped;
+            popupScroll.scrollSensitivity = 34f;
+            popupScroll.inertia = false;
+
             popup.gameObject.SetActive(false);
         }
 
