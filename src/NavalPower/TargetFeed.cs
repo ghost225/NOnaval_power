@@ -23,6 +23,22 @@ namespace NavalPower
         private bool chasing;          // subject is a weapon of ours, not a target
         private float nextSubjectCheck;
 
+        // Our weapons in the air, oldest first. Missile carries no spawn time,
+        // so first sighting is recorded here -- that gives both a true age
+        // order and a stable number to put on screen, rather than a label that
+        // changes as rounds come and go.
+        private sealed class Tracked
+        {
+            internal Missile Missile;
+            internal int Id;
+            internal float FirstSeen;
+        }
+        private readonly System.Collections.Generic.List<Tracked> weapons = new System.Collections.Generic.List<Tracked>();
+        private int nextId = 1;
+        private Missile watched;       // explicitly cycled to; null means follow the oldest
+        private Text counter;
+        private Button previous, next;
+
         internal void Build(RectTransform root, Font uiFont)
         {
             font = uiFont;
@@ -54,7 +70,16 @@ namespace NavalPower
             caption.rectTransform.anchorMax = new Vector2(1, 1);
             caption.rectTransform.pivot = new Vector2(0, 1);
             caption.rectTransform.anchoredPosition = new Vector2(10f, -4f);
-            caption.rectTransform.sizeDelta = new Vector2(-20f, 22f);
+            caption.rectTransform.sizeDelta = new Vector2(-116f, 22f);
+
+            // Stepping through our own weapons, oldest first.
+            previous = Button(panel, "◀", -74f, -3f, 24f, () => Step(-1));
+            counter = Label(panel, "", Theme.LabelSize, TextAnchor.MiddleCenter, Theme.TextMuted);
+            counter.rectTransform.anchorMin = counter.rectTransform.anchorMax = new Vector2(1, 1);
+            counter.rectTransform.pivot = new Vector2(1, 1);
+            counter.rectTransform.anchoredPosition = new Vector2(-38f, -3f);
+            counter.rectTransform.sizeDelta = new Vector2(36f, 20f);
+            next = Button(panel, "▶", -10f, -3f, 24f, () => Step(1));
 
             panel.gameObject.SetActive(false);
         }
@@ -125,6 +150,42 @@ namespace NavalPower
             if (panel != null) panel.gameObject.SetActive(false);
         }
 
+        private void TrackWeapons(Ship ship)
+        {
+            for (int i = weapons.Count - 1; i >= 0; i--)
+                if (weapons[i].Missile == null || weapons[i].Missile.disabled) weapons.RemoveAt(i);
+
+            foreach (Unit unit in UnitRegistry.allUnits)
+            {
+                if (!(unit is Missile missile) || missile.disabled) continue;
+                if (missile.owner != ship) continue;
+                bool known = false;
+                foreach (Tracked entry in weapons) if (entry.Missile == missile) { known = true; break; }
+                if (known) continue;
+                weapons.Add(new Tracked { Missile = missile, Id = nextId++, FirstSeen = Time.timeSinceLevelLoad });
+            }
+            weapons.Sort((a, b) => a.FirstSeen.CompareTo(b.FirstSeen));   // oldest first
+
+            if (watched != null && (watched.disabled || IndexOf(watched) < 0)) watched = null;
+        }
+
+        private int IndexOf(Missile missile)
+        {
+            for (int i = 0; i < weapons.Count; i++) if (weapons[i].Missile == missile) return i;
+            return -1;
+        }
+
+        // Step through our weapons. Falling off either end returns to following
+        // the oldest, so the control always has somewhere to go.
+        private void Step(int direction)
+        {
+            if (weapons.Count == 0) return;
+            int index = watched != null ? IndexOf(watched) : 0;
+            index += direction;
+            if (index < 0 || index >= weapons.Count) { watched = null; return; }
+            watched = weapons[index].Missile;
+        }
+
         // A weapon of ours in the air, else whatever we have ordered engaged,
         // else the contact the cursor is over.
         private void ChooseSubject()
@@ -132,18 +193,16 @@ namespace NavalPower
             Ship ship = CommandState.Ship;
             if (ship == null) { subject = null; return; }
 
-            // Whichever of ours is furthest along, which is the one about to
-            // matter; there is no spawn time to sort on.
-            Missile own = null;
-            float leading = -1f;
-            foreach (Unit unit in UnitRegistry.allUnits)
+            TrackWeapons(ship);
+            if (weapons.Count > 0)
             {
-                if (!(unit is Missile missile) || missile.disabled) continue;
-                if (missile.owner != ship) continue;
-                float travelled = FastMath.Distance(missile.GlobalPosition(), ship.GlobalPosition());
-                if (travelled > leading) { leading = travelled; own = missile; }
+                // The oldest is the one closest to arriving, and the one the
+                // commander has been waiting on longest.
+                Missile own = watched ?? weapons[0].Missile;
+                subject = own;
+                chasing = true;
+                return;
             }
-            if (own != null) { subject = own; chasing = true; return; }
 
             chasing = false;
             var engaged = new System.Collections.Generic.List<Unit>();
@@ -167,8 +226,12 @@ namespace NavalPower
                     ? subject.rb.velocity.normalized : subject.transform.forward;
                 feed.transform.position = focus - travel * (size * 6f + 18f) + Vector3.up * (size + 4f);
                 feed.transform.rotation = Quaternion.LookRotation(travel, Vector3.up);
-                caption.text = "WEAPON IN FLIGHT  ·  " + (subject.definition?.unitName ?? subject.name);
+                int index = IndexOf(subject as Missile);
+                string tag = index >= 0 ? "WPN " + weapons[index].Id + "  ·  " : "";
+                caption.text = tag + (subject.definition?.unitName ?? subject.name) +
+                    (watched != null ? "  ·  held" : "");
                 caption.color = Theme.Weapon;
+                ShowCycling(index);
                 return;
             }
 
@@ -185,6 +248,32 @@ namespace NavalPower
             feed.transform.rotation = Quaternion.LookRotation(focus - feed.transform.position, Vector3.up);
             caption.text = "ENGAGING  ·  " + (subject.definition?.unitName ?? subject.name);
             caption.color = Theme.Text;
+            ShowCycling(-1);
+        }
+
+        private void ShowCycling(int index)
+        {
+            bool many = weapons.Count > 1 && index >= 0;
+            previous.gameObject.SetActive(many);
+            next.gameObject.SetActive(many);
+            counter.gameObject.SetActive(many);
+            if (many) counter.text = (index + 1) + "/" + weapons.Count;
+        }
+
+        private Button Button(RectTransform parent, string label, float x, float y, float size, System.Action action)
+        {
+            RectTransform rect = Box(label, parent, Theme.Control);
+            rect.anchorMin = rect.anchorMax = new Vector2(1, 1);
+            rect.pivot = new Vector2(1, 1);
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(size, 20f);
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = rect.GetComponent<Image>();
+            button.onClick.AddListener(() => action());
+            Text text = Label(rect, label, Theme.LabelSize, TextAnchor.MiddleCenter, Theme.Text);
+            text.rectTransform.anchorMin = Vector2.zero; text.rectTransform.anchorMax = Vector2.one;
+            text.rectTransform.offsetMin = Vector2.zero; text.rectTransform.offsetMax = Vector2.zero;
+            return button;
         }
 
         private void OnDestroy()
