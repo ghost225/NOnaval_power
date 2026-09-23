@@ -31,6 +31,7 @@ namespace NavalPower
         public Vector3 StationOffset;
         public bool Adopted;
         public Unit Target;                 // designated for a strike
+        public string PreferredWeapon;      // WeaponInfo.name, or null for whatever suits best
         public FlightMode PreviousMode = FlightMode.Orbit;
         public FlightRoe Roe = FlightRoe.Tight;
         public int AmmoAtAttack = -1;       // total rounds when the run began
@@ -189,6 +190,20 @@ namespace NavalPower
         }
         private static readonly List<Pending> pending = new List<Pending>();
 
+        // Unit.ReportKilled pays an individual only when the crediting unit's
+        // PersistentUnit carries a player, which an AI-flown aircraft does not.
+        // Kills by aircraft we launched therefore paid the faction and nobody
+        // else -- the same gap the commanded ship had. The game already fills
+        // this field for owned ground vehicles.
+        private static void CreditKills(Aircraft aircraft)
+        {
+            if (aircraft == null) return;
+            if (!GameManager.GetLocalPlayer<Player>(out Player player) || player == null) return;
+            if (!UnitRegistry.TryGetPersistentUnit(aircraft.persistentID, out PersistentUnit persistent)) return;
+            if (persistent == null || persistent.player != null) return;     // never take another player's
+            persistent.player = player;
+        }
+
         internal static void ExpectLaunch(Ship ship, AircraftDefinition definition,
             NuclearOption.SavedMission.Loadout loadout)
         {
@@ -223,6 +238,7 @@ namespace NavalPower
                     OrbitRadius = Settings.DefaultAreaRadius.Value
                 };
                 flights.Add(flight);
+                CreditKills(aircraft);
                 return flight;
             }
             return null;
@@ -296,6 +312,7 @@ namespace NavalPower
                     OrbitRadius = Settings.DefaultAreaRadius.Value
                 };
                 flights.Add(flight);
+                CreditKills(found);
                 Plugin.Log.LogInfo("[flight] adopted " + flight.Name + " from " + (request.Ship.definition?.unitName ?? "ship"));
             }
 
@@ -528,9 +545,10 @@ namespace NavalPower
         // which knows how to run an attack, while a patch pins its target to
         // ours. When the target dies the flight comes back under command rather
         // than wandering off hunting.
-        public static void Strike(Flight flight, Unit target)
+        public static void Strike(Flight flight, Unit target, string preferredWeapon = null)
         {
             if (flight == null || target == null) return;
+            flight.PreferredWeapon = preferredWeapon;
             if (flight.Mode != FlightMode.Strike && flight.Mode != FlightMode.Egress) flight.PreviousMode = flight.Mode;
             flight.Target = target;
             flight.AmmoAtAttack = TotalAmmo(flight.Aircraft);
@@ -697,6 +715,24 @@ namespace NavalPower
         // A gun will hurt almost anything given the chance, so "no dedicated
         // weapon for this" should not mean "cannot attack at all" -- but a
         // flight with nothing at all still has to be told no rather than sent.
+        // Stations with something left on them, for choosing by hand.
+        public static List<WeaponStation> ArmedStations(Aircraft aircraft)
+        {
+            var result = new List<WeaponStation>();
+            if (aircraft == null || aircraft.weaponStations == null) return result;
+            foreach (WeaponStation station in aircraft.weaponStations)
+                if (station?.WeaponInfo != null && station.Ammo > 0) result.Add(station);
+            return result;
+        }
+
+        internal static WeaponStation NamedStation(Aircraft aircraft, string weapon)
+        {
+            if (aircraft == null || string.IsNullOrEmpty(weapon)) return null;
+            foreach (WeaponStation station in ArmedStations(aircraft))
+                if (station.WeaponInfo.name == weapon) return station;
+            return null;
+        }
+
         internal static WeaponStation BestStationFor(Aircraft aircraft, Unit target)
         {
             if (aircraft == null || target == null || aircraft.weaponStations == null) return null;

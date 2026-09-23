@@ -239,8 +239,16 @@ namespace NavalPower
                 : (CommandState.Ship?.definition?.unitName ?? "Ship");
             int rows = CarrierOps.HasDeck(CommandState.Ship) ? 7 : 6;
             if (target != null && FlightOrders.For(CommandState.Ship).Count > 0) rows = 8;
+            if (target != null) rows = 9;
             StartPopup(title, screenPosition, rows);
             Row("Engage with…", 1, WeaponMenu);
+            if (target != null && feedView != null)
+                Row(feedView.IsPinned(target) ? "Close its camera feed" : "Pin a camera feed on it", 9, () =>
+                {
+                    feedView.Pin(target, out string reason);
+                    CommandState.Say(reason);
+                    ClosePopup();
+                });
             if (target != null && FlightOrders.For(CommandState.Ship).Count > 0)
                 Row("Strike with flights…", 8, () => StrikeMenu(target));
             Row("Navigate / speed…", 2, NavigationMenu);
@@ -389,6 +397,40 @@ namespace NavalPower
             Row("Close", row, ClosePopup);
         }
 
+        // Which store to spend on this target. Left to the analyser a flight
+        // will reach for whatever scores highest, which is not always what you
+        // want spent on a truck.
+        private void StrikeWeaponMenu(Flight flight, Unit target)
+        {
+            List<WeaponStation> armed = FlightOrders.ArmedStations(flight.Aircraft);
+            string name = target.definition?.unitName ?? target.name;
+            StartPopup(flight.Name + " · strike " + name, null, armed.Count + 3);
+
+            Row("Best available  ·  let the flight choose", 1, () =>
+            {
+                FlightOrders.Strike(flight, target);
+                CommandState.Say(flight.Name + " striking " + name);
+                ClosePopup();
+            });
+
+            for (int i = 0; i < armed.Count; i++)
+            {
+                WeaponStation station = armed[i];
+                WeaponInfo info = station.WeaponInfo;
+                float worth = WeaponOrders.Opportunity(info, target);
+                Button row = Row(info.weaponName + "  ·  " + station.Ammo + " remaining  ·  " +
+                    (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), i + 2, () =>
+                    {
+                        FlightOrders.Strike(flight, target, info.name);
+                        CommandState.Say(flight.Name + " striking " + name + " with " + info.weaponName);
+                        ClosePopup();
+                    });
+                if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
+            }
+            Row("Back", armed.Count + 2, () => StrikeMenu(target));
+            Row("Close", armed.Count + 3, ClosePopup);
+        }
+
         // ---- flights --------------------------------------------------------
 
         private void StrikeMenu(Unit target)
@@ -414,9 +456,7 @@ namespace NavalPower
                     i + 2, () =>
                     {
                         if (!able) { CommandState.Say(flight.Name + " carries nothing that can hurt " + name); return; }
-                        FlightOrders.Strike(flight, target);
-                        CommandState.Say(flight.Name + " striking " + name);
-                        ClosePopup();
+                        StrikeWeaponMenu(flight, target);
                     });
                 if (!able) row.GetComponentInChildren<Text>().color = Theme.TextFaint;
             }

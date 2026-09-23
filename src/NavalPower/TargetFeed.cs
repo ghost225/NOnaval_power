@@ -12,20 +12,41 @@ namespace NavalPower
     // interesting moment is the intercept.
     internal sealed class TargetFeed : MonoBehaviour
     {
+        // One live pane that follows the action, plus up to three pinned to a
+        // particular unit. Each is a camera and a texture of its own, which is
+        // why the count is capped rather than open-ended.
+        internal const int MaxPinned = 3;
+
+        private sealed class Pane
+        {
+            internal Camera Camera;
+            internal RenderTexture Texture;
+            internal RectTransform Panel;
+            internal RawImage Image;
+            internal Text Caption;
+            internal Unit Pinned;           // null on the live pane
+        }
+
+        private readonly System.Collections.Generic.List<Pane> pinned = new System.Collections.Generic.List<Pane>();
+        private Pane live;
+
         private Camera feed;
         private RenderTexture texture;
         private RectTransform panel;
         private RawImage image;
         private Text caption;
         private Font font;
+        private RectTransform root;
 
         private float baseInset = 12f;
+        private float topInset;
 
-        // Keeps the feed clear of the air operations bar when that is showing.
+        // Keeps the feeds clear of the air operations bar when that is showing.
         internal void SetTopInset(float inset)
         {
-            if (panel == null) return;
-            panel.anchoredPosition = new Vector2(-12f, -(baseInset + inset));
+            topInset = inset;
+            if (panel != null) panel.anchoredPosition = new Vector2(-12f, -(baseInset + inset));
+            Layout();
         }
 
         private Unit subject;
@@ -48,11 +69,12 @@ namespace NavalPower
         private Text counter;
         private Button previous, next;
 
-        internal void Build(RectTransform root, Font uiFont)
+        internal void Build(RectTransform parent, Font uiFont)
         {
             font = uiFont;
+            root = parent;
 
-            panel = Box("Target feed", root, Theme.Surface);
+            panel = Box("Target feed", parent, Theme.Surface);
             panel.anchorMin = new Vector2(1, 1);
             panel.anchorMax = new Vector2(1, 1);
             panel.pivot = new Vector2(1, 1);
@@ -92,6 +114,156 @@ namespace NavalPower
             next = Button(panel, "▶", -10f, -3f, 24f, () => Step(1));
 
             panel.gameObject.SetActive(false);
+        }
+
+        internal bool IsPinned(Unit unit)
+        {
+            foreach (Pane pane in pinned) if (pane.Pinned == unit) return true;
+            return false;
+        }
+
+        internal int PinnedCount => pinned.Count;
+
+        internal bool Pin(Unit unit, out string reason)
+        {
+            if (unit == null) { reason = "Nothing to pin."; return false; }
+            if (IsPinned(unit)) { Unpin(unit); reason = "Feed closed."; return true; }
+            if (pinned.Count >= MaxPinned)
+            { reason = "All " + MaxPinned + " pinned feeds are in use."; return false; }
+
+            var pane = new Pane { Pinned = unit };
+            BuildPane(pane, "Pinned feed " + (pinned.Count + 1));
+            pinned.Add(pane);
+            Layout();
+            reason = "Watching " + (unit.definition?.unitName ?? unit.name) + ".";
+            return true;
+        }
+
+        internal void Unpin(Unit unit)
+        {
+            for (int i = pinned.Count - 1; i >= 0; i--)
+            {
+                if (pinned[i].Pinned != unit) continue;
+                Release(pinned[i]);
+                pinned.RemoveAt(i);
+            }
+            Layout();
+        }
+
+        internal void UnpinAll()
+        {
+            foreach (Pane pane in pinned) Release(pane);
+            pinned.Clear();
+            Layout();
+        }
+
+        private void Release(Pane pane)
+        {
+            if (pane.Camera != null) Destroy(pane.Camera.gameObject);
+            if (pane.Texture != null) { pane.Texture.Release(); Destroy(pane.Texture); }
+            if (pane.Panel != null) Destroy(pane.Panel.gameObject);
+        }
+
+        // Stacked down the right edge, under the live pane.
+        private void Layout()
+        {
+            float width = Settings.FeedWidth.Value;
+            float height = width * 9f / 16f + 26f;
+            float y = baseInset + topInset + height + 8f;
+            foreach (Pane pane in pinned)
+            {
+                if (pane.Panel == null) continue;
+                pane.Panel.sizeDelta = new Vector2(width, height);
+                pane.Panel.anchoredPosition = new Vector2(-12f, -y);
+                y += height + 8f;
+            }
+        }
+
+        private void BuildPane(Pane pane, string name)
+        {
+            pane.Panel = Box(name, root, Theme.Surface);
+            pane.Panel.anchorMin = new Vector2(1, 1);
+            pane.Panel.anchorMax = new Vector2(1, 1);
+            pane.Panel.pivot = new Vector2(1, 1);
+            pane.Panel.sizeDelta = new Vector2(Settings.FeedWidth.Value, Settings.FeedWidth.Value * 9f / 16f + 26f);
+
+            RectTransform edge = Box("edge", pane.Panel, Theme.Dim(Theme.Passive, 0.7f));
+            edge.anchorMin = new Vector2(0, 1); edge.anchorMax = new Vector2(1, 1);
+            edge.pivot = new Vector2(0.5f, 1);
+            edge.sizeDelta = new Vector2(0, 2f);
+            edge.anchoredPosition = Vector2.zero;
+
+            var view = new GameObject("View", typeof(RectTransform), typeof(RawImage));
+            view.transform.SetParent(pane.Panel, false);
+            var viewRect = (RectTransform)view.transform;
+            viewRect.anchorMin = Vector2.zero; viewRect.anchorMax = Vector2.one;
+            viewRect.offsetMin = new Vector2(2f, 2f);
+            viewRect.offsetMax = new Vector2(-2f, -26f);
+            pane.Image = view.GetComponent<RawImage>();
+            pane.Image.raycastTarget = false;
+
+            pane.Caption = Label(pane.Panel, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.Passive);
+            pane.Caption.rectTransform.anchorMin = new Vector2(0, 1);
+            pane.Caption.rectTransform.anchorMax = new Vector2(1, 1);
+            pane.Caption.rectTransform.pivot = new Vector2(0, 1);
+            pane.Caption.rectTransform.anchoredPosition = new Vector2(10f, -4f);
+            pane.Caption.rectTransform.sizeDelta = new Vector2(-20f, 22f);
+
+            int width = Mathf.Clamp(Settings.FeedResolution.Value, 160, 1920);
+            pane.Texture = new RenderTexture(width, width * 9 / 16, 24);
+            pane.Texture.Create();
+            pane.Image.texture = pane.Texture;
+
+            Camera main = SceneSingleton<CameraStateManager>.i?.mainCamera;
+            if (main == null) return;
+            var go = new GameObject("Naval Power pinned camera");
+            go.transform.SetParent(transform, false);
+            pane.Camera = go.AddComponent<Camera>();
+            pane.Camera.CopyFrom(main);
+            pane.Camera.targetTexture = pane.Texture;
+            pane.Camera.depth = main.depth - 11f;
+            pane.Camera.clearFlags = CameraClearFlags.Skybox;
+            pane.Camera.fieldOfView = Settings.FeedFieldOfView.Value;
+            UniversalAdditionalCameraData urp = pane.Camera.GetUniversalAdditionalCameraData();
+            if (urp != null) urp.renderType = CameraRenderType.Base;
+            pane.Camera.enabled = false;
+        }
+
+        private void RenderPinned()
+        {
+            for (int i = pinned.Count - 1; i >= 0; i--)
+            {
+                Pane pane = pinned[i];
+                if (pane.Pinned == null || pane.Pinned.disabled)
+                {
+                    // Whatever it was watching is gone; close the pane rather
+                    // than leave a frozen frame on screen.
+                    Release(pane);
+                    pinned.RemoveAt(i);
+                    Layout();
+                    continue;
+                }
+                if (pane.Camera == null) continue;
+                pane.Panel.gameObject.SetActive(true);
+                FrameOn(pane.Camera, pane.Pinned);
+                pane.Caption.text = "PINNED  ·  " + (pane.Pinned.definition?.unitName ?? pane.Pinned.name);
+                pane.Camera.Render();
+            }
+        }
+
+        // Shared framing: from our own side of it, looking in.
+        private void FrameOn(Camera camera, Unit unit)
+        {
+            float size = Mathf.Max(unit.maxRadius, 4f);
+            Vector3 focus = unit.transform.position;
+            Ship ship = CommandState.Ship;
+            Vector3 fromUs = ship != null ? (focus - ship.transform.position) : unit.transform.forward;
+            fromUs.y = 0f;
+            if (fromUs.sqrMagnitude < 1f) fromUs = unit.transform.forward;
+            fromUs.Normalize();
+            float range = size * 8f + 40f;
+            camera.transform.position = focus - fromUs * range + Vector3.up * (size * 2f + 12f);
+            camera.transform.rotation = Quaternion.LookRotation(focus - camera.transform.position, Vector3.up);
         }
 
         private void EnsureCamera()
@@ -136,7 +308,9 @@ namespace NavalPower
         private void LateUpdate()
         {
             bool wanted = Settings.TargetFeed.Value && CommandState.Active;
-            if (!wanted) { Hide(); return; }
+            if (!wanted) { Hide(); foreach (Pane pane in pinned) if (pane.Panel != null) pane.Panel.gameObject.SetActive(false); return; }
+
+            RenderPinned();
 
             if (Time.unscaledTime >= nextSubjectCheck)
             {

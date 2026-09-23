@@ -1,5 +1,6 @@
 using HarmonyLib;
 using NuclearOption.Networking;
+using UnityEngine;
 
 namespace NavalPower
 {
@@ -34,6 +35,18 @@ namespace NavalPower
             // Score with CombatAI's own analyzer rather than a heuristic of our
             // own, so the station chosen is one the attack logic will agree is
             // viable when it runs its own checks a moment later.
+            // A named weapon wins outright while it has rounds: the point of
+            // choosing one is to use it even when the scorer prefers something
+            // else -- a cheap rocket on a small target rather than the missile
+            // the analyser would spend on it.
+            WeaponStation chosen = FlightOrders.NamedStation(aircraft, flight.PreferredWeapon);
+            if (chosen != null)
+            {
+                __result = new CombatAI.TargetSearchResults(target, chosen,
+                    Mathf.Max(CombatAI.AnalyzeTarget(chosen, aircraft, track).opportunity, 0.01f), false);
+                return;
+            }
+
             WeaponStation best = null, gun = null;
             float bestScore = 0f;
             bool anyAmmo = false;
