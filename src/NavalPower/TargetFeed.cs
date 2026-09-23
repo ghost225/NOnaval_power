@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
 namespace NavalPower
@@ -77,7 +78,23 @@ namespace NavalPower
             feed.CopyFrom(main);
             feed.targetTexture = texture;
             feed.depth = main.depth - 10f;
+            feed.clearFlags = CameraClearFlags.Skybox;
             feed.fieldOfView = Settings.FeedFieldOfView.Value;
+
+            // The game renders through URP, where a second camera left enabled
+            // joins the pipeline's own stack rather than quietly filling a
+            // texture. Declare it a base camera and then drive it by hand:
+            // disabled so URP will not draw it, rendered explicitly once a
+            // frame into our texture.
+            UniversalAdditionalCameraData urp = feed.GetUniversalAdditionalCameraData();
+            if (urp != null)
+            {
+                urp.renderType = CameraRenderType.Base;
+                urp.requiresColorOption = CameraOverrideOption.UsePipelineSettings;
+                urp.requiresDepthOption = CameraOverrideOption.UsePipelineSettings;
+            }
+            feed.enabled = false;
+
             if (image != null) image.texture = texture;
         }
 
@@ -97,14 +114,15 @@ namespace NavalPower
             if (feed == null) { Hide(); return; }
 
             panel.gameObject.SetActive(true);
-            feed.enabled = true;
             Frame();
+            // Explicit render: the camera stays disabled so the pipeline leaves
+            // it alone, and this fills the texture on our own schedule.
+            feed.Render();
         }
 
         private void Hide()
         {
             if (panel != null) panel.gameObject.SetActive(false);
-            if (feed != null) feed.enabled = false;
         }
 
         // A weapon of ours in the air, else whatever we have ordered engaged,
