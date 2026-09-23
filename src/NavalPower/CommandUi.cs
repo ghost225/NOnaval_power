@@ -240,6 +240,7 @@ namespace NavalPower
             int rows = CarrierOps.HasDeck(CommandState.Ship) ? 7 : 6;
             if (target != null && FlightOrders.For(CommandState.Ship).Count > 0) rows = 8;
             if (target != null) rows = 9;
+            rows = Mathf.Max(rows, 10);
             StartPopup(title, screenPosition, rows);
             Row("Engage with…", 1, WeaponMenu);
             if (target != null && feedView != null)
@@ -254,6 +255,7 @@ namespace NavalPower
             Row("Navigate / speed…", 2, NavigationMenu);
             Row("Engagement permissions…", 3, RoeMenu);
             Row("Sensors / EMCON…", 6, SensorMenu);
+            Row("Replenishment…", 10, ReplenishmentMenu);
             if (CarrierOps.HasDeck(CommandState.Ship)) Row("Air operations…", 7, AirOpsMenu);
             Row("Cease fire", 4, () =>
             {
@@ -756,6 +758,23 @@ namespace NavalPower
             foreach (WeaponMount option in station.Options)
                 if (CarrierOps.Releasable(CommandState.Ship, option)) count++;
             return count;
+        }
+
+        private void ReplenishmentMenu()
+        {
+            RearmSnapshot status = Replenishment.Status(CommandState.Ship);
+            StartPopup("Replenishment", null, 4);
+            InformationRow(status.Reason, 1);
+            InformationRow(status.StationsShort + " station(s) below capacity", 2);
+            Button request = Row(status.Requested ? "Requested · waiting" : "Request rearm", 3, () =>
+            {
+                Replenishment.Request(CommandState.Ship, out string reason);
+                CommandState.Say(reason);
+                ReplenishmentMenu();
+            });
+            if (status.Requested) request.image.color = Theme.AccentFill;
+            else if (status.StationsShort == 0) request.GetComponentInChildren<Text>().color = Theme.TextMuted;
+            Row("Close", 4, ClosePopup);
         }
 
         private void SensorMenu()
