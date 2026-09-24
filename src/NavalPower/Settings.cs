@@ -18,6 +18,7 @@ namespace NavalPower
         internal static ConfigEntry<float> StandoffMetres;
         internal static ConfigEntry<float> EgressSeconds;
         internal static ConfigEntry<bool> ReattackAfterEgress;
+        internal static ConfigEntry<bool> DeckTrace;
         internal static ConfigEntry<bool> LaunchCostFromAllocation;
         internal static ConfigEntry<bool> SortieBonusOnRecovery;
         internal static ConfigEntry<bool> CarrierApproachFix;
@@ -95,6 +96,10 @@ namespace NavalPower
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
                 "Press the attack again once clear, while ordnance remains and the target lives. " +
                 "Off means one pass per order.");
+
+            DeckTrace = config.Bind("Diagnostics", "Deck clearance trace", true,
+                "Log how a landed aircraft leaves the deck: which of the game's two removal paths it takes, " +
+                "and what the conditions were when the choice was made.");
 
             LaunchCostFromAllocation = config.Bind("Flights", "Launches cost your allocation", true,
                 "You pay for every aircraft you launch, out of your own allocation, at its full value. " +
