@@ -36,6 +36,7 @@ namespace NavalPower
         private static readonly MethodInfo CockpitTearDown =
             AccessTools.Method(typeof(Cockpit), "Cockpit_OnAircraftDisable");
         private static readonly FieldInfo CockpitTacScreen = AccessTools.Field(typeof(Cockpit), "tacScreen");
+        private static readonly FieldInfo CockpitAircraft = AccessTools.Field(typeof(Cockpit), "aircraft");
 
         internal static string Report() =>
             "pilot seat:" +
@@ -45,7 +46,8 @@ namespace NavalPower
             "\n  " + (ThreatListWarn != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnMissileWarning" +
             "\n  " + (CockpitBuild != null ? "ok      " : "MISSING ") + "Cockpit.Cockpit_OnAircraftInitialize" +
             "\n  " + (CockpitTearDown != null ? "ok      " : "MISSING ") + "Cockpit.Cockpit_OnAircraftDisable" +
-            "\n  " + (CockpitTacScreen != null ? "ok      " : "MISSING ") + "Cockpit.tacScreen";
+            "\n  " + (CockpitTacScreen != null ? "ok      " : "MISSING ") + "Cockpit.tacScreen" +
+            "\n  " + (CockpitAircraft != null ? "ok      " : "MISSING ") + "Cockpit.aircraft";
 
         internal static Flight Flying { get; private set; }
         internal static bool Active => Flying != null;
@@ -320,9 +322,7 @@ namespace NavalPower
         private static void BuildCockpitScreens(Aircraft aircraft)
         {
             if (aircraft == null || CockpitBuild == null || CockpitTacScreen == null) return;
-            // Aircraft.cockpit is the structural part, not the component that
-            // owns the screens.
-            Cockpit cockpit = aircraft.GetComponentInChildren<Cockpit>(includeInactive: true);
+            Cockpit cockpit = CockpitOf(aircraft);
             if (cockpit == null) { Plugin.Log.LogInfo("[seat] this airframe has no cockpit screens"); return; }
             try
             {
@@ -342,13 +342,37 @@ namespace NavalPower
             }
         }
 
+        // Not by walking down from the airframe: a Vortex reports no Cockpit,
+        // no TacScreen and no canvas at all beneath it, because an aircraft's
+        // parts are separate bodies that can come off in flight rather than
+        // children of its transform. The cockpit is reached through the part
+        // the aircraft names, and failing that by asking every cockpit in the
+        // scene which aircraft it belongs to.
+        private static Cockpit CockpitOf(Aircraft aircraft)
+        {
+            if (aircraft == null) return null;
+            if (aircraft.cockpit != null)
+            {
+                Cockpit onPart = aircraft.cockpit.GetComponentInChildren<Cockpit>(includeInactive: true)
+                    ?? aircraft.cockpit.GetComponentInParent<Cockpit>();
+                if (onPart != null) return onPart;
+            }
+            if (CockpitAircraft == null) return null;
+            foreach (Cockpit candidate in Resources.FindObjectsOfTypeAll<Cockpit>())
+            {
+                if (!candidate.gameObject.scene.IsValid()) continue;      // prefab assets
+                if (CockpitAircraft.GetValue(candidate) as Aircraft == aircraft) return candidate;
+            }
+            return null;
+        }
+
         // And taken down again, or a second sortie in the same airframe stacks
         // a second screen on the first.
         private static void RemoveCockpitScreens(Aircraft aircraft)
         {
             if (!builtScreens || aircraft == null || CockpitTearDown == null) return;
             builtScreens = false;
-            Cockpit cockpit = aircraft.GetComponentInChildren<Cockpit>(includeInactive: true);
+            Cockpit cockpit = CockpitOf(aircraft);
             if (cockpit == null) return;
             try
             {
@@ -506,11 +530,14 @@ namespace NavalPower
         private static void ReportAircraftScreens(Aircraft aircraft)
         {
             if (aircraft == null) return;
-            foreach (Cockpit pit in aircraft.GetComponentsInChildren<Cockpit>(includeInactive: true))
-                Plugin.Log.LogInfo("[hud] Cockpit " + Describe(pit.gameObject) +
-                    " · component " + (pit.enabled ? "enabled" : "DISABLED"));
-            foreach (TacScreen screen in aircraft.GetComponentsInChildren<TacScreen>(includeInactive: true))
-                Plugin.Log.LogInfo("[hud] TacScreen " + Describe(screen.gameObject));
+            Cockpit pit = CockpitOf(aircraft);
+            Plugin.Log.LogInfo("[hud] Cockpit " + (pit == null ? "not found for this airframe"
+                : Describe(pit.gameObject) + " · component " + (pit.enabled ? "enabled" : "DISABLED")));
+            Plugin.Log.LogInfo("[hud] aircraft.cockpit part " +
+                (aircraft.cockpit == null ? "null" : Describe(aircraft.cockpit.gameObject)));
+            foreach (TacScreen screen in Resources.FindObjectsOfTypeAll<TacScreen>())
+                if (screen.gameObject.scene.IsValid())
+                    Plugin.Log.LogInfo("[hud] TacScreen " + Describe(screen.gameObject));
             int found = 0;
             foreach (Canvas screen in aircraft.GetComponentsInChildren<Canvas>(includeInactive: true))
             {
