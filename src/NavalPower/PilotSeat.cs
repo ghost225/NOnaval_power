@@ -37,6 +37,8 @@ namespace NavalPower
             AccessTools.Method(typeof(Cockpit), "Cockpit_OnAircraftDisable");
         private static readonly FieldInfo CockpitTacScreen = AccessTools.Field(typeof(Cockpit), "tacScreen");
         private static readonly FieldInfo CockpitAircraft = AccessTools.Field(typeof(Cockpit), "aircraft");
+        private static readonly FieldInfo TargetCamMode = AccessTools.Field(typeof(TargetCam), "currentMode");
+        private static readonly FieldInfo TargetCamCamera = AccessTools.Field(typeof(TargetCam), "cam");
 
         internal static string Report() =>
             "pilot seat:" +
@@ -47,7 +49,9 @@ namespace NavalPower
             "\n  " + (CockpitBuild != null ? "ok      " : "MISSING ") + "Cockpit.Cockpit_OnAircraftInitialize" +
             "\n  " + (CockpitTearDown != null ? "ok      " : "MISSING ") + "Cockpit.Cockpit_OnAircraftDisable" +
             "\n  " + (CockpitTacScreen != null ? "ok      " : "MISSING ") + "Cockpit.tacScreen" +
-            "\n  " + (CockpitAircraft != null ? "ok      " : "MISSING ") + "Cockpit.aircraft";
+            "\n  " + (CockpitAircraft != null ? "ok      " : "MISSING ") + "Cockpit.aircraft" +
+            "\n  " + (TargetCamMode != null ? "ok      " : "MISSING ") + "TargetCam.currentMode" +
+            "\n  " + (TargetCamCamera != null ? "ok      " : "MISSING ") + "TargetCam.cam";
 
         internal static Flight Flying { get; private set; }
         internal static bool Active => Flying != null;
@@ -122,6 +126,7 @@ namespace NavalPower
             if (aircraft.weaponManager != null)
                 SceneSingleton<CombatHUD>.i.ShowWeaponStation(aircraft.weaponManager.currentWeaponStation);
             BuildCockpitScreens(aircraft);
+            ResetTargetCamera(aircraft);
             SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
             SceneSingleton<DynamicMap>.i.DeselectAllIcons();
 
@@ -302,6 +307,39 @@ namespace NavalPower
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning("[seat] could not bind " + what + ": " + ex.Message);
+            }
+        }
+
+        // The target camera only announces itself on a change. SetTargetCam
+        // raises its event inside `if (!cam.enabled)`, and refuses outright
+        // while the camera is in landing mode, which gear extension puts it in
+        // and only gear retraction or a touchdown takes it out of. An aircraft
+        // that has been flying itself since it left the deck can therefore be
+        // holding either state, and a tac screen built a moment ago has heard
+        // nothing either way -- so the panel never switches to the target view,
+        // however many targets are selected afterwards.
+        //
+        // Handing the camera over in a known state is what the game itself does
+        // on touchdown: mode forward, camera off. The combat HUD asks for the
+        // target camera every frame there is a target, so the next frame turns
+        // it back on properly and the screen hears about it.
+        private static void ResetTargetCamera(Aircraft aircraft)
+        {
+            if (aircraft == null || TargetCamMode == null || TargetCamCamera == null) return;
+            TargetCam view = aircraft.targetCam;
+            if (view == null) { Plugin.Log.LogInfo("[seat] no target camera on this airframe"); return; }
+            try
+            {
+                object mode = TargetCamMode.GetValue(view);
+                var lens = TargetCamCamera.GetValue(view) as Camera;
+                Plugin.Log.LogInfo("[seat] target camera was " + mode +
+                    " · " + (lens == null ? "no lens" : lens.enabled ? "on" : "off"));
+                TargetCamMode.SetValue(view, TargetCam.CamMode.targetForward);
+                if (lens != null) lens.enabled = false;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not reset the target camera: " + ex.Message);
             }
         }
 
