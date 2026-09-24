@@ -117,8 +117,9 @@ namespace NavalPower
                 "aircraft arrive at a flattop fast and high, fail to stabilise and go around repeatedly.");
 
             CarrierApproachFactor = config.Bind("Flights", "Deck approach factor", 0.75f,
-                new ConfigDescription("Fraction of the normal approach speed used when recovering to a ship. " +
-                    "Lower settles sooner but risks arriving slow; only affects ship decks.",
+                new ConfigDescription("Fraction of the normal approach speed used when recovering to a ship, " +
+                    "for vertical-landing aircraft only -- the case the game's own branch was meant to " +
+                    "distinguish and does not. Conventional aircraft keep the speed the game computed.",
                     new AcceptableValueRange<float>(0.4f, 1f)));
 
             StrikePatience = config.Bind("Flights", "Strike patience", 120f,
