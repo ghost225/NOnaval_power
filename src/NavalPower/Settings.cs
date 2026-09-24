@@ -9,6 +9,7 @@ namespace NavalPower
     {
         internal static ConfigEntry<KeyboardShortcut> ResumeCommand;
 
+        internal static ConfigEntry<float> DefaultFuel;
         internal static ConfigEntry<float> DefaultAltitude;
         internal static ConfigEntry<float> DefaultAreaRadius;
         internal static ConfigEntry<float> MinimumClearance;
@@ -54,6 +55,12 @@ namespace NavalPower
             AutoResume = config.Bind("Command", "Auto resume", true,
                 "Return to command automatically once gameplay is ready again, for example after closing " +
                 "the pause menu, without having to reselect the ship.");
+
+            DefaultFuel = config.Bind("Flights", "Default fuel load", 1f,
+                new ConfigDescription("Fraction of internal fuel a launch starts with. Some airframes " +
+                    "default low enough that the pilot's own fuel check fails immediately and the flight " +
+                    "turns straight back, so this defaults to full rather than to the airframe's figure.",
+                    new AcceptableValueRange<float>(0.25f, 1f)));
 
             DefaultAltitude = config.Bind("Flights", "Default altitude", 600f,
                 new ConfigDescription("Altitude above ground a newly adopted flight holds, in metres.",

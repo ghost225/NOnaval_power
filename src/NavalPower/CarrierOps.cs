@@ -32,6 +32,10 @@ namespace NavalPower
     {
         public AircraftDefinition Definition;
         public List<LoadoutStation> Stations = new List<LoadoutStation>();
+        // Fraction of internal fuel. The airframe's own default is sometimes
+        // low enough that the pilot's fuel check fails on the first frame and
+        // the flight turns straight back for home, so this is worth choosing.
+        public float Fuel = 1f;
 
         public Loadout Build()
         {
@@ -118,7 +122,7 @@ namespace NavalPower
         // Every station the airframe has, with every mount it will accept.
         public static LoadoutPlan PlanFor(AircraftDefinition definition)
         {
-            var plan = new LoadoutPlan { Definition = definition };
+            var plan = new LoadoutPlan { Definition = definition, Fuel = Mathf.Clamp01(Settings.DefaultFuel.Value) };
             if (definition == null || definition.unitPrefab == null) return plan;
             var prefab = definition.unitPrefab.GetComponent<Aircraft>();
             HardpointSet[] sets = prefab != null && prefab.weaponManager != null ? prefab.weaponManager.hardpointSets : null;
@@ -197,7 +201,7 @@ namespace NavalPower
             }
 
             Airbase.TrySpawnResult result = deck.TrySpawnAircraft(null, plan.Definition,
-                new LiveryKey(0), loadout, plan.Definition.aircraftParameters.DefaultFuelLevel);
+                new LiveryKey(0), loadout, Mathf.Clamp01(plan.Fuel));
             if (!result.Allowed)
             {
                 if (purchased)
@@ -211,7 +215,7 @@ namespace NavalPower
 
             Remember(plan);
             FlightOrders.ExpectLaunch(ship, plan.Definition, loadout);
-            reason = "Launching " + plan.Definition.unitName + " · " + plan.Summary() +
+            reason = "Launching " + plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
                 (purchased ? " · purchased" : " · from reserve");
             Plugin.Log.LogInfo("[deck] " + ship.definition?.unitName + ": " + reason);
             return true;

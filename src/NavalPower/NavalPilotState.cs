@@ -56,7 +56,9 @@ namespace NavalPower
             if (flight.Mode != FlightMode.ReturnToBase && !fuelChecker.HasEnoughFuel())
             {
                 FlightOrders.ReturnToBase(flight);
-                Plugin.Log.LogInfo("[flight] " + flight.Name + " returning · fuel");
+                Plugin.Log.LogInfo("[flight] " + flight.Name + " returning · fuel at " +
+                    (aircraft.GetFuelLevel() * 100f).ToString("0") + "%, below the pilot's 20% minimum");
+                CommandState.Say(flight.Name + " · low fuel, returning");
             }
 
             Report();

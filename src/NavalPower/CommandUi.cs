@@ -532,9 +532,12 @@ namespace NavalPower
                 FlightMenu(flight);
             });
             if (CargoMissions.CanCarry(flight.Aircraft))
-                Row(flight.Mode == FlightMode.Cargo
-                        ? "Cargo  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change"
-                        : "Cargo delivery…", 13, () => CargoMenu(flight));
+            {
+                Button cargo = Row(flight.Mode == FlightMode.Cargo
+                        ? "CARGO  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change the zone"
+                        : "CARGO  ·  land or airdrop at a point…", 2, () => CargoMenu(flight));
+                if (flight.Mode == FlightMode.Cargo) cargo.image.color = Theme.AccentFill;
+            }
             Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), 4, () => AltitudeMenu(flight));
             Row("Task area radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
             Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), 12, () =>
@@ -594,25 +597,48 @@ namespace NavalPower
 
         private void CargoMenu(Flight flight)
         {
-            StartPopup(flight.Name + " · cargo delivery", null, 4);
-            Row(flight.Airdrop ? "Mode  ·  airdrop  ·  switch to landing" : "Mode  ·  landing  ·  switch to airdrop", 1, () =>
+            StartPopup(flight.Name + " · cargo", null, 6);
+
+            Button land = Row("LAND AT A POINT  ·  set it down, troops and vehicles disembark", 1, () =>
             {
-                flight.Airdrop = !flight.Airdrop;
-                if (flight.Mode == FlightMode.Cargo)
-                    FlightOrders.Deliver(flight, flight.CargoPoint, flight.Airdrop);
-                CargoMenu(flight);
+                flight.Airdrop = false;
+                CommandState.SelectedFlight = flight;
+                pinnedFlight = flight;
+                popupKey = "flight";
+                FlightOrders.Deliver(flight, flight.Aircraft.GlobalPosition(), false);
+                CommandState.Say(flight.Name + " · right-click the map where it should land");
             });
-            Row("Deliver at the ship", 2, () =>
+            if (!flight.Airdrop && flight.Mode == FlightMode.Cargo) land.image.color = Theme.AccentFill;
+
+            Button drop = Row("AIRDROP AT A POINT  ·  parachute pass, no landing", 2, () =>
+            {
+                flight.Airdrop = true;
+                CommandState.SelectedFlight = flight;
+                pinnedFlight = flight;
+                popupKey = "flight";
+                FlightOrders.Deliver(flight, flight.Aircraft.GlobalPosition(), true);
+                CommandState.Say(flight.Name + " · right-click the map for the drop zone");
+            });
+            if (flight.Airdrop && flight.Mode == FlightMode.Cargo) drop.image.color = Theme.AccentFill;
+
+            InformationRow("Landing is what takes an objective: troops have to get out on it", 3);
+
+            Row("Deliver at the ship", 4, () =>
             {
                 if (flight.Parent != null)
                 {
                     FlightOrders.Deliver(flight, flight.Parent.GlobalPosition(), flight.Airdrop);
-                    CommandState.Say(flight.Name + " · delivering to the ship");
+                    CommandState.Say(flight.Name + " · returning cargo to the ship");
                 }
                 FlightMenu(flight);
             });
-            InformationRow("Right-click the map to set the landing zone", 3);
-            Row("Back", 4, () => FlightMenu(flight));
+            Row("Cancel the delivery", 5, () =>
+            {
+                FlightOrders.BreakOff(flight);
+                CommandState.Say(flight.Name + " · delivery cancelled");
+                FlightMenu(flight);
+            });
+            Row("Back", 6, () => FlightMenu(flight));
         }
 
         private void AltitudeMenu(Flight flight)
@@ -714,7 +740,7 @@ namespace NavalPower
             if (plan == null) { DeckMenu(); return; }
             int armed = 0;
             foreach (LoadoutStation st in plan.Stations) if (st.Selected != null) armed++;
-            int rows = plan.Stations.Count + 3;
+            int rows = plan.Stations.Count + 4;
             StartPopup(plan.Definition.unitName + " · loadout" +
                 (armed > 0 ? "  ·  " + armed + " station(s) set" : "  ·  clean"), null, rows);
             for (int i = 0; i < plan.Stations.Count; i++)
@@ -725,6 +751,7 @@ namespace NavalPower
             }
             // Just the verb: the loadout is listed row by row directly above,
             // and spelling it out again overran the button.
+            Row("Fuel  ·  " + (plan.Fuel * 100f).ToString("0") + "%", plan.Stations.Count + 4, () => FuelMenu());
             Row("LAUNCH", plan.Stations.Count + 1, () =>
             {
                 CarrierOps.Launch(CommandState.Ship, plan, out string reason);
@@ -732,7 +759,24 @@ namespace NavalPower
                 ClosePopup();
             });
             Row("Back to airframes", plan.Stations.Count + 2, DeckMenu);
-            Row("Close", rows, ClosePopup);
+            Row("Close", plan.Stations.Count + 3, ClosePopup);
+        }
+
+        private void FuelMenu()
+        {
+            float[] levels = { 0.25f, 0.5f, 0.75f, 1f };
+            StartPopup((plan?.Definition?.unitName ?? "Aircraft") + " · fuel", null, levels.Length + 1);
+            for (int i = 0; i < levels.Length; i++)
+            {
+                float level = levels[i];
+                Row((level * 100f).ToString("0") + "%" +
+                    (level <= 0.25f ? "  ·  short legs, lighter" : level >= 1f ? "  ·  full" : ""), i + 1, () =>
+                    {
+                        if (plan != null) plan.Fuel = level;
+                        LoadoutMenu();
+                    });
+            }
+            Row("Back", levels.Length + 1, LoadoutMenu);
         }
 
         private void StationMenu(LoadoutStation station)
