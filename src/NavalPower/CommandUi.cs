@@ -527,16 +527,25 @@ namespace NavalPower
             popupIsFlightPanel = true;
 
             // Standing guidance, not something to click.
-            InformationRow(flight.Route.Count > 0
-                ? "Right-click the map to task it  ·  " + flight.Route.Count + " leg(s) queued"
-                : "Right-click the map to task it  ·  a contact to attack it");
+            InformationRow(
+                CommandState.AwaitingCargoZone == flight
+                    ? "WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +
+                      " ZONE  ·  right-click the map"
+                : flight.Route.Count > 0
+                    ? "Right-click the map to task it  ·  " + flight.Route.Count + " leg(s) queued"
+                    : "Right-click the map to task it  ·  a contact to attack it");
 
             if (carries)
             {
-                Button cargo = Row(flight.Mode == FlightMode.Cargo
+                Button cargo = Row(
+                    CommandState.AwaitingCargoZone == flight
+                        ? "CARGO  ·  " + (CommandState.AwaitingAirdrop ? "airdrop" : "landing") +
+                          "  ·  waiting for a zone"
+                    : flight.Mode == FlightMode.Cargo
                         ? "CARGO  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change the zone"
                         : "CARGO  ·  land or airdrop at a point…", () => CargoMenu(flight));
-                if (flight.Mode == FlightMode.Cargo) cargo.image.color = Theme.AccentFill;
+                if (flight.Mode == FlightMode.Cargo || CommandState.AwaitingCargoZone == flight)
+                    cargo.image.color = Theme.AccentFill;
             }
 
             Row("Hold here  ·  task area on the aircraft", () =>
@@ -622,29 +631,19 @@ namespace NavalPower
         {
             StartPopup(flight.Name + " · cargo", null);
 
-            Button land = Row("LAND AT A POINT  ·  troops and vehicles get out", () =>
-            {
-                flight.Airdrop = false;
-                CommandState.SelectedFlight = flight;
-                pinnedFlight = flight;
-                popupKey = "flight";
-                FlightOrders.Deliver(flight, flight.Aircraft.GlobalPosition(), false);
-                CommandState.Say(flight.Name + " · right-click the map where it should land");
-            });
-            if (!flight.Airdrop && flight.Mode == FlightMode.Cargo) land.image.color = Theme.AccentFill;
+            // These ask for a zone; they do not order a delivery. The order is
+            // placed by the map click that answers them.
+            Button land = Row("LAND AT A POINT  ·  troops and vehicles get out",
+                () => AskForZone(flight, airdrop: false));
+            if (Chosen(flight, false)) land.image.color = Theme.AccentFill;
 
-            Button drop = Row("AIRDROP AT A POINT  ·  parachute pass, no landing", () =>
-            {
-                flight.Airdrop = true;
-                CommandState.SelectedFlight = flight;
-                pinnedFlight = flight;
-                popupKey = "flight";
-                FlightOrders.Deliver(flight, flight.Aircraft.GlobalPosition(), true);
-                CommandState.Say(flight.Name + " · right-click the map for the drop zone");
-            });
-            if (flight.Airdrop && flight.Mode == FlightMode.Cargo) drop.image.color = Theme.AccentFill;
+            Button drop = Row("AIRDROP AT A POINT  ·  parachute pass, no landing",
+                () => AskForZone(flight, airdrop: true));
+            if (Chosen(flight, true)) drop.image.color = Theme.AccentFill;
 
-            InformationRow("Landing is what takes an objective: troops have to get out on it");
+            InformationRow(CommandState.AwaitingCargoZone == flight
+                ? "WAITING FOR A ZONE  ·  right-click the map"
+                : "Landing is what takes an objective: troops have to get out");
 
             Row("Deliver at the ship", () =>
             {
@@ -657,12 +656,40 @@ namespace NavalPower
             });
             Row("Cancel the delivery", () =>
             {
+                CommandState.AwaitingCargoZone = null;
                 FlightOrders.BreakOff(flight);
                 CommandState.Say(flight.Name + " · delivery cancelled");
                 FlightMenu(flight);
             });
             Row("Back", () => FlightMenu(flight));
         }
+
+        private void AskForZone(Flight flight, bool airdrop)
+        {
+            // Refuse at the button rather than at the map click, so the answer
+            // arrives before the work of picking a place for it.
+            if (!FlightOrders.CanDeliver(flight.Aircraft))
+            {
+                CommandState.Say(flight.Name + " · cannot fly a delivery; it has no hover");
+                CargoMenu(flight);
+                return;
+            }
+            CommandState.AskForCargoZone(flight, airdrop);
+            CommandState.SelectedFlight = flight;
+            pinnedFlight = flight;
+            popupKey = "flight";
+            CommandState.Say(flight.Name + (airdrop
+                ? " · right-click the map for the drop zone"
+                : " · right-click the map where it should land"));
+            CargoMenu(flight);
+        }
+
+        // Which kind of delivery this flight is set for: what has been asked
+        // for while a zone is still wanted, what was ordered once one is.
+        private static bool Chosen(Flight flight, bool airdrop) =>
+            CommandState.AwaitingCargoZone == flight
+                ? CommandState.AwaitingAirdrop == airdrop
+                : flight.Mode == FlightMode.Cargo && flight.Airdrop == airdrop;
 
         private void AltitudeMenu(Flight flight)
         {

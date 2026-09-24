@@ -302,6 +302,12 @@ namespace NavalPower
                 // that outlives the mode it belongs to is a flag that
                 // misdirects the next recovery.
                 if (flight.Mode != FlightMode.ReturnToBase) flight.RecoverToParent = false;
+                // Likewise a request for a zone that some other order has
+                // already overtaken: the next map click would otherwise land a
+                // delivery on a flight that has been sent elsewhere since.
+                if (CommandState.AwaitingCargoZone == flight &&
+                    flight.Mode != CommandState.AwaitingFromMode)
+                    CommandState.AwaitingCargoZone = null;
             }
 
             for (int i = pending.Count - 1; i >= 0; i--)

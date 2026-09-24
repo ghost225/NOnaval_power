@@ -413,10 +413,16 @@ namespace NavalPower
                     FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), true);
                     CommandState.Say(tasking.Name + " · leg appended · shift-click to add more");
                     break;
-                case RightClickAction.ReplaceWaypoint when tasking != null && tasking.Mode == FlightMode.Cargo:
-                    FlightOrders.Deliver(tasking, map.GetCursorCoordinates(), tasking.Airdrop);
+                // A zone that was asked for, or a new one for a delivery
+                // already running.
+                case RightClickAction.ReplaceWaypoint when tasking != null &&
+                        (CommandState.AwaitingCargoZone == tasking || tasking.Mode == FlightMode.Cargo):
+                    bool airdrop = CommandState.AwaitingCargoZone == tasking
+                        ? CommandState.AwaitingAirdrop : tasking.Airdrop;
+                    CommandState.AwaitingCargoZone = null;
+                    FlightOrders.Deliver(tasking, map.GetCursorCoordinates(), airdrop);
                     CommandState.Say(tasking.Name + " · " +
-                        (tasking.Airdrop ? "airdropping at" : "landing at") + " the marked zone");
+                        (airdrop ? "airdropping at" : "landing at") + " the marked zone");
                     break;
                 case RightClickAction.ReplaceWaypoint when tasking != null:
                     // A plain click sends the flight to work an area, which is
