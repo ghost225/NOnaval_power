@@ -199,26 +199,32 @@ namespace NavalPower
             Player payer = null;
             bool purchased = false, stocked = false;
 
-            if (Settings.LaunchCostFromAllocation.Value &&
+            // An airframe already in the reserve is one the faction has bought
+            // and is holding for you; flying it costs nothing. Only one that
+            // has to be produced is charged for, and with the wing funded from
+            // your own allocation it is charged to you rather than to the
+            // faction, which is what makes recovering one worth anything.
+            if (hq.GetUnitSupply(plan.Definition) > 0)
+            {
+                // Drawn from stock. Nobody pays.
+            }
+            else if (Settings.LaunchCostFromAllocation.Value &&
                 GameManager.GetLocalPlayer<Player>(out payer) && payer != null)
             {
                 if (payer.Allocation < price)
                 { reason = "You cannot afford a " + plan.Definition.unitName + "."; return false; }
                 payer.AddAllocation(0f - price);
-                if (hq.GetUnitSupply(plan.Definition) <= 0)
-                { hq.ModifyUnitSupply(plan.Definition, 1); stocked = true; }
+                hq.ModifyUnitSupply(plan.Definition, 1);
+                stocked = true;
             }
             else
             {
                 payer = null;
-                if (hq.GetUnitSupply(plan.Definition) <= 0)
-                {
-                    if (hq.factionFunds < price)
-                    { reason = "No airframe in reserve and insufficient funds."; return false; }
-                    hq.AddFunds(0f - price);
-                    hq.ModifyUnitSupply(plan.Definition, 1);
-                    purchased = true;
-                }
+                if (hq.factionFunds < price)
+                { reason = "No airframe in reserve and insufficient funds."; return false; }
+                hq.AddFunds(0f - price);
+                hq.ModifyUnitSupply(plan.Definition, 1);
+                purchased = true;
             }
 
             Airbase.TrySpawnResult result = deck.TrySpawnAircraft(null, plan.Definition,

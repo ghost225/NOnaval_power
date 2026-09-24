@@ -747,8 +747,8 @@ namespace NavalPower
                 (ownFunds ? "  ·  " + Allocation().ToString("0") + " available" : ""), null);
 
             Button funding = Row(ownFunds
-                ? "FUNDING  ·  your allocation  ·  you pay for each launch"
-                : "FUNDING  ·  faction reserves  ·  the faction pays", () =>
+                ? "FUNDING  ·  you pay for airframes not in reserve"
+                : "FUNDING  ·  the faction pays for everything", () =>
             {
                 Settings.LaunchCostFromAllocation.Value = !Settings.LaunchCostFromAllocation.Value;
                 DeckMenu();
@@ -761,10 +761,11 @@ namespace NavalPower
                 bool spare = ready > 0;
                 // What it costs you is the whole price when the wing is yours to
                 // fund; what the faction holds in stock is its own business then.
-                bool affordable = !ownFunds || Allocation() >= airframe.Price;
+                bool affordable = airframe.InReserve || !ownFunds || Allocation() >= airframe.Price;
                 Button entry = Row(airframe.Name + "  ·  " +
-                    (ownFunds ? airframe.Price.ToString("0") + " from your allocation"
-                        : airframe.InReserve ? "in reserve" : "purchase " + airframe.Price.ToString("0")) +
+                    (airframe.InReserve ? "in reserve  ·  no cost"
+                        : ownFunds ? airframe.Price.ToString("0") + " from your allocation"
+                        : "purchase " + airframe.Price.ToString("0")) +
                     (spare ? "" : "  ·  no hangar free") +
                     (affordable ? "" : "  ·  cannot afford"), () =>
                     {
