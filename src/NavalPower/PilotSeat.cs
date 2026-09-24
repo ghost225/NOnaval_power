@@ -141,6 +141,9 @@ namespace NavalPower
                     AircraftStatusDisplay?.SetValue(aircraft, statusDisplay);
                 }
             }
+            // Never two at once, whatever happened to the last one.
+            if (hudExtras != null) UnityEngine.Object.Destroy(hudExtras);
+            hudExtras = null;
             if (parameters != null && parameters.HUDExtras != null)
                 hudExtras = UnityEngine.Object.Instantiate(parameters.HUDExtras, SceneSingleton<FlightHud>.i.GetHUDCenter());
 
@@ -327,7 +330,26 @@ namespace NavalPower
         {
             if (aircraft == null || TargetCamMode == null || TargetCamCamera == null) return;
             TargetCam view = aircraft.targetCam;
-            if (view == null) { Plugin.Log.LogInfo("[seat] no target camera on this airframe"); return; }
+            if (view == null)
+            {
+                // Two different failures read the same here. A reference that
+                // is genuinely null means TargetCam.Initialize never ran -- it
+                // is gated on the aircraft having client authority, which an AI
+                // aircraft is not given. One that is merely Unity-null is a
+                // camera that existed and has since been destroyed.
+                bool never = ReferenceEquals(aircraft.targetCam, null);
+                TargetCam part = FindTargetCam(aircraft);
+                Plugin.Log.LogInfo("[seat] target camera " + (never ? "was never built" : "has been destroyed") +
+                    " · component on the airframe: " + (part == null ? "none" : "yes") +
+                    " · authority " + (aircraft.Identity != null && aircraft.Identity.HasAuthority));
+                if (part == null) return;
+                // Its own initialiser is the only thing that builds the lenses,
+                // and it will decline again if the authority is still not ours.
+                part.Initialize();
+                view = aircraft.targetCam;
+                Plugin.Log.LogInfo("[seat] target camera " + (view == null ? "still not built" : "built"));
+                if (view == null) return;
+            }
             try
             {
                 object mode = TargetCamMode.GetValue(view);
@@ -341,6 +363,18 @@ namespace NavalPower
             {
                 Plugin.Log.LogWarning("[seat] could not reset the target camera: " + ex.Message);
             }
+        }
+
+        // Like the cockpit, reached through the part rather than the hierarchy.
+        private static TargetCam FindTargetCam(Aircraft aircraft)
+        {
+            foreach (TargetCam candidate in Resources.FindObjectsOfTypeAll<TargetCam>())
+            {
+                if (!candidate.gameObject.scene.IsValid()) continue;
+                var attached = AccessTools.Field(typeof(TargetCam), "attachedPart")?.GetValue(candidate) as UnitPart;
+                if (attached != null && attached.parentUnit == aircraft) return candidate;
+            }
+            return null;
         }
 
         // The physical panels in the cockpit -- the tac screen, and on a glass
@@ -665,6 +699,13 @@ namespace NavalPower
             Plugin.Log.LogInfo("[seat] " + (flyingName ?? "flight") + " · seat lost, the game has it now");
             Flying = null;
             home = null;
+            // Dropping the references is not the same as taking the objects
+            // down. The airframe's HUD extras are ours -- we instantiated them
+            // onto the flight HUD -- and nothing in the game removes them,
+            // because natively nobody gets into a second aircraft. Two lost
+            // seats in a session left two more sets of instruments stacked on
+            // the one in use, each drawing its own text over the others.
+            if (hudExtras != null) UnityEngine.Object.Destroy(hudExtras);
             statusDisplay = null;
             hudExtras = null;
             bindDisplaysFrame = 0;

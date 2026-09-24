@@ -101,6 +101,26 @@ namespace NavalPower
         private void Awake() { Instance = this; }
         private void OnDestroy() { Leave(); if (Instance == this) Instance = null; }
 
+        // Command is entered by following a ship, and every way it can decline
+        // to start is a silent one. After a long session that ends with clicking
+        // a ship and getting nothing, the difference between "the game is not in
+        // a state for it", "this ship cannot be commanded" and "something of
+        // ours is still holding the seat" matters, and none of them said
+        // anything. Now the refusal explains itself.
+        private static string WhyNotReady()
+        {
+            if (GameManager.gameState != GameState.SinglePlayer && GameManager.gameState != GameState.Multiplayer)
+                return "game state is " + GameManager.gameState;
+            var gameplay = SceneSingleton<GameplayUI>.i;
+            if (gameplay == null) return "no gameplay UI";
+            if (gameplay.menuCanvas != null && gameplay.menuCanvas.enabled) return "a menu is open";
+            if (GameplayUI.GameIsPaused) return "the game is paused";
+            if (GameManager.GetLocalAircraft(out Aircraft own) && own != null && !own.disabled)
+                return "you still hold an aircraft (" + (own.definition?.unitName ?? own.name) + ")";
+            if (SceneSingleton<CameraStateManager>.i == null) return "no camera manager";
+            return null;
+        }
+
         private static bool GameplayReady()
         {
             if (GameManager.gameState != GameState.SinglePlayer && GameManager.gameState != GameState.Multiplayer) return false;
@@ -119,8 +139,30 @@ namespace NavalPower
                 suppressEntryFrame = Time.frameCount;
                 return;
             }
-            if (Time.frameCount == suppressEntryFrame || !GameplayReady()) return;
-            if (unit is Ship ship && CommandableShip.CanCommand(ship, out _)) Enter(ship);
+            if (Time.frameCount == suppressEntryFrame) return;
+            if (!(unit is Ship ship)) return;
+
+            string blocked = WhyNotReady();
+            if (blocked != null)
+            {
+                Explain(ship, blocked);
+                return;
+            }
+            if (!CommandableShip.CanCommand(ship, out string why)) { Explain(ship, why); return; }
+            Enter(ship);
+        }
+
+        private string lastExplained;
+        private float nextExplain;
+
+        private void Explain(Ship ship, string why)
+        {
+            string line = (ship.definition?.unitName ?? ship.name) + " · not taking command · " + why;
+            if (line == lastExplained && Time.unscaledTime < nextExplain) return;
+            lastExplained = line;
+            nextExplain = Time.unscaledTime + 5f;
+            Plugin.Log.LogInfo("[command] " + line);
+            CommandState.Say(line);
         }
 
         internal void Enter(Ship ship)
