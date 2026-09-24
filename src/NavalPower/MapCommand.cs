@@ -136,6 +136,8 @@ namespace NavalPower
             {
                 if (unit == CommandState.Ship) return;
                 Leave();
+                // Same rule when the camera moves by some other route.
+                if (unit is Ship next && CommandableShip.CanCommand(next, out _)) { Enter(next); return; }
                 suppressEntryFrame = Time.frameCount;
                 return;
             }
@@ -375,7 +377,18 @@ namespace NavalPower
             SelectionAction action = InputPolicy.Select(CommandState.Active, unit == CommandState.Ship,
                 eligible, Time.frameCount == suppressEntryFrame);
             if (action == SelectionAction.Consume) return false;
-            if (action == SelectionAction.Exit) { LeaveForNativeFlow(); return true; }
+            if (action == SelectionAction.Exit)
+            {
+                // Going from one commandable ship to another is a change of
+                // command, not an exit. Suppressing entry treats the click as
+                // leaving, and the camera arrives at the new ship on the same
+                // frame the suppression is set, so it declines to take it --
+                // which is why the second ship needed selecting twice, once to
+                // let go of the first and once to actually arrive.
+                if (eligible) { Leave(); return true; }
+                LeaveForNativeFlow();
+                return true;
+            }
             return true;
         }
 
