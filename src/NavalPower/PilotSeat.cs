@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using NuclearOption.Networking;
@@ -28,12 +29,15 @@ namespace NavalPower
             AccessTools.Field(typeof(CombatHUD), "threatList");
         private static readonly MethodInfo ThreatListRelease =
             AccessTools.Method(typeof(ThreatList), "ThreatList_OnAircraftDisable");
+        private static readonly MethodInfo ThreatListWarn =
+            AccessTools.Method(typeof(ThreatList), "ThreatList_OnMissileWarning");
 
         internal static string Report() =>
             "pilot seat:" +
             "\n  " + (AircraftStatusDisplay != null ? "ok      " : "MISSING ") + "Aircraft.statusDisplay" +
             "\n  " + (HudThreatList != null ? "ok      " : "MISSING ") + "CombatHUD.threatList" +
-            "\n  " + (ThreatListRelease != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnAircraftDisable";
+            "\n  " + (ThreatListRelease != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnAircraftDisable" +
+            "\n  " + (ThreatListWarn != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnMissileWarning";
 
         internal static Flight Flying { get; private set; }
         internal static bool Active => Flying != null;
@@ -96,6 +100,7 @@ namespace NavalPower
             // after this asks the HUD which aircraft it is showing, and one
             // built before it would ask while the answer is still nothing.
             SceneSingleton<CombatHUD>.i.SetAircraft(aircraft);
+            AnnounceExistingThreats(aircraft);
             SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
             SceneSingleton<DynamicMap>.i.DeselectAllIcons();
 
@@ -259,6 +264,48 @@ namespace NavalPower
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning("[seat] could not bind " + what + ": " + ex.Message);
+            }
+        }
+
+        // A threat that was already inbound never announces itself again. The
+        // warning is an event, raised once, at the moment a missile crosses
+        // into the aircraft's known list -- and an aircraft that has been under
+        // fire for the last thirty seconds raised all of its warnings before we
+        // were listening. Natively that is fine, because a player is in the
+        // aircraft from the moment it exists. Arriving late means the threat
+        // display starts empty and silent under missiles that are plainly on
+        // the map. So each one already known is announced now, through the same
+        // handler a live warning uses, which is what puts it on the display,
+        // flashes its marker, flags it on the map and sounds the tone.
+        private static void AnnounceExistingThreats(Aircraft aircraft)
+        {
+            if (aircraft == null || HudThreatList == null || ThreatListWarn == null) return;
+            CombatHUD hud = SceneSingleton<CombatHUD>.i;
+            if (hud == null) return;
+            try
+            {
+                if (!(HudThreatList.GetValue(hud) is ThreatList threats)) return;
+                MissileWarning warning = aircraft.GetMissileWarningSystem();
+                if (warning == null || warning.knownMissiles == null) return;
+
+                int announced = 0;
+                // Copied first: the handler reaches back into the threat list,
+                // and the warning system is free to edit this list as it runs.
+                var inbound = new List<Missile>(warning.knownMissiles);
+                foreach (Missile missile in inbound)
+                {
+                    if (missile == null || missile.disabled) continue;
+                    ThreatListWarn.Invoke(threats,
+                        new object[] { new MissileWarning.OnMissileWarning { missile = missile } });
+                    announced++;
+                }
+                if (announced > 0)
+                    Plugin.Log.LogInfo("[seat] " + announced +
+                        " missile(s) already inbound · put on the threat display");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not show the threats already inbound: " + ex.Message);
             }
         }
 
