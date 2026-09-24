@@ -121,6 +121,12 @@ namespace NavalPower
             var cameras = SceneSingleton<CameraStateManager>.i;
             cameras.SetFollowingUnit(aircraft);
             cameras.SwitchState(cameras.cockpitState);
+            // The map object itself starts inactive -- DynamicMap.Awake turns
+            // it off -- and Maximize activates a canvas *inside* it. Activating
+            // a child of an inactive object does not make it live, and a
+            // component that never goes live never runs its Awake. So the map
+            // is switched on before it is asked to open, not after.
+            DynamicMap.EnableCanvas(enable: true);
             SceneSingleton<DynamicMap>.i.Maximize();
             SceneSingleton<DynamicMap>.i.Minimize();
             DynamicMap.EnableCanvas(enable: true);
@@ -375,6 +381,22 @@ namespace NavalPower
                 var apps = SceneSingleton<HUDAppManager>.i;
                 Plugin.Log.LogInfo("[hud] HUDAppManager " +
                     (apps == null ? "absent" : Describe(apps.gameObject)));
+
+                // The singleton is only set by Awake, and Awake never runs for
+                // an object that has never been live. This finds it anyway,
+                // inactive or not, which is the one question three rounds of
+                // guessing have not been able to answer: does the thing that
+                // drives the cockpit panels exist at all, and if so, what is
+                // switched off above it.
+                foreach (MFDAppManager found in Resources.FindObjectsOfTypeAll<MFDAppManager>())
+                {
+                    if (!found.gameObject.scene.IsValid()) continue;     // skip the prefab assets
+                    Plugin.Log.LogInfo("[hud] MFDAppManager found · " + Describe(found.gameObject) +
+                        " · singleton " + (SceneSingleton<MFDAppManager>.i == null ? "NOT set" : "set"));
+                }
+                if (SceneSingleton<MFDAppManager>.i == null)
+                    Plugin.Log.LogInfo("[hud] HUD extras for this airframe: " +
+                        (hudExtras == null ? "none instantiated" : Describe(hudExtras)));
             }
             catch (Exception ex) { Plugin.Log.LogWarning("[hud] could not report: " + ex.Message); }
         }
