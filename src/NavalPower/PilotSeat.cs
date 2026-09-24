@@ -397,8 +397,47 @@ namespace NavalPower
                 if (SceneSingleton<MFDAppManager>.i == null)
                     Plugin.Log.LogInfo("[hud] HUD extras for this airframe: " +
                         (hudExtras == null ? "none instantiated" : Describe(hudExtras)));
+                Plugin.Log.LogInfo("[hud] status display: " +
+                    (statusDisplay == null ? "none instantiated" : Describe(statusDisplay.gameObject)));
+
+                // The panels themselves, rather than the manager that was
+                // supposed to own them.
+                foreach (MFDScreen screen in Resources.FindObjectsOfTypeAll<MFDScreen>())
+                    if (screen.gameObject.scene.IsValid())
+                        Plugin.Log.LogInfo("[hud] MFDScreen " + screen.shortName + " · " +
+                            Describe(screen.gameObject) +
+                            " · panel " + (screen.displayPanel == null ? "none"
+                                : screen.displayPanel.activeInHierarchy ? "on" : "OFF"));
+                foreach (VirtualMFD mfd in Resources.FindObjectsOfTypeAll<VirtualMFD>())
+                    if (mfd.gameObject.scene.IsValid())
+                        Plugin.Log.LogInfo("[hud] VirtualMFD " + Describe(mfd.gameObject));
+                ReportAircraftScreens();
             }
             catch (Exception ex) { Plugin.Log.LogWarning("[hud] could not report: " + ex.Message); }
+        }
+
+        // A glass cockpit's panels are drawn in the aircraft itself, not on
+        // the flight HUD, so they are canvases somewhere under the airframe --
+        // and a world-space canvas renders through a camera it is handed. One
+        // that is null, or pointing at a camera that is off, draws nothing at
+        // all while looking perfectly healthy from every other angle.
+        private static void ReportAircraftScreens()
+        {
+            Aircraft aircraft = Flying?.Aircraft;
+            if (aircraft == null) return;
+            int found = 0;
+            foreach (Canvas screen in aircraft.GetComponentsInChildren<Canvas>(includeInactive: true))
+            {
+                found++;
+                Plugin.Log.LogInfo("[hud] cockpit canvas " + Describe(screen.gameObject) +
+                    " · " + screen.renderMode +
+                    " · component " + (screen.enabled ? "enabled" : "DISABLED") +
+                    " · camera " + (screen.worldCamera == null ? "NONE"
+                        : screen.worldCamera.name + (screen.worldCamera.enabled ? "" : " (off)")));
+            }
+            Plugin.Log.LogInfo("[hud] " + found + " canvas(es) under the airframe · cockpit render camera " +
+                (SceneSingleton<CameraStateManager>.i?.cockpitCamRender == null ? "none"
+                    : SceneSingleton<CameraStateManager>.i.cockpitCamRender.enabled ? "on" : "OFF"));
         }
 
         private static string Describe(GameObject go)
