@@ -157,6 +157,15 @@ namespace NavalPower
             suppressEntryFrame = Time.frameCount;
         }
 
+        // Leaving the bridge to fly one of this ship's own flights. The ship is
+        // still ours and still shooting, so its kills still belong to us:
+        // forgetting the credit here is what stops Leave handing it back.
+        internal void LeaveForTakeover()
+        {
+            creditedPlayer = null;
+            LeaveForNativeFlow();
+        }
+
         private void LateUpdate()
         {
             // The native bar re-shows itself as the spectator UI updates, so the
@@ -214,7 +223,10 @@ namespace NavalPower
             ReleaseKillCredit();
             if (!GameManager.GetLocalPlayer<Player>(out Player player) || player == null) return;
             if (!UnitRegistry.TryGetPersistentUnit(ship.persistentID, out PersistentUnit persistent) || persistent == null) return;
-            if (persistent.player != null) return;          // already owned; leave it alone
+            // Already ours from an earlier stint on this bridge -- taking the
+            // controls of one of its flights leaves the credit in place on the
+            // way out, so coming back has to pick the release up again.
+            if (persistent.player != null && persistent.player != player) return;
             persistent.player = player;
             creditedPlayer = player;
         }
@@ -232,6 +244,7 @@ namespace NavalPower
         private void Update()
         {
             FlightOrders.Tick();
+            PilotSeat.Tick();
             DamageControl.WorkAll();
             FlightIcons.Refresh(CommandState.Ship);
             UpdateGesture();
@@ -280,6 +293,13 @@ namespace NavalPower
         // again, and give a key for the case where the camera did move.
         private void TryResume()
         {
+            // The same key that asks for the command view back is what asks for
+            // it back from the cockpit.
+            if (PilotSeat.Active)
+            {
+                if (Settings.ResumeCommand.Value.IsDown()) PilotSeat.Release();
+                return;
+            }
             if (Settings.ResumeCommand.Value.IsDown())
             {
                 var cameras = SceneSingleton<CameraStateManager>.i;

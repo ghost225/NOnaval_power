@@ -573,6 +573,17 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · recovering");
                 FlightMenu(flight);
             });
+            Row("TAKE THE CONTROLS  ·  fly it yourself  ·  " +
+                Settings.ResumeCommand.Value.MainKey + " hands it back", row++, () =>
+            {
+                if (PilotSeat.Take(flight, out string why))
+                {
+                    ClosePopup();
+                    return;
+                }
+                CommandState.Say(flight.Name + " · " + why);
+                FlightMenu(flight);
+            });
             Row("Other flights", row++, AirOpsMenu);
             Row("DONE  ·  return the map to the ship", row, ClosePopup);
         }
