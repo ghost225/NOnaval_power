@@ -105,7 +105,14 @@ namespace NavalPower
         // calls the first one firingUnit, not owner -- and Harmony binds
         // prefix arguments by name, so naming them fails on exactly the
         // subclasses this patch exists to catch.
-        private static bool Prefix(Unit __0, Unit __1) => EngagementPolicy.Allows(__0, __1);
+        private static bool Prefix(Unit __0, Unit __1)
+        {
+            if (!Guard.Ok(Name)) return true;                 // never hold fire on a broken rule
+            try { return EngagementPolicy.Allows(__0, __1); }
+            catch (Exception ex) { Guard.Failed(Name, ex); return true; }
+        }
+
+        private const string Name = "Weapon release rules";
     }
 
     internal sealed class ShipEngagement : MonoBehaviour

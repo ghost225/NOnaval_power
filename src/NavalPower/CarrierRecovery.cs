@@ -30,7 +30,10 @@ namespace NavalPower
             "\n  " + (AirbaseField != null ? "ok      " : "MISSING ") + "AIPilotLandingState.airbase" +
             "\n  " + (LandingSpeed != null ? "ok      " : "MISSING ") + "AIPilotLandingState.adjustedLandingSpeed";
 
-        private static void Postfix(AIPilotLandingState __instance)
+        private static void Postfix(AIPilotLandingState __instance) =>
+            Guard.Run("Carrier recovery", () => Adjust(__instance));
+
+        private static void Adjust(AIPilotLandingState __instance)
         {
             if (AirbaseField == null) return;
             var aircraft = StateAircraft?.GetValue(__instance) as Aircraft;

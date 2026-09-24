@@ -161,10 +161,17 @@ namespace NavalPower
         // Before the state acts on its own choice, replace it with ours.
         private static void Prefix(AIHeloTransportState __instance)
         {
-            if (!(StateAircraft?.GetValue(__instance) is Aircraft aircraft)) return;
-            Flight flight = FlightOrders.Of(aircraft);
-            if (flight == null || flight.Mode != FlightMode.Cargo) return;
-            CargoMissions.Apply(__instance, flight);
+            if (!Guard.Ok(Name)) return;
+            try
+            {
+                if (!(StateAircraft?.GetValue(__instance) is Aircraft aircraft)) return;
+                Flight flight = FlightOrders.Of(aircraft);
+                if (flight == null || flight.Mode != FlightMode.Cargo) return;
+                CargoMissions.Apply(__instance, flight);
+            }
+            catch (Exception ex) { Guard.Failed(Name, ex); }
         }
+
+        private const string Name = "Cargo missions";
     }
 }

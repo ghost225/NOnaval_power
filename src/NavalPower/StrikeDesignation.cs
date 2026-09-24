@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using NuclearOption.Networking;
 using UnityEngine;
@@ -19,7 +20,16 @@ namespace NavalPower
     {
         internal static string Report() => "strike designation:\n  ok      CombatAI.ChooseHQTarget";
 
+        private const string Name = "Strike designation";
+
         private static void Postfix(Unit searcher, ref CombatAI.TargetSearchResults __result)
+        {
+            if (!Guard.Ok(Name)) return;
+            try { Designate(searcher, ref __result); }
+            catch (Exception ex) { Guard.Failed(Name, ex); }
+        }
+
+        private static void Designate(Unit searcher, ref CombatAI.TargetSearchResults __result)
         {
             if (!(searcher is Aircraft aircraft)) return;
             Flight flight = FlightOrders.Of(aircraft);

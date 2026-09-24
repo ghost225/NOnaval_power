@@ -243,10 +243,12 @@ namespace NavalPower
 
         private void Update()
         {
-            FlightOrders.Tick();
-            PilotSeat.Tick();
-            DamageControl.WorkAll();
-            FlightIcons.Refresh(CommandState.Ship);
+            // Independent subsystems, independently retired. A fault in cargo
+            // missions must not also stop damage control from running.
+            Guard.Run("Flight orders", FlightOrders.Tick);
+            Guard.Run("Pilot seat", PilotSeat.Tick);
+            Guard.Run("Damage control", DamageControl.WorkAll);
+            Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Ship));
             UpdateGesture();
             if (!CommandState.Active) { TryResume(); return; }
             var cameras = SceneSingleton<CameraStateManager>.i;
@@ -564,7 +566,8 @@ namespace NavalPower
     [HarmonyPatch(typeof(CameraStateManager), nameof(CameraStateManager.SetFollowingUnit))]
     internal static class FollowingPatch
     {
-        private static void Postfix(Unit unit) => MapCommand.Instance?.FollowingChanged(unit);
+        private static void Postfix(Unit unit) =>
+            Guard.Run("Camera follow", () => MapCommand.Instance?.FollowingChanged(unit));
     }
 
     [HarmonyPatch(typeof(UnitMapIcon), nameof(UnitMapIcon.ClickIcon))]
@@ -580,7 +583,16 @@ namespace NavalPower
     [HarmonyPatch(typeof(DynamicMap), "MapControls")]
     internal static class MapInputPatch
     {
+        private const string Name = "Map command input";
+
         private static bool Prefix()
+        {
+            if (!Guard.Ok(Name)) return true;                 // give the map back to the game
+            try { return Body(); }
+            catch (Exception ex) { Guard.Failed(Name, ex); return true; }
+        }
+
+        private static bool Body()
         {
             MapCommand instance = MapCommand.Instance;
             instance?.ProcessInput();
@@ -654,6 +666,7 @@ namespace NavalPower
             yield return AccessTools.Method(typeof(GameplayUI), nameof(GameplayUI.ShowJoinMenu));
         }
 
-        private static void Prefix() => MapCommand.Instance?.LeaveForNativeFlow();
+        private static void Prefix() =>
+            Guard.Run("Leave for native flow", () => MapCommand.Instance?.LeaveForNativeFlow());
     }
 }

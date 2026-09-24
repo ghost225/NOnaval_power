@@ -372,12 +372,6 @@ namespace NavalPower
                 player.RemoveAircraft(aircraft);
             if (aircraft != null) aircraft.playerRef = PlayerRef.Invalid;
 
-            // PilotPlayerState adds one of these on entry and never takes it
-            // off, because natively there is no way back out of the seat.
-            Pilot crew = Seat(aircraft);
-            if (crew != null)
-                foreach (GLOC gloc in crew.GetComponents<GLOC>()) UnityEngine.Object.Destroy(gloc);
-
             FlightHud.EnableCanvas(enable: false);
         }
 
@@ -404,6 +398,34 @@ namespace NavalPower
             statusDisplay = null;
             hudExtras = null;
             bindDisplaysFrame = 0;
+        }
+    }
+
+    // PilotPlayerState.EnterState adds a GLOC component without looking for one
+    // already there, and LeaveState never removes it. Natively that is not a
+    // leak, because natively a pilot enters the seat once. Getting in and out
+    // repeatedly stacks one per sortie on the same pilot, each simulating the
+    // same g-load.
+    //
+    // Clearing it on the way out, which is what this did before, misses the
+    // ways out that do not go through us: shot down, or ejected from. Clearing
+    // it on the way in cannot be missed, because the way in is the leak. Found
+    // independently by NOAutopilot, which needs it for the same reason -- it
+    // re-enters the seat after an automatic landing.
+    [HarmonyPatch(typeof(PilotPlayerState), "EnterState")]
+    internal static class GlocLeakPatch
+    {
+        private const string Name = "GLOC leak fix";
+
+        private static void Prefix(Pilot __0)
+        {
+            if (!Guard.Ok(Name)) return;
+            try
+            {
+                if (__0 == null) return;
+                foreach (GLOC stale in __0.GetComponents<GLOC>()) UnityEngine.Object.Destroy(stale);
+            }
+            catch (Exception ex) { Guard.Failed(Name, ex); }
         }
     }
 }

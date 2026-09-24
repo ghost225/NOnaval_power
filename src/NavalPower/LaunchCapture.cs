@@ -20,7 +20,10 @@ namespace NavalPower
         internal static string Report() =>
             "launch capture:\n  " + (SpawnedObject != null ? "ok      " : "MISSING ") + "Hangar.spawnedObject";
 
-        private static void Postfix(Hangar __instance, Loadout loadout)
+        private static void Postfix(Hangar __instance, Loadout loadout) =>
+            Guard.Run("Launch capture", () => Claim(__instance, loadout));
+
+        private static void Claim(Hangar __instance, Loadout loadout)
         {
             if (SpawnedObject == null || __instance == null) return;
             // The hangar records what it just built, so read that one rather
