@@ -34,6 +34,10 @@ namespace NavalPower
         private static readonly MethodInfo UpdateTouchdown = DestinationType != null
             ? AccessTools.Method(DestinationType, "UpdateTouchdownPoint", new[] { typeof(float), typeof(Aircraft) })
             : null;
+        private static readonly ConstructorInfo NewDestination = DestinationType != null
+            ? AccessTools.Constructor(DestinationType,
+                new[] { typeof(GlobalPosition), typeof(GlobalPosition), typeof(float) })
+            : null;
 
         internal static string Report() =>
             "cargo missions:" +
@@ -41,14 +45,16 @@ namespace NavalPower
             Line("AIHeloTransportState.airdrop", Airdrop) +
             Line("AIHeloTransportState.transportDestination", Destination) +
             Line("TransportDestination.UpdateLZ", UpdateLz) +
-            Line("TransportDestination.UpdateTouchdownPoint", UpdateTouchdown);
+            Line("TransportDestination.UpdateTouchdownPoint", UpdateTouchdown) +
+            Line("TransportDestination..ctor", NewDestination);
 
         private static string Line(string name, MemberInfo member) =>
             "\n  " + (member != null ? "ok      " : "MISSING ") + name;
 
         internal static bool Available =>
             TransportMode != null && Airdrop != null && Destination != null &&
-            UpdateLz != null && UpdateTouchdown != null && ValidMission != null;
+            UpdateLz != null && UpdateTouchdown != null && ValidMission != null &&
+            NewDestination != null;
 
         // Can this aircraft actually carry anything?
         internal static bool CanCarry(Aircraft aircraft)
@@ -87,8 +93,24 @@ namespace NavalPower
             Airdrop.SetValue(state, flight.Airdrop);
             state.stateDisplayName = flight.Airdrop ? "Airdropping cargo" : "Delivering cargo";
 
-            object destination = Destination.GetValue(state);
-            if (destination == null) return;
+            // A destination the state built for itself carries its own idea of
+            // where to go, and one it never built carries nothing: a default
+            // struct reads as slope 0, which UpdateTouchdownPoint takes to mean
+            // "this ground is already perfectly flat, keep the point you have"
+            // -- and the point it has is the world origin. Either way the first
+            // order for a zone starts the destination again from that zone.
+            object destination;
+            if (!flight.CargoSeeded)
+            {
+                destination = NewDestination.Invoke(new object[] { flight.CargoPoint, flight.CargoPoint, 90f });
+                flight.CargoSeeded = true;
+                flight.LastCargoPlan = 0f;
+            }
+            else
+            {
+                destination = Destination.GetValue(state);
+                if (destination == null) return;
+            }
             ValidMission.SetValue(destination, true);
             Destination.SetValue(state, destination);
 

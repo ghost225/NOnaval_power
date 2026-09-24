@@ -41,6 +41,7 @@ namespace NavalPower
         public GlobalPosition CargoPoint;
         public bool Airdrop;
         public float LastCargoPlan;
+        internal bool CargoSeeded;          // the transport state knows this zone
         public GlobalPosition EgressPoint;
         public float EgressUntil;
         public float NextEgressPlan;
@@ -441,12 +442,32 @@ namespace NavalPower
                 // handoff never happened once we already had the aircraft.
                 if (flight.Mode == FlightMode.Cargo)
                 {
-                    if (pilot.AIHeloTransportState != null &&
-                        !(pilot.currentState is AIHeloTransportState))
+                    // The game builds this state lazily, inside the helo combat
+                    // state, the first time an aircraft notices cargo aboard.
+                    // A flight we took under command on the climb-out has never
+                    // been through there, so the field is usually still null --
+                    // and leaving the aircraft in our own state with a mode we
+                    // do not fly is what dropped one into the sea. Build it the
+                    // same way the game does.
+                    if (pilot.AIHeloTransportState == null && CanDeliver(flight.Aircraft))
+                        pilot.AIHeloTransportState = new AIHeloTransportState(flight.Aircraft);
+
+                    if (pilot.AIHeloTransportState == null)
+                    {
+                        Plugin.Log.LogWarning("[flight] " + flight.Name +
+                            " cannot fly a delivery; returning it to its previous task");
+                        CommandState.Say(flight.Name + " · cannot fly a delivery");
+                        BreakOff(flight);
+                        continue;
+                    }
+
+                    if (!(pilot.currentState is AIHeloTransportState))
+                    {
                         pilot.SwitchStateNew(pilot.AIHeloTransportState);
+                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
+                            (flight.Airdrop ? "airdropping" : "delivering") + " cargo");
+                    }
                     flight.Adopted = true;
-                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
-                        (flight.Airdrop ? "airdropping" : "delivering") + " cargo");
                     continue;
                 }
 
@@ -714,13 +735,30 @@ namespace NavalPower
         public static void Deliver(Flight flight, GlobalPosition where, bool airdrop)
         {
             if (flight == null) return;
+            if (!CanDeliver(flight.Aircraft))
+            {
+                CommandState.Say(flight.Name + " · cannot fly a delivery; it has no hover");
+                return;
+            }
             if (flight.Mode != FlightMode.Cargo) flight.PreviousMode = flight.Mode;
             flight.CargoPoint = where;
             flight.Airdrop = airdrop;
             flight.LastCargoPlan = 0f;             // solve the approach at once
+            flight.CargoSeeded = false;            // and from our zone, not its own
             flight.Route.Clear();
             flight.Mode = FlightMode.Cargo;
             flight.Adopted = false;
+        }
+
+        // Only the transport state knows how to run an approach, pick usable
+        // ground and unload, and the game only ever gives it to something that
+        // can hover. A fixed-wing aircraft carrying a container has no way to
+        // deliver it, so the order is refused rather than accepted into a mode
+        // nothing can fly.
+        internal static bool CanDeliver(Aircraft aircraft)
+        {
+            Pilot crew = FirstPilot(aircraft);
+            return crew != null && crew.pilotType != Pilot.PilotType.Plane;
         }
 
         public static List<Flight> CarriersFor(Ship ship)

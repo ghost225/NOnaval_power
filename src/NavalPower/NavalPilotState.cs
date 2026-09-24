@@ -76,7 +76,22 @@ namespace NavalPower
                 case FlightMode.Strike:
                 case FlightMode.Engage: HandBackToCombat(pilot); break;
                 case FlightMode.ReturnToBase: HandBackToLanding(pilot); break;
+                // A mode with no arm here writes no control inputs at all, and
+                // the aircraft simply falls out of the sky -- which is how both
+                // Strike and Cargo were first found. Holding is always wrong
+                // for the order, but it is never fatal, and it says so.
+                default: FlyOrbit(aircraft.GlobalPosition()); WarnUnflown(); break;
             }
+        }
+
+        private FlightMode warnedMode = (FlightMode)(-1);
+
+        private void WarnUnflown()
+        {
+            if (warnedMode == flight.Mode) return;
+            warnedMode = flight.Mode;
+            Plugin.Log.LogWarning("[flight] " + flight.Name + " · nothing flies " + flight.Mode +
+                " from this state; holding overhead instead");
         }
 
         // Periodic trace: if a flight wanders, this says whether it was given
