@@ -76,6 +76,50 @@ namespace NavalPower
                     Plugin.Log.LogInfo("[cam] its aircraft was disabled · " + Describe(__instance)));
         }
 
+        // The rest of the chain, so a normal spawn and a takeover can be laid
+        // side by side and read for the one step that differs. The combat HUD
+        // asks for the target view on every frame there is a target; the camera
+        // announces a change only when there is one; the screen switches page
+        // only when it hears that announcement.
+        private static float nextAsk;
+
+        [HarmonyPatch(typeof(TargetCam), nameof(TargetCam.SetTargetCam))]
+        internal static class Asked
+        {
+            private static void Prefix(TargetCam __instance, out bool __state) =>
+                __state = Lens(__instance);
+
+            private static void Postfix(TargetCam __instance, bool __state) =>
+                Guard.Run("Target camera trace: asked", () =>
+                {
+                    if (!Settings.DeckTrace.Value) return;
+                    bool now = Lens(__instance);
+                    // Every frame otherwise; the transition is the interesting part.
+                    if (now == __state && Time.unscaledTime < nextAsk) return;
+                    nextAsk = Time.unscaledTime + 3f;
+                    Plugin.Log.LogInfo("[cam] target view asked for · lens " +
+                        (__state ? "was on" : "was off") + ", now " + (now ? "on" : "off") +
+                        " · mode " + Mode(__instance));
+                });
+
+            private static bool Lens(TargetCam view)
+            {
+                var lens = AccessTools.Field(typeof(TargetCam), "cam")?.GetValue(view) as Camera;
+                return lens != null && lens.enabled;
+            }
+
+            private static string Mode(TargetCam view) =>
+                AccessTools.Field(typeof(TargetCam), "currentMode")?.GetValue(view)?.ToString() ?? "?";
+        }
+
+        [HarmonyPatch(typeof(TacScreen), "TacScreen_OnCamToggle")]
+        internal static class ScreenTold
+        {
+            private static void Prefix(TargetCam.OnCamToggle e) =>
+                Guard.Run("Target camera trace: screen told", () =>
+                    Plugin.Log.LogInfo("[cam] screen told · " + (e.enabled ? "show " : "hide ") + e.camMode));
+        }
+
         [HarmonyPatch(typeof(TargetCam), "OnDestroy")]
         internal static class Gone
         {

@@ -104,9 +104,10 @@ namespace NavalPower
                 "this the cockpit's target view has nothing behind it. Turn off if ownership causes " +
                 "trouble in multiplayer.");
 
-            DeckTrace = config.Bind("Diagnostics", "Deck clearance trace", true,
-                "Log how a landed aircraft leaves the deck: which of the game's two removal paths it takes, " +
-                "and what the conditions were when the choice was made.");
+            DeckTrace = config.Bind("Diagnostics", "Deck and cockpit trace", true,
+                "Log how a landed aircraft leaves the deck, and the life of an aircraft's targeting camera " +
+                "from being built to being asked for to reaching the cockpit screen. Leave on while " +
+                "comparing a normal spawn against taking over a flight.");
 
             LaunchCostFromAllocation = config.Bind("Flights", "Launches cost your allocation", true,
                 "You pay for every aircraft you launch, out of your own allocation, at its full value. " +
