@@ -69,23 +69,31 @@ namespace NavalPower
             return aircraft.GetComponentInChildren<CargoRamp>(true) != null;
         }
 
+        // How often the landing zone is re-solved. Doing it every physics tick
+        // never lets the state settle on an approach: UpdateLZ commits once the
+        // aircraft is within three kilometres of its touchdown point, and
+        // re-solving continually keeps moving that point out from under it. The
+        // aircraft then overflies the zone without dropping, turns back, and
+        // thrashes. Three seconds is what NOCommander uses for the same reason.
+        private const float ReplanSeconds = 3f;
+
         // Point the state at our landing zone instead of its own idea of one.
         internal static void Apply(AIHeloTransportState state, Flight flight)
         {
             if (!Available || state == null || flight == null) return;
 
+            // Cheap every tick: says what job this is, and that there is one.
             TransportMode.SetValue(state, AIHeloTransportState.TransportMode.LandSuppy);
             Airdrop.SetValue(state, flight.Airdrop);
-            // Keeping this fresh stops the state deciding it has no mission and
-            // wandering back to orbit the airbase.
-            LastSpotCheck.SetValue(state, Time.timeSinceLevelLoad);
             state.stateDisplayName = flight.Airdrop ? "Airdropping cargo" : "Delivering cargo";
 
-            // A struct field has to be unboxed, mutated and written back; the
-            // methods are called on the box, not on the field in place.
             object destination = Destination.GetValue(state);
             if (destination == null) return;
             ValidMission.SetValue(destination, true);
+            Destination.SetValue(state, destination);
+
+            if (Time.timeSinceLevelLoad - flight.LastCargoPlan < ReplanSeconds) return;
+            flight.LastCargoPlan = Time.timeSinceLevelLoad;
 
             Aircraft aircraft = StateAircraft?.GetValue(state) as Aircraft;
             if (aircraft == null) return;
@@ -94,10 +102,15 @@ namespace NavalPower
             approach.y = 0f;
             if (approach.sqrMagnitude < 0.001f) approach = Vector3.forward;
 
+            // A struct field has to be unboxed, mutated and written back; the
+            // methods act on the box, not on the field in place.
             object[] lzArgs = { aircraft, (GlobalPosition?)flight.CargoPoint, 100f, approach };
             UpdateLz.Invoke(destination, lzArgs);
             UpdateTouchdown.Invoke(destination, new object[] { flight.Airdrop ? 1000f : 100f, aircraft });
             Destination.SetValue(state, destination);
+            // Only stamped when we actually re-solved, or the state's own
+            // throttling is defeated and it re-plans as fast as we do.
+            LastSpotCheck.SetValue(state, Time.timeSinceLevelLoad);
         }
     }
 

@@ -40,6 +40,7 @@ namespace NavalPower
         public int AmmoAtAttack = -1;       // total rounds when the run began
         public GlobalPosition CargoPoint;
         public bool Airdrop;
+        public float LastCargoPlan;
         public GlobalPosition EgressPoint;
         public float EgressUntil;
         public float NextEgressPlan;
@@ -716,6 +717,7 @@ namespace NavalPower
             if (flight.Mode != FlightMode.Cargo) flight.PreviousMode = flight.Mode;
             flight.CargoPoint = where;
             flight.Airdrop = airdrop;
+            flight.LastCargoPlan = 0f;             // solve the approach at once
             flight.Route.Clear();
             flight.Mode = FlightMode.Cargo;
             flight.Adopted = false;

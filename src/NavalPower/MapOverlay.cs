@@ -192,6 +192,25 @@ namespace NavalPower
                     Line(vh, middle + Vector2.left * 5f, middle + Vector2.right * 5f, Theme.Dim(color, 0.8f), 1.6f);
                     Line(vh, middle + Vector2.down * 5f, middle + Vector2.up * 5f, Theme.Dim(color, 0.8f), 1.6f);
                 }
+                else if (selected.Mode == FlightMode.Cargo)
+                {
+                    // The zone it is working to, and how it intends to arrive.
+                    Vector2 zone = Project(selected.CargoPoint);
+                    Line(vh, at, zone, Theme.Dim(color, 0.5f), 1.4f);
+                    if (selected.Airdrop)
+                    {
+                        // A drop is a pass over a point: mark the point.
+                        Circle(vh, selected.CargoPoint, 300f, color);
+                        Line(vh, zone + Vector2.left * 9f, zone + Vector2.right * 9f, color, 2f);
+                        Line(vh, zone + Vector2.down * 9f, zone + Vector2.up * 9f, color, 2f);
+                    }
+                    else
+                    {
+                        // A landing is a place: mark the ground it will use.
+                        Circle(vh, selected.CargoPoint, 150f, color);
+                        Diamond(vh, zone, 8f, color);
+                    }
+                }
                 else if (selected.Mode == FlightMode.Station && selected.Parent != null)
                 {
                     Line(vh, at, Project(selected.Parent.GlobalPosition()), Theme.Dim(color, 0.5f), 1.4f);
