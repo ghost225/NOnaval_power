@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using HarmonyLib;
 using NuclearOption.Networking;
@@ -82,10 +83,17 @@ namespace NavalPower
             crew.playerControlled = true;
             crew.SwitchState(crew.playerState);
 
+            // The combat HUD first, as the game does it: everything built
+            // after this asks the HUD which aircraft it is showing, and one
+            // built before it would ask while the answer is still nothing.
+            SceneSingleton<CombatHUD>.i.SetAircraft(aircraft);
+            SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
+            SceneSingleton<DynamicMap>.i.DeselectAllIcons();
+
             AircraftParameters parameters = aircraft.GetAircraftParameters();
             if (parameters != null && parameters.StatusDisplay != null)
             {
-                GameObject panel = Object.Instantiate(parameters.StatusDisplay, Vector3.zero, Quaternion.identity);
+                GameObject panel = UnityEngine.Object.Instantiate(parameters.StatusDisplay, Vector3.zero, Quaternion.identity);
                 statusDisplay = panel.GetComponent<StatusDisplay>();
                 if (statusDisplay != null)
                 {
@@ -94,11 +102,9 @@ namespace NavalPower
                 }
             }
             if (parameters != null && parameters.HUDExtras != null)
-                hudExtras = Object.Instantiate(parameters.HUDExtras, SceneSingleton<FlightHud>.i.GetHUDCenter());
+                hudExtras = UnityEngine.Object.Instantiate(parameters.HUDExtras, SceneSingleton<FlightHud>.i.GetHUDCenter());
 
-            SceneSingleton<CombatHUD>.i.SetAircraft(aircraft);
-            SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
-            SceneSingleton<DynamicMap>.i.DeselectAllIcons();
+            BindCockpitDisplays(aircraft);
 
             var cameras = SceneSingleton<CameraStateManager>.i;
             cameras.SetFollowingUnit(aircraft);
@@ -168,6 +174,68 @@ namespace NavalPower
                 : " · released to its task area"));
         }
 
+        // The MFD and HUD app managers bind themselves to whatever aircraft the
+        // combat HUD is holding, once, in Start. That is written for a player
+        // who arrives in an aircraft and leaves by parachute: bind at birth,
+        // destroy at death, never rebind. Arriving in an aircraft that was
+        // already flying means the managers have either never started, started
+        // against nothing, or are still holding an airframe that is gone -- and
+        // a manager holding the wrong aircraft shows nothing. Point them here.
+        private static void BindCockpitDisplays(Aircraft aircraft)
+        {
+            Bind(SceneSingleton<HUDAppManager>.i, aircraft, "HUDAppManager");
+            Bind(SceneSingleton<MFDAppManager>.i, aircraft, "MFDAppManager");
+        }
+
+        private static void Bind(MonoBehaviour manager, Aircraft aircraft, string what)
+        {
+            if (manager == null)
+            {
+                // Not an error on every airframe: not all of them carry one.
+                Plugin.Log.LogInfo("[seat] no " + what + " in the scene");
+                return;
+            }
+            try
+            {
+                Type type = manager.GetType();
+                FieldInfo held = AccessTools.Field(type, "aircraft");
+                FieldInfo appsField = AccessTools.Field(type, "apps");
+                MethodInfo onDisable = AccessTools.Method(type, "HUDAppManager_OnUnitDisable");
+                if (held == null || appsField == null)
+                {
+                    Plugin.Log.LogWarning("[seat] cannot bind " + what + "; its displays will stay dark");
+                    return;
+                }
+
+                // Its teardown hook follows the aircraft it is showing.
+                var teardown = onDisable != null
+                    ? (Action<Unit>)Delegate.CreateDelegate(typeof(Action<Unit>), manager, onDisable) : null;
+                if (held.GetValue(manager) is Aircraft previous && previous != null && teardown != null)
+                    previous.onDisableUnit -= teardown;
+                held.SetValue(manager, aircraft);
+                if (teardown != null) aircraft.onDisableUnit += teardown;
+
+                if (!(appsField.GetValue(manager) is Array apps))
+                {
+                    Plugin.Log.LogWarning("[seat] " + what + " has no apps to bind");
+                    return;
+                }
+                int bound = 0;
+                foreach (object app in apps)
+                {
+                    if (!(app is HUDApp page)) continue;
+                    page.Initialize(aircraft);
+                    page.RefreshSettings();
+                    bound++;
+                }
+                Plugin.Log.LogInfo("[seat] " + what + " · " + bound + " display(s) bound");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not bind " + what + ": " + ex.Message);
+            }
+        }
+
         // The cockpit's own message line.
         private static void Say(string message)
         {
@@ -185,13 +253,13 @@ namespace NavalPower
             // removes it until the aircraft dies, so a second sortie would
             // stack a second report on the first -- and it is a scene singleton.
             var report = SceneSingleton<AircraftActionsReport>.i;
-            if (report != null) Object.Destroy(report.gameObject);
+            if (report != null) UnityEngine.Object.Destroy(report.gameObject);
 
-            if (statusDisplay != null) Object.Destroy(statusDisplay.gameObject);
+            if (statusDisplay != null) UnityEngine.Object.Destroy(statusDisplay.gameObject);
             if (aircraft != null) AircraftStatusDisplay?.SetValue(aircraft, null);
             statusDisplay = null;
 
-            if (hudExtras != null) Object.Destroy(hudExtras);
+            if (hudExtras != null) UnityEngine.Object.Destroy(hudExtras);
             hudExtras = null;
 
             if (GameManager.GetLocalPlayer(out Player player) && player != null && aircraft != null)
@@ -202,7 +270,7 @@ namespace NavalPower
             // off, because natively there is no way back out of the seat.
             Pilot crew = Seat(aircraft);
             if (crew != null)
-                foreach (GLOC gloc in crew.GetComponents<GLOC>()) Object.Destroy(gloc);
+                foreach (GLOC gloc in crew.GetComponents<GLOC>()) UnityEngine.Object.Destroy(gloc);
 
             FlightHud.EnableCanvas(enable: false);
         }
