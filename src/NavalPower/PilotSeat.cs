@@ -24,15 +24,23 @@ namespace NavalPower
     {
         private static readonly FieldInfo AircraftStatusDisplay =
             AccessTools.Field(typeof(Aircraft), "statusDisplay");
+        private static readonly FieldInfo HudThreatList =
+            AccessTools.Field(typeof(CombatHUD), "threatList");
+        private static readonly MethodInfo ThreatListRelease =
+            AccessTools.Method(typeof(ThreatList), "ThreatList_OnAircraftDisable");
 
         internal static string Report() =>
-            "pilot seat:\n  " + (AircraftStatusDisplay != null ? "ok      " : "MISSING ") + "Aircraft.statusDisplay";
+            "pilot seat:" +
+            "\n  " + (AircraftStatusDisplay != null ? "ok      " : "MISSING ") + "Aircraft.statusDisplay" +
+            "\n  " + (HudThreatList != null ? "ok      " : "MISSING ") + "CombatHUD.threatList" +
+            "\n  " + (ThreatListRelease != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnAircraftDisable";
 
         internal static Flight Flying { get; private set; }
         internal static bool Active => Flying != null;
 
         private static Ship home;
         private static string flyingName;
+        private static int bindDisplaysFrame;
         private static GameObject hudExtras;
         private static StatusDisplay statusDisplay;
 
@@ -112,11 +120,12 @@ namespace NavalPower
             SceneSingleton<DynamicMap>.i.Minimize();
             DynamicMap.EnableCanvas(enable: true);
 
-            // Only now: the managers live under the flight HUD canvas, which is
-            // inactive until the cockpit camera turns it on, and a component in
-            // an inactive hierarchy has not run its Awake -- so before this
-            // point they do not exist to be found, let alone corrected.
-            BindCockpitDisplays(aircraft);
+            // Next frame, not now. These managers live under the flight HUD
+            // canvas, which the cockpit camera has only just switched on, and
+            // Unity runs Awake on activation but defers Start. Looking now
+            // cannot tell a manager that has not started yet from one that
+            // started badly, and those want opposite treatment.
+            bindDisplaysFrame = Time.frameCount + 2;
 
             Flying = flight;
             flyingName = flight.Name;
@@ -214,20 +223,20 @@ namespace NavalPower
                     return;
                 }
 
-                // Awake has run, Start has not -- it was activated a moment ago
-                // by the cockpit camera, and it will bind itself, correctly,
-                // because the combat HUD already knows which aircraft this is.
-                // Doing it again here would only initialise every app twice.
+                // By now Start has had its frame. Still holding nothing means
+                // it ran at a moment when the combat HUD held nothing either --
+                // which is what happens when the flight HUD canvas is first
+                // switched on by anything other than a player getting into an
+                // aircraft -- and threw on the line after, leaving its displays
+                // bound to nothing for the rest of the session.
                 var bound = held.GetValue(manager) as Aircraft;
                 if (bound == aircraft)
                 { Plugin.Log.LogInfo("[seat] " + what + " already on this aircraft"); return; }
-                if (bound == null)
-                { Plugin.Log.LogInfo("[seat] " + what + " will bind itself on start"); return; }
 
                 // Its teardown hook follows the aircraft it is showing.
                 var teardown = onDisable != null
                     ? (Action<Unit>)Delegate.CreateDelegate(typeof(Action<Unit>), manager, onDisable) : null;
-                if (teardown != null) bound.onDisableUnit -= teardown;
+                if (teardown != null && bound != null) bound.onDisableUnit -= teardown;
                 held.SetValue(manager, aircraft);
                 if (teardown != null) aircraft.onDisableUnit += teardown;
 
@@ -244,12 +253,41 @@ namespace NavalPower
                     page.RefreshSettings();
                     rebound++;
                 }
-                Plugin.Log.LogInfo("[seat] " + what + " · " + rebound + " display(s) moved off " +
-                    (bound.definition?.unitName ?? bound.name));
+                Plugin.Log.LogInfo("[seat] " + what + " · " + rebound + " display(s) bound, from " +
+                    (bound == null ? "nothing" : bound.definition?.unitName ?? bound.name));
             }
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning("[seat] could not bind " + what + ": " + ex.Message);
+            }
+        }
+
+        // The missile alarm is a looping AudioSource that the threat list adds
+        // to the aircraft itself, started when a missile is seen and stopped
+        // only when the last one goes away -- or destroyed when the aircraft
+        // is. Nothing stops it when a player merely leaves, because natively a
+        // player leaves an aircraft by dying in it. Hand back while something
+        // is still tracking you and the tone goes with the aircraft, wailing,
+        // for the rest of the mission. The threat list has a teardown for
+        // exactly this; it is simply only ever reached by a death.
+        private static void ReleaseThreatAlarms(Aircraft aircraft)
+        {
+            if (aircraft == null || HudThreatList == null || ThreatListRelease == null) return;
+            CombatHUD hud = SceneSingleton<CombatHUD>.i;
+            if (hud == null) return;
+            try
+            {
+                if (!(HudThreatList.GetValue(hud) is ThreatList threats)) return;
+                ThreatListRelease.Invoke(threats, new object[] { aircraft });
+                // Its own teardown does not unhook the event that calls it, so
+                // without this the aircraft's eventual death runs it again.
+                var teardown = (Action<Unit>)Delegate.CreateDelegate(
+                    typeof(Action<Unit>), threats, (MethodInfo)ThreatListRelease);
+                aircraft.onDisableUnit -= teardown;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not silence the missile alarm: " + ex.Message);
             }
         }
 
@@ -264,6 +302,7 @@ namespace NavalPower
         // takes its own down.
         private static void Dismantle(Aircraft aircraft)
         {
+            ReleaseThreatAlarms(aircraft);
             if (SceneSingleton<CombatHUD>.i != null) SceneSingleton<CombatHUD>.i.RemoveAircraft();
 
             // CombatHUD.SetAircraft builds one of these every time and nothing
@@ -272,6 +311,9 @@ namespace NavalPower
             var report = SceneSingleton<AircraftActionsReport>.i;
             if (report != null) UnityEngine.Object.Destroy(report.gameObject);
 
+            // Its damage alert source is added to the cockpit body rather than
+            // to the panel, so one is left behind per sortie. Silent, idle, and
+            // not ours to go hunting for among the aircraft's own audio.
             if (statusDisplay != null) UnityEngine.Object.Destroy(statusDisplay.gameObject);
             if (aircraft != null) AircraftStatusDisplay?.SetValue(aircraft, null);
             statusDisplay = null;
@@ -298,6 +340,11 @@ namespace NavalPower
         internal static void Tick()
         {
             if (!Active) return;
+            if (bindDisplaysFrame > 0 && Time.frameCount >= bindDisplaysFrame)
+            {
+                bindDisplaysFrame = 0;
+                BindCockpitDisplays(Flying.Aircraft);
+            }
             Aircraft aircraft = Flying.Aircraft;
             bool lost = aircraft == null || aircraft.disabled ||
                 !GameManager.GetLocalPlayer(out Player player) || player == null ||
@@ -309,6 +356,7 @@ namespace NavalPower
             home = null;
             statusDisplay = null;
             hudExtras = null;
+            bindDisplaysFrame = 0;
         }
     }
 }
