@@ -116,6 +116,38 @@ namespace NavalPower
             panel.gameObject.SetActive(false);
         }
 
+        // The wheel over a feed zooms that feed. Returns true when it was
+        // consumed, so the world view does not zoom at the same time.
+        internal bool HandleScroll(float delta)
+        {
+            if (Mathf.Abs(delta) < 0.01f) return false;
+            if (Zoom(panel, feed, delta)) return true;
+            foreach (Pane pane in pinned)
+                if (Zoom(pane.Panel, pane.Camera, delta)) return true;
+            return false;
+        }
+
+        private static bool Zoom(RectTransform rect, Camera camera, float delta)
+        {
+            if (rect == null || camera == null || !rect.gameObject.activeInHierarchy) return false;
+            if (!RectTransformUtility.RectangleContainsScreenPoint(rect, Input.mousePosition)) return false;
+            // Proportional, so a narrow field zooms in finer steps than a wide
+            // one rather than jumping.
+            float step = camera.fieldOfView * 0.12f * -delta;
+            camera.fieldOfView = Mathf.Clamp(camera.fieldOfView + step, 3f, 90f);
+            return true;
+        }
+
+        internal bool PointerOverAnyFeed()
+        {
+            if (panel != null && panel.gameObject.activeInHierarchy &&
+                RectTransformUtility.RectangleContainsScreenPoint(panel, Input.mousePosition)) return true;
+            foreach (Pane pane in pinned)
+                if (pane.Panel != null && pane.Panel.gameObject.activeInHierarchy &&
+                    RectTransformUtility.RectangleContainsScreenPoint(pane.Panel, Input.mousePosition)) return true;
+            return false;
+        }
+
         internal bool IsPinned(Unit unit)
         {
             foreach (Pane pane in pinned) if (pane.Pinned == unit) return true;

@@ -57,6 +57,8 @@ namespace NavalPower
         private float nextPinnedRefresh;
         private Flight pinnedFlight;
 
+        internal bool ZoomedAFeed(float delta) => feedView != null && feedView.HandleScroll(delta);
+
         internal void RefreshPinned()
         {
             if (!Pinned || pinnedFlight == null) return;
@@ -72,6 +74,7 @@ namespace NavalPower
         internal bool PointerInside()
         {
             if (root == null || !root.activeSelf) return false;
+            if (feedView != null && feedView.PointerOverAnyFeed()) return true;
             if (bar != null && RectTransformUtility.RectangleContainsScreenPoint(bar, Input.mousePosition)) return true;
             return PopupOpen && RectTransformUtility.RectangleContainsScreenPoint(popup, Input.mousePosition);
         }

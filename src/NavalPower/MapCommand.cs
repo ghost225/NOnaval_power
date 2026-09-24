@@ -245,6 +245,7 @@ namespace NavalPower
             }
             RefreshHover();
             Ui?.RefreshPinned();
+            HandleZoom();
         }
 
         private void UpdateGesture()
@@ -413,6 +414,37 @@ namespace NavalPower
                     NavigationOrders.ReplaceWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string replaceReason);
                     CommandState.Say(replaceReason);
                     break;
+            }
+        }
+
+        // Camera states keep their own FOV trim and clamp it themselves, so
+        // nudging that field is all this needs to do -- the state applies and
+        // bounds it on its next update. Which state is driving depends on how
+        // the player is viewing, so all of them are adjusted together.
+        private static readonly string[] ZoomStates = { "orbitState", "chaseState", "freeState" };
+
+        private void HandleZoom()
+        {
+            float delta = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(delta) < 0.01f) return;
+
+            // A feed under the cursor takes the wheel; so does the map, which
+            // has its own zoom, and so does any of our own panels.
+            if (Ui != null && Ui.ZoomedAFeed(delta)) return;
+            if (DynamicMap.mapMaximized) return;
+            if (Ui != null && Ui.PointerInside()) return;
+
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (cameras == null) return;
+            foreach (string name in ZoomStates)
+            {
+                System.Reflection.FieldInfo holder = AccessTools.Field(typeof(CameraStateManager), name);
+                object state = holder?.GetValue(cameras);
+                if (state == null) continue;
+                System.Reflection.FieldInfo trim = AccessTools.Field(state.GetType(), "FOVAdjustment");
+                if (trim == null) continue;
+                float current = (float)trim.GetValue(state);
+                trim.SetValue(state, current - delta * Settings.ZoomSensitivity.Value);
             }
         }
 

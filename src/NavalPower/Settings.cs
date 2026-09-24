@@ -29,6 +29,7 @@ namespace NavalPower
         internal static ConfigEntry<int> DamageControlConcentration;
         internal static ConfigEntry<int> DamageControlRate;
         internal static ConfigEntry<bool> DamageControlPreserveCapacity;
+        internal static ConfigEntry<float> ZoomSensitivity;
         internal static ConfigEntry<bool> TargetFeed;
         internal static ConfigEntry<int> FeedResolution;
         internal static ConfigEntry<float> FeedWidth;
@@ -143,6 +144,12 @@ namespace NavalPower
                     "from the compartments being withheld. The ship's total capacity is unchanged either " +
                     "way; this caps how sharply it can be focused.",
                     new AcceptableValueRange<int>(1, 20)));
+
+            ZoomSensitivity = config.Bind("Interface", "Zoom sensitivity", 4f,
+                new ConfigDescription("Degrees of field of view per wheel notch when zooming the world view " +
+                    "while in command. The wheel still zooms the map when the map is open, and a camera " +
+                    "feed under the cursor takes it instead.",
+                    new AcceptableValueRange<float>(0.5f, 20f)));
 
             TargetFeed = config.Bind("Interface", "Target feed", true,
                 "Show a camera view of whatever the ship is engaging, and of our weapons while they fly. " +
