@@ -725,6 +725,10 @@ namespace NavalPower
 
         // ---- flight deck ----------------------------------------------------
 
+        private static float Allocation() =>
+            GameManager.GetLocalPlayer<NuclearOption.Networking.Player>(out var player) && player != null
+                ? player.Allocation : 0f;
+
         private void DeckMenu()
         {
             Ship ship = CommandState.Ship;
@@ -738,20 +742,36 @@ namespace NavalPower
             List<DeckMovement> traffic = DeckTraffic.Movements(ship);
             DeckTraffic.Hangars(ship, out int ready, out int busy);
 
-            StartPopup("Flight deck  ·  " + ready + " ready" + (busy > 0 ? ", " + busy + " working" : ""), null);
+            bool ownFunds = Settings.LaunchCostFromAllocation.Value;
+            StartPopup("Flight deck  ·  " + ready + " ready" + (busy > 0 ? ", " + busy + " working" : "") +
+                (ownFunds ? "  ·  " + Allocation().ToString("0") + " available" : ""), null);
+
+            Button funding = Row(ownFunds
+                ? "FUNDING  ·  your allocation  ·  you pay for each launch"
+                : "FUNDING  ·  faction reserves  ·  the faction pays", () =>
+            {
+                Settings.LaunchCostFromAllocation.Value = !Settings.LaunchCostFromAllocation.Value;
+                DeckMenu();
+            });
+            if (ownFunds) funding.image.color = Theme.AccentFill;
 
             for (int i = 0; i < deckAircraft.Length; i++)
             {
                 DeckAircraft airframe = deckAircraft[i];
                 bool spare = ready > 0;
+                // What it costs you is the whole price when the wing is yours to
+                // fund; what the faction holds in stock is its own business then.
+                bool affordable = !ownFunds || Allocation() >= airframe.Price;
                 Button entry = Row(airframe.Name + "  ·  " +
-                    (airframe.InReserve ? "in reserve" : "purchase " + airframe.Price.ToString("0")) +
-                    (spare ? "" : "  ·  no hangar free"), () =>
+                    (ownFunds ? airframe.Price.ToString("0") + " from your allocation"
+                        : airframe.InReserve ? "in reserve" : "purchase " + airframe.Price.ToString("0")) +
+                    (spare ? "" : "  ·  no hangar free") +
+                    (affordable ? "" : "  ·  cannot afford"), () =>
                     {
                         plan = CarrierOps.PlanFor(airframe.Definition);
                         LoadoutMenu();
                     });
-                if (!spare) entry.GetComponentInChildren<Text>().color = Theme.TextMuted;
+                if (!spare || !affordable) entry.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
 
             if (traffic.Count > 0)

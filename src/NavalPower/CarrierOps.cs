@@ -1,4 +1,6 @@
+using HarmonyLib;
 using System.Collections.Generic;
+using NuclearOption.Networking;
 using NuclearOption.SavedMission;
 using UnityEngine;
 
@@ -188,27 +190,45 @@ namespace NavalPower
             if (prefab != null && prefab.weaponManager != null && !loadout.AllowedByHQ(prefab.weaponManager, hq))
             { reason = "The faction will not release that loadout."; return false; }
 
-            // Taken from the reserve when one is held, bought otherwise, which
-            // is how the faction economy expects aircraft to be drawn.
-            bool purchased = false;
-            if (hq.GetUnitSupply(plan.Definition) <= 0)
+            // Who pays. With the air wing funded from your own allocation the
+            // faction supplies the airframe but no longer buys it: the cost of
+            // the sortie is yours, which is what makes bringing one back worth
+            // anything. Otherwise it is drawn the way the faction economy
+            // expects, from the reserve when one is held and bought when not.
+            float price = plan.Definition.value;
+            Player payer = null;
+            bool purchased = false, stocked = false;
+
+            if (Settings.LaunchCostFromAllocation.Value &&
+                GameManager.GetLocalPlayer<Player>(out payer) && payer != null)
             {
-                if (hq.factionFunds < plan.Definition.value)
-                { reason = "No airframe in reserve and insufficient funds."; return false; }
-                hq.AddFunds(-plan.Definition.value);
-                hq.ModifyUnitSupply(plan.Definition, 1);
-                purchased = true;
+                if (payer.Allocation < price)
+                { reason = "You cannot afford a " + plan.Definition.unitName + "."; return false; }
+                payer.AddAllocation(0f - price);
+                if (hq.GetUnitSupply(plan.Definition) <= 0)
+                { hq.ModifyUnitSupply(plan.Definition, 1); stocked = true; }
+            }
+            else
+            {
+                payer = null;
+                if (hq.GetUnitSupply(plan.Definition) <= 0)
+                {
+                    if (hq.factionFunds < price)
+                    { reason = "No airframe in reserve and insufficient funds."; return false; }
+                    hq.AddFunds(0f - price);
+                    hq.ModifyUnitSupply(plan.Definition, 1);
+                    purchased = true;
+                }
             }
 
             Airbase.TrySpawnResult result = deck.TrySpawnAircraft(null, plan.Definition,
                 new LiveryKey(0), loadout, Mathf.Clamp01(plan.Fuel));
             if (!result.Allowed)
             {
-                if (purchased)
-                {
-                    hq.ModifyUnitSupply(plan.Definition, -1);
-                    hq.AddFunds(plan.Definition.value);
-                }
+                // Nothing left the deck, so nothing was spent.
+                if (payer != null) payer.AddAllocation(price);
+                if (stocked || purchased) hq.ModifyUnitSupply(plan.Definition, -1);
+                if (purchased) hq.AddFunds(price);
                 reason = "The deck rejected the launch.";
                 return false;
             }
@@ -216,9 +236,51 @@ namespace NavalPower
             Remember(plan);
             FlightOrders.ExpectLaunch(ship, plan.Definition, loadout);
             reason = "Launching " + plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
-                (purchased ? " · purchased" : " · from reserve");
+                (payer != null ? " · " + price.ToString("0") + " from your allocation"
+                    : purchased ? " · purchased" : " · from reserve");
             Plugin.Log.LogInfo("[deck] " + ship.definition?.unitName + ": " + reason);
             return true;
+        }
+    }
+
+    // Bringing one home.
+    //
+    // The game pays a successful sortie bonus out of an aircraft's sortieScore,
+    // and that score accrues in exactly one place: FactionHQ.RewardPlayer, onto
+    // player.Aircraft -- the aircraft the player is personally sitting in. A
+    // flight flown from a ship's bridge is never that aircraft, so its score
+    // stays at zero however much it achieves, and the bonus it earns by landing
+    // safely is zero times the rate.
+    //
+    // Rather than invent a score for it, the bonus is taken against what the
+    // airframe is worth, at the mission's own rate. Recovering a flight you
+    // paid for returns a share of its cost; losing it returns nothing. That is
+    // the distinction the bonus exists to draw.
+    [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.ReturnToInventory))]
+    internal static class SortieBonusPatch
+    {
+        private const string Name = "Sortie bonus";
+
+        private static void Postfix(Aircraft __instance) => Guard.Run(Name, () => Pay(__instance));
+
+        private static void Pay(Aircraft aircraft)
+        {
+            if (!Settings.SortieBonusOnRecovery.Value || aircraft == null) return;
+            // Ours to reward: a flight this ship launched and commanded.
+            Flight flight = FlightOrders.Of(aircraft);
+            if (flight == null || aircraft.definition == null) return;
+            if (!GameManager.GetLocalPlayer<Player>(out Player player) || player == null) return;
+
+            float rate = MissionManager.CurrentMission != null
+                ? MissionManager.CurrentMission.missionSettings.successfulSortieBonus : 0f;
+            if (rate <= 0f) return;
+
+            float bonus = aircraft.definition.value * rate;
+            if (bonus <= 0f) return;
+            player.AddAllocation(bonus);
+            player.AddScore(bonus);
+            CommandState.Say(flight.Name + " · recovered · sortie bonus " + bonus.ToString("0"));
+            Plugin.Log.LogInfo("[deck] " + flight.Name + " recovered · sortie bonus " + bonus.ToString("0"));
         }
     }
 }

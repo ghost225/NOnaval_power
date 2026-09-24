@@ -18,6 +18,8 @@ namespace NavalPower
         internal static ConfigEntry<float> StandoffMetres;
         internal static ConfigEntry<float> EgressSeconds;
         internal static ConfigEntry<bool> ReattackAfterEgress;
+        internal static ConfigEntry<bool> LaunchCostFromAllocation;
+        internal static ConfigEntry<bool> SortieBonusOnRecovery;
         internal static ConfigEntry<bool> CarrierApproachFix;
         internal static ConfigEntry<float> CarrierApproachFactor;
         internal static ConfigEntry<float> StrikePatience;
@@ -93,6 +95,16 @@ namespace NavalPower
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
                 "Press the attack again once clear, while ordnance remains and the target lives. " +
                 "Off means one pass per order.");
+
+            LaunchCostFromAllocation = config.Bind("Flights", "Launches cost your allocation", true,
+                "You pay for every aircraft you launch, out of your own allocation, at its full value. " +
+                "The faction supplies the airframe but no longer buys it. Off means launches are drawn " +
+                "from faction reserves and faction funds, as they were.");
+
+            SortieBonusOnRecovery = config.Bind("Flights", "Sortie bonus on recovery", true,
+                "Recovering a flight pays the mission's successful sortie bonus, so bringing one home is " +
+                "worth more than losing it. The game pays this only to an aircraft a player was flying " +
+                "personally, so a commanded flight otherwise earns nothing by coming back.");
 
             CarrierApproachFix = config.Bind("Flights", "Slow deck approaches", true,
                 "Approach a ship's deck more slowly than a runway. The game computes one landing speed for " +
