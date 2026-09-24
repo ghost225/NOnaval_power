@@ -81,15 +81,34 @@ namespace NavalPower
         {
             if (root == null || !root.activeSelf) return false;
             if (feedView != null && feedView.PointerOverAnyFeed()) return true;
-            if (bar != null && RectTransformUtility.RectangleContainsScreenPoint(bar, Input.mousePosition)) return true;
+            if (seatBar != null && seatBar.gameObject.activeSelf &&
+                RectTransformUtility.RectangleContainsScreenPoint(seatBar, Input.mousePosition)) return true;
+            if (bar != null && bar.gameObject.activeSelf &&
+                RectTransformUtility.RectangleContainsScreenPoint(bar, Input.mousePosition)) return true;
             return PopupOpen && RectTransformUtility.RectangleContainsScreenPoint(popup, Input.mousePosition);
         }
 
         private void Update()
         {
-            if (!CommandState.Active) { if (root != null) root.SetActive(false); return; }
+            if (!CommandState.Active && !PilotSeat.Active)
+            { if (root != null) root.SetActive(false); return; }
             Ensure();
             root.SetActive(true);
+
+            // In the cockpit the bridge's surfaces are not ours to show: the
+            // only thing this UI still owns is the way back out of the seat.
+            bool flying = PilotSeat.Active;
+            RefreshSeatBar(flying);
+            bar.gameObject.SetActive(!flying);
+            if (flying)
+            {
+                airBar.gameObject.SetActive(false);
+                damagePanel.gameObject.SetActive(false);
+                if (popup != null) popup.gameObject.SetActive(false);
+                if (hover != null) hover.gameObject.SetActive(false);
+                return;
+            }
+
             if (Time.unscaledTime >= nextRefresh) { nextRefresh = Time.unscaledTime + 0.2f; Refresh(); }
             RefreshHover();
         }
@@ -573,8 +592,8 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · recovering");
                 FlightMenu(flight);
             });
-            Row("TAKE THE CONTROLS  ·  fly it yourself  ·  " +
-                Settings.ResumeCommand.Value.MainKey + " hands it back", row++, () =>
+            Row("TAKE THE CONTROLS  ·  fly it yourself  ·  hand back from the map bar or " +
+                Settings.ResumeCommand.Value.MainKey, row++, () =>
             {
                 if (PilotSeat.Take(flight, out string why))
                 {
@@ -1008,6 +1027,7 @@ namespace NavalPower
 
             BuildOverlay();
             BuildAirBar();
+            BuildSeatBar();
             feedView = gameObject.AddComponent<TargetFeed>();
             feedView.Build((RectTransform)root.transform, font);
             BuildBar();
@@ -1026,6 +1046,9 @@ namespace NavalPower
             rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
             go.GetComponent<MapOverlay>().raycastTarget = false;
         }
+
+        private RectTransform seatBar;
+        private Text seatLabel;
 
         private Text emconPill, roePill, damagePill, trackPill;
         private RectTransform flightStrip;
@@ -1167,6 +1190,51 @@ namespace NavalPower
 
             deckLabel = Label(airBar, "", Theme.CaptionSize, TextAnchor.MiddleRight, Theme.TextMuted);
             Place(deckLabel.rectTransform, 1460, 15, 444, 20);
+        }
+
+        // The seat bar stands where the air operations bar stands, because it
+        // is the same kind of thing: the controls for what this session of the
+        // game is currently about. While flying, that is one aircraft and the
+        // two ways of giving it back.
+        private void BuildSeatBar()
+        {
+            seatBar = Box("Pilot seat bar", (RectTransform)root.transform, Theme.Surface);
+            seatBar.anchorMin = new Vector2(0, 1);
+            seatBar.anchorMax = new Vector2(1, 1);
+            seatBar.pivot = new Vector2(0.5f, 1);
+            seatBar.sizeDelta = new Vector2(0, Theme.AirBarHeight);
+            seatBar.anchoredPosition = Vector2.zero;
+
+            RectTransform edge = Box("edge", seatBar, Theme.Dim(Theme.Accent, 0.5f));
+            edge.anchorMin = new Vector2(0, 0); edge.anchorMax = new Vector2(1, 0);
+            edge.pivot = new Vector2(0.5f, 0);
+            edge.sizeDelta = new Vector2(0, 2f);
+            edge.anchoredPosition = Vector2.zero;
+
+            seatLabel = Label(seatBar, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.Accent);
+            Place(seatLabel.rectTransform, 16, 14, 1240, 22);
+
+            MakeButton(seatBar, "RETURN CONTROL  ·  back to its task area", 1272, 8, 316, 32,
+                () => PilotSeat.Release(recoverToShip: false));
+            MakeButton(seatBar, "DROP CONTROL  ·  recover to the ship", 1600, 8, 304, 32,
+                () => PilotSeat.Release(recoverToShip: true));
+
+            seatBar.gameObject.SetActive(false);
+        }
+
+        private void RefreshSeatBar(bool flying)
+        {
+            if (seatBar == null) return;
+            // Only over the map. In the cockpit proper there is no cursor to
+            // click it with, and a bar that cannot be clicked is just something
+            // sitting on top of the HUD.
+            flying = flying && DynamicMap.mapMaximized;
+            seatBar.gameObject.SetActive(flying);
+            Flight flight = PilotSeat.Flying;
+            if (!flying || flight == null) return;
+            seatLabel.text = "YOU HAVE THE CONTROLS  ·  " + flight.Name +
+                "  ·  " + flight.FuelPercent.ToString("0") + "% fuel  ·  " + flight.StoresSummary +
+                "  ·  " + Settings.ResumeCommand.Value.MainKey + " returns control";
         }
 
         private void SelectChip(int index)
@@ -1496,7 +1564,10 @@ namespace NavalPower
             colors.pressedColor = new Color(0.78f, 0.92f, 0.96f);
             colors.fadeDuration = 0.08f;
             button.colors = colors;
-            button.onClick.AddListener(() => { if (CommandState.Active) action(); });
+            // Our surfaces are live in exactly two situations: commanding the
+            // ship, and flying one of its flights. Gating on the first alone
+            // left the seat bar's own buttons dead.
+            button.onClick.AddListener(() => { if (CommandState.Active || PilotSeat.Active) action(); });
             Text text = Label(rect, label, 15, TextAnchor.MiddleCenter);
             text.rectTransform.anchorMin = Vector2.zero; text.rectTransform.anchorMax = Vector2.one;
             text.rectTransform.offsetMin = new Vector2(6, 0); text.rectTransform.offsetMax = new Vector2(-6, 0);

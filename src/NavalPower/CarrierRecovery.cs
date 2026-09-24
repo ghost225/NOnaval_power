@@ -32,7 +32,11 @@ namespace NavalPower
 
         private static void Postfix(AIPilotLandingState __instance)
         {
-            if (AirbaseField == null || LandingSpeed == null) return;
+            if (AirbaseField == null) return;
+            var aircraft = StateAircraft?.GetValue(__instance) as Aircraft;
+            RecoverToOwnDeck(__instance, aircraft);
+
+            if (LandingSpeed == null) return;
             if (!Settings.CarrierApproachFix.Value) return;
             if (!(AirbaseField.GetValue(__instance) is Airbase airbase) || !airbase.AttachedAirbase) return;
 
@@ -40,9 +44,24 @@ namespace NavalPower
             float wanted = speed * Mathf.Clamp01(Settings.CarrierApproachFactor.Value);
             LandingSpeed.SetValue(__instance, wanted);
 
-            if (StateAircraft?.GetValue(__instance) is Aircraft aircraft)
+            if (aircraft != null)
                 Plugin.Log.LogInfo("[recovery] " + (aircraft.definition?.unitName ?? aircraft.name) +
                     " · deck approach " + speed.ToString("0") + " to " + wanted.ToString("0"));
+        }
+
+        // Sent home to its own ship, a flight recovers there. The landing state
+        // searches for the nearest usable field, which at sea is usually the
+        // carrier anyway -- but "usually" is not what the order said.
+        private static void RecoverToOwnDeck(AIPilotLandingState state, Aircraft aircraft)
+        {
+            Flight flight = FlightOrders.Of(aircraft);
+            if (flight == null || !flight.RecoverToParent) return;
+            if (flight.Parent == null || flight.Parent.disabled) return;
+            Airbase deck = CarrierOps.Deck(flight.Parent);
+            if (deck == null || ReferenceEquals(AirbaseField.GetValue(state), deck)) return;
+            AirbaseField.SetValue(state, deck);
+            Plugin.Log.LogInfo("[recovery] " + flight.Name + " · recovering to " +
+                (flight.Parent.definition?.unitName ?? "its own ship"));
         }
     }
 }

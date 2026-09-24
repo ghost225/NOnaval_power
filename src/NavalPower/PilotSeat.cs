@@ -109,16 +109,28 @@ namespace NavalPower
 
             Flying = flight;
             Plugin.Log.LogInfo("[seat] flying " + flight.Name + " · " + flight.Describe());
+            // Our own feedback line lives on the command bar, which is exactly
+            // what is not on screen from in here. The game has a place for
+            // saying things to a pilot, so use that one.
+            Say("You have the controls · " + Settings.ResumeCommand.Value.MainKey +
+                " returns control, or use the map bar to hand it back");
             return true;
         }
 
-        // Hand the aircraft back to its task and the camera back to the ship.
-        internal static void Release()
+        // Hand the aircraft back and the camera back to the ship. Handing back
+        // is not the same as abandoning the sortie, so the standing task is set
+        // here rather than left as whatever half-finished thing it was doing
+        // when the controls changed hands: either back on station in its task
+        // area, or straight home to the deck.
+        internal static void Release(bool recoverToShip)
         {
             if (!Active) return;
             Flight flight = Flying;
             Aircraft aircraft = flight.Aircraft;
             Flying = null;
+
+            if (recoverToShip) FlightOrders.RecoverToShip(flight);
+            else FlightOrders.SetArea(flight, flight.OrbitCentre, flight.OrbitRadius);
 
             // Out of the seat before the seat is taken apart: leaving the
             // player state is what puts the flight HUD away and lets go of the
@@ -150,8 +162,17 @@ namespace NavalPower
             Ship ship = home != null && !home.disabled ? home : null;
             home = null;
             if (cameras != null) cameras.SetFollowingUnit(ship != null ? (Unit)ship : aircraft);
-            Plugin.Log.LogInfo("[seat] handed " + flight.Name + " back to its task");
-            CommandState.Say(flight.Name + " · back under its own orders");
+            Plugin.Log.LogInfo("[seat] handed " + flight.Name + " back · " + flight.Describe());
+            CommandState.Say(flight.Name + (recoverToShip
+                ? " · released and recovering to the ship"
+                : " · released to its task area"));
+        }
+
+        // The cockpit's own message line.
+        private static void Say(string message)
+        {
+            var report = SceneSingleton<AircraftActionsReport>.i;
+            if (report != null) report.ReportText(message, 8f);
         }
 
         // Everything Take built, taken down in the order the native eject path

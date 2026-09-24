@@ -297,7 +297,7 @@ namespace NavalPower
             // it back from the cockpit.
             if (PilotSeat.Active)
             {
-                if (Settings.ResumeCommand.Value.IsDown()) PilotSeat.Release();
+                if (Settings.ResumeCommand.Value.IsDown()) PilotSeat.Release(recoverToShip: false);
                 return;
             }
             if (Settings.ResumeCommand.Value.IsDown())
@@ -578,7 +578,12 @@ namespace NavalPower
         {
             MapCommand instance = MapCommand.Instance;
             instance?.ProcessInput();
-            return instance == null || !CommandState.Active || instance.Ui == null || !instance.Ui.PointerInside();
+            // The map keeps its own controls except under our surfaces -- which
+            // now includes the seat bar, so clicking a button on it does not
+            // also drag the map underneath.
+            if (instance == null || instance.Ui == null) return true;
+            if (!CommandState.Active && !PilotSeat.Active) return true;
+            return !instance.Ui.PointerInside();
         }
 
         internal static bool MouseDown(int button) =>

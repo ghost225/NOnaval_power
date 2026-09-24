@@ -42,6 +42,7 @@ namespace NavalPower
         public bool Airdrop;
         public float LastCargoPlan;
         internal bool CargoSeeded;          // the transport state knows this zone
+        internal bool RecoverToParent;      // recover to the ship that launched it, not the nearest field
         public GlobalPosition EgressPoint;
         public float EgressUntil;
         public float NextEgressPlan;
@@ -294,7 +295,14 @@ namespace NavalPower
             AssessThreats();
             for (int i = flights.Count - 1; i >= 0; i--)
                 if (flights[i].Aircraft == null || flights[i].Aircraft.disabled) flights.RemoveAt(i);
-            foreach (Flight flight in flights) flight.RefreshStores();
+            foreach (Flight flight in flights)
+            {
+                flight.RefreshStores();
+                // Derived rather than cleared by hand in every order: a flag
+                // that outlives the mode it belongs to is a flag that
+                // misdirects the next recovery.
+                if (flight.Mode != FlightMode.ReturnToBase) flight.RecoverToParent = false;
+            }
 
             for (int i = pending.Count - 1; i >= 0; i--)
             {
@@ -977,6 +985,15 @@ namespace NavalPower
         public static void ReturnToBase(Flight flight)
         {
             if (flight == null) return;
+            flight.Mode = FlightMode.ReturnToBase;
+        }
+
+        // Home to the deck it came off, rather than to whatever field the
+        // landing state finds first.
+        public static void RecoverToShip(Flight flight)
+        {
+            if (flight == null) return;
+            flight.RecoverToParent = flight.Parent != null;
             flight.Mode = FlightMode.ReturnToBase;
         }
 
