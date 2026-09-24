@@ -110,6 +110,15 @@ namespace NavalPower
             // built before it would ask while the answer is still nothing.
             SceneSingleton<CombatHUD>.i.SetAircraft(aircraft);
             AnnounceExistingThreats(aircraft);
+            // SetAircraft does not show the current weapon: the readout is
+            // built by ShowWeaponStation, which the game calls when a weapon is
+            // selected and when an aircraft arms itself at spawn -- and that
+            // second one is skipped for any aircraft the combat HUD is not
+            // already showing, which an AI aircraft never is. So the panel
+            // still described whatever was in it before, until cycling a
+            // weapon built it again.
+            if (aircraft.weaponManager != null)
+                SceneSingleton<CombatHUD>.i.ShowWeaponStation(aircraft.weaponManager.currentWeaponStation);
             BuildCockpitScreens(aircraft);
             SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
             SceneSingleton<DynamicMap>.i.DeselectAllIcons();
@@ -150,7 +159,7 @@ namespace NavalPower
             Plugin.Log.LogInfo("[seat] cockpit up · camera " + CameraStateManager.cameraMode +
                 " · map " + (DynamicMap.mapMaximized ? "maximized" : "minimized") +
                 " · combat HUD on " + (SceneSingleton<CombatHUD>.i?.aircraft == aircraft ? "this aircraft" : "something else"));
-            ReportHud();
+            ReportHud(aircraft);
 
             // Next frame, not now. These managers live under the flight HUD
             // canvas, which the cockpit camera has only just switched on, and
@@ -436,7 +445,7 @@ namespace NavalPower
         // its parents, whether the Canvas component itself is drawing, and
         // where each piece actually sits in the hierarchy. A GameObject can be
         // active and still invisible because something above it is not.
-        private static void ReportHud()
+        private static void ReportHud(Aircraft aircraft)
         {
             try
             {
@@ -484,7 +493,7 @@ namespace NavalPower
                 foreach (VirtualMFD mfd in Resources.FindObjectsOfTypeAll<VirtualMFD>())
                     if (mfd.gameObject.scene.IsValid())
                         Plugin.Log.LogInfo("[hud] VirtualMFD " + Describe(mfd.gameObject));
-                ReportAircraftScreens();
+                ReportAircraftScreens(aircraft);
             }
             catch (Exception ex) { Plugin.Log.LogWarning("[hud] could not report: " + ex.Message); }
         }
@@ -494,10 +503,14 @@ namespace NavalPower
         // and a world-space canvas renders through a camera it is handed. One
         // that is null, or pointing at a camera that is off, draws nothing at
         // all while looking perfectly healthy from every other angle.
-        private static void ReportAircraftScreens()
+        private static void ReportAircraftScreens(Aircraft aircraft)
         {
-            Aircraft aircraft = Flying?.Aircraft;
             if (aircraft == null) return;
+            foreach (Cockpit pit in aircraft.GetComponentsInChildren<Cockpit>(includeInactive: true))
+                Plugin.Log.LogInfo("[hud] Cockpit " + Describe(pit.gameObject) +
+                    " · component " + (pit.enabled ? "enabled" : "DISABLED"));
+            foreach (TacScreen screen in aircraft.GetComponentsInChildren<TacScreen>(includeInactive: true))
+                Plugin.Log.LogInfo("[hud] TacScreen " + Describe(screen.gameObject));
             int found = 0;
             foreach (Canvas screen in aircraft.GetComponentsInChildren<Canvas>(includeInactive: true))
             {
