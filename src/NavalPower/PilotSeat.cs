@@ -134,6 +134,7 @@ namespace NavalPower
             Plugin.Log.LogInfo("[seat] cockpit up · camera " + CameraStateManager.cameraMode +
                 " · map " + (DynamicMap.mapMaximized ? "maximized" : "minimized") +
                 " · combat HUD on " + (SceneSingleton<CombatHUD>.i?.aircraft == aircraft ? "this aircraft" : "something else"));
+            ReportHud();
 
             // Next frame, not now. These managers live under the flight HUD
             // canvas, which the cockpit camera has only just switched on, and
@@ -346,6 +347,52 @@ namespace NavalPower
             {
                 Plugin.Log.LogWarning("[seat] could not silence the missile alarm: " + ex.Message);
             }
+        }
+
+        private static readonly FieldInfo FlightHudCanvas = AccessTools.Field(typeof(FlightHud), "canvas");
+
+        // Everything asked for has been confirmed done and the HUD is still not
+        // there, so this stops reporting what was requested and reports what is
+        // actually on screen: whether the canvas object is live all the way up
+        // its parents, whether the Canvas component itself is drawing, and
+        // where each piece actually sits in the hierarchy. A GameObject can be
+        // active and still invisible because something above it is not.
+        private static void ReportHud()
+        {
+            try
+            {
+                FlightHud hud = SceneSingleton<FlightHud>.i;
+                if (hud == null) { Plugin.Log.LogWarning("[hud] no FlightHud"); return; }
+                Plugin.Log.LogInfo("[hud] FlightHud " + Describe(hud.gameObject));
+
+                var canvas = FlightHudCanvas?.GetValue(hud) as Canvas;
+                if (canvas == null) { Plugin.Log.LogWarning("[hud] FlightHud has no canvas field"); return; }
+                Plugin.Log.LogInfo("[hud] canvas " + Describe(canvas.gameObject) +
+                    " · component " + (canvas.enabled ? "enabled" : "DISABLED") +
+                    " · order " + canvas.sortingOrder +
+                    " · group alpha " + GroupAlpha(canvas.gameObject));
+
+                var apps = SceneSingleton<HUDAppManager>.i;
+                Plugin.Log.LogInfo("[hud] HUDAppManager " +
+                    (apps == null ? "absent" : Describe(apps.gameObject)));
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning("[hud] could not report: " + ex.Message); }
+        }
+
+        private static string Describe(GameObject go)
+        {
+            string path = go.name;
+            for (Transform parent = go.transform.parent; parent != null; parent = parent.parent)
+                path = parent.name + "/" + path + (parent.gameObject.activeSelf ? "" : " (parent OFF)");
+            return path + " · self " + (go.activeSelf ? "on" : "OFF") +
+                " · in hierarchy " + (go.activeInHierarchy ? "on" : "OFF");
+        }
+
+        // A CanvasGroup anywhere above it can hide a perfectly active canvas.
+        private static string GroupAlpha(GameObject go)
+        {
+            var found = go.GetComponentInParent<CanvasGroup>();
+            return found == null ? "none" : found.name + " " + found.alpha.ToString("0.00");
         }
 
         // The cockpit's own message line.
