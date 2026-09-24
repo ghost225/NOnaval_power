@@ -32,6 +32,7 @@ namespace NavalPower
         internal static bool Active => Flying != null;
 
         private static Ship home;
+        private static string flyingName;
         private static GameObject hudExtras;
         private static StatusDisplay statusDisplay;
 
@@ -104,8 +105,6 @@ namespace NavalPower
             if (parameters != null && parameters.HUDExtras != null)
                 hudExtras = UnityEngine.Object.Instantiate(parameters.HUDExtras, SceneSingleton<FlightHud>.i.GetHUDCenter());
 
-            BindCockpitDisplays(aircraft);
-
             var cameras = SceneSingleton<CameraStateManager>.i;
             cameras.SetFollowingUnit(aircraft);
             cameras.SwitchState(cameras.cockpitState);
@@ -113,7 +112,14 @@ namespace NavalPower
             SceneSingleton<DynamicMap>.i.Minimize();
             DynamicMap.EnableCanvas(enable: true);
 
+            // Only now: the managers live under the flight HUD canvas, which is
+            // inactive until the cockpit camera turns it on, and a component in
+            // an inactive hierarchy has not run its Awake -- so before this
+            // point they do not exist to be found, let alone corrected.
+            BindCockpitDisplays(aircraft);
+
             Flying = flight;
+            flyingName = flight.Name;
             Plugin.Log.LogInfo("[seat] flying " + flight.Name + " · " + flight.Describe());
             // Our own feedback line lives on the command bar, which is exactly
             // what is not on screen from in here. The game has a place for
@@ -191,8 +197,9 @@ namespace NavalPower
         {
             if (manager == null)
             {
-                // Not an error on every airframe: not all of them carry one.
-                Plugin.Log.LogInfo("[seat] no " + what + " in the scene");
+                // It destroys itself with the aircraft it was showing, so this
+                // is what an earlier sortie in the same session leaves behind.
+                Plugin.Log.LogInfo("[seat] no " + what + " in the scene · its displays will stay dark");
                 return;
             }
             try
@@ -207,11 +214,20 @@ namespace NavalPower
                     return;
                 }
 
+                // Awake has run, Start has not -- it was activated a moment ago
+                // by the cockpit camera, and it will bind itself, correctly,
+                // because the combat HUD already knows which aircraft this is.
+                // Doing it again here would only initialise every app twice.
+                var bound = held.GetValue(manager) as Aircraft;
+                if (bound == aircraft)
+                { Plugin.Log.LogInfo("[seat] " + what + " already on this aircraft"); return; }
+                if (bound == null)
+                { Plugin.Log.LogInfo("[seat] " + what + " will bind itself on start"); return; }
+
                 // Its teardown hook follows the aircraft it is showing.
                 var teardown = onDisable != null
                     ? (Action<Unit>)Delegate.CreateDelegate(typeof(Action<Unit>), manager, onDisable) : null;
-                if (held.GetValue(manager) is Aircraft previous && previous != null && teardown != null)
-                    previous.onDisableUnit -= teardown;
+                if (teardown != null) bound.onDisableUnit -= teardown;
                 held.SetValue(manager, aircraft);
                 if (teardown != null) aircraft.onDisableUnit += teardown;
 
@@ -220,15 +236,16 @@ namespace NavalPower
                     Plugin.Log.LogWarning("[seat] " + what + " has no apps to bind");
                     return;
                 }
-                int bound = 0;
+                int rebound = 0;
                 foreach (object app in apps)
                 {
                     if (!(app is HUDApp page)) continue;
                     page.Initialize(aircraft);
                     page.RefreshSettings();
-                    bound++;
+                    rebound++;
                 }
-                Plugin.Log.LogInfo("[seat] " + what + " · " + bound + " display(s) bound");
+                Plugin.Log.LogInfo("[seat] " + what + " · " + rebound + " display(s) moved off " +
+                    (bound.definition?.unitName ?? bound.name));
             }
             catch (Exception ex)
             {
@@ -287,7 +304,7 @@ namespace NavalPower
                 player.Aircraft != aircraft;
             if (!lost) return;
 
-            Plugin.Log.LogInfo("[seat] " + Flying.Name + " · seat lost, the game has it now");
+            Plugin.Log.LogInfo("[seat] " + (flyingName ?? "flight") + " · seat lost, the game has it now");
             Flying = null;
             home = null;
             statusDisplay = null;
