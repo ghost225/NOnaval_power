@@ -1308,6 +1308,7 @@ namespace NavalPower
 
             bool any = (airborne.Count > 0 || traffic.Count > 0) && Settings.ShowFlightStrip.Value;
             airBar.gameObject.SetActive(any);
+            NativeChat.MakeRoom(any);
             if (feedView != null) feedView.SetTopInset(any ? Theme.AirBarHeight : 0f);
             if (!any) { chipFlights.Clear(); return; }
 

@@ -186,6 +186,7 @@ namespace NavalPower
         {
             if (!CommandState.Active) return;
             FlightIcons.Clear();
+            NativeChat.Restore();
             ReleaseKillCredit();
             // lastCommanded deliberately survives, so command can be resumed.
             RestoreNativeBar();
