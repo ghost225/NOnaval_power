@@ -60,6 +60,7 @@ namespace NavalPower
         private static string flyingName;
         private static int bindDisplaysFrame;
         private static bool builtScreens;
+        private static bool claimedAuthority;
         private static GameObject hudExtras;
         private static StatusDisplay statusDisplay;
 
@@ -107,6 +108,7 @@ namespace NavalPower
             // to show by asking the player which aircraft is theirs.
             player.SetAircraft(aircraft);               // Player.Aircraft, and the kill credit
             aircraft.playerRef = new PlayerRef(player); // and the airframe's own idea of who flies it
+            ClaimAuthority(aircraft, player);           // and the network's
             player.AttachToAircraft(aircraft);
             crew.playerControlled = true;
             crew.SwitchState(crew.playerState);
@@ -338,9 +340,10 @@ namespace NavalPower
                 // aircraft is not given. One that is merely Unity-null is a
                 // camera that existed and has since been destroyed.
                 bool never = ReferenceEquals(aircraft.targetCam, null);
-                TargetCam part = FindTargetCam(aircraft);
+                TargetCam part = FindTargetCam(aircraft, out int inScene);
                 Plugin.Log.LogInfo("[seat] target camera " + (never ? "was never built" : "has been destroyed") +
                     " · component on the airframe: " + (part == null ? "none" : "yes") +
+                    " · " + inScene + " in the scene" +
                     " · authority " + (aircraft.Identity != null && aircraft.Identity.HasAuthority));
                 if (part == null) return;
                 // Its own initialiser is the only thing that builds the lenses,
@@ -365,16 +368,78 @@ namespace NavalPower
             }
         }
 
-        // Like the cockpit, reached through the part rather than the hierarchy.
-        private static TargetCam FindTargetCam(Aircraft aircraft)
+        // An aircraft's targeting camera is built by TargetCam.Initialize, and
+        // that routine does nothing at all unless the airframe is owned:
+        //
+        //     if (aircraft != null && aircraft.Identity.HasAuthority) { ...build lenses... }
+        //
+        // An aircraft flying under AI is owned by nobody, so the lenses are
+        // never made and the cockpit's target view has nothing behind it. The
+        // game assigns ownership to a player when they spawn into an airframe;
+        // this does the same on the way into the seat, and gives it back on the
+        // way out, which is the state the aircraft was in before we arrived.
+        private static void ClaimAuthority(Aircraft aircraft, Player player)
         {
+            claimedAuthority = false;
+            if (!Settings.ClaimAuthority.Value || aircraft == null || player == null) return;
+            try
+            {
+                Mirage.NetworkIdentity identity = aircraft.Identity;
+                if (identity == null || !identity.IsServer)
+                { Plugin.Log.LogInfo("[seat] not the server; leaving ownership alone"); return; }
+                if (identity.Owner != null)
+                { Plugin.Log.LogInfo("[seat] the airframe is already owned"); return; }
+
+                Mirage.INetworkPlayer owner = player.Identity != null ? player.Identity.Owner : null;
+                if (owner == null) { Plugin.Log.LogInfo("[seat] no network owner to assign"); return; }
+
+                identity.AssignClientAuthority(owner);
+                claimedAuthority = true;
+                Plugin.Log.LogInfo("[seat] took ownership of the airframe · authority " + identity.HasAuthority);
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not take ownership: " + ex.Message);
+            }
+        }
+
+        private static void ReturnAuthority(Aircraft aircraft)
+        {
+            if (!claimedAuthority) return;
+            claimedAuthority = false;
+            try
+            {
+                Mirage.NetworkIdentity identity = aircraft != null ? aircraft.Identity : null;
+                if (identity == null || !identity.IsServer || identity.Owner == null) return;
+                identity.RemoveClientAuthority();
+                Plugin.Log.LogInfo("[seat] gave the airframe's ownership back");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not give ownership back: " + ex.Message);
+            }
+        }
+
+        // Like the cockpit, reached through the part rather than the hierarchy,
+        // and by either of the two things a camera knows about its aircraft:
+        // the part it hangs on, and the aircraft it recorded for itself.
+        private static readonly FieldInfo TargetCamPart = AccessTools.Field(typeof(TargetCam), "attachedPart");
+        private static readonly FieldInfo TargetCamAircraft = AccessTools.Field(typeof(TargetCam), "aircraft");
+
+        private static TargetCam FindTargetCam(Aircraft aircraft, out int inScene)
+        {
+            inScene = 0;
+            TargetCam found = null;
             foreach (TargetCam candidate in Resources.FindObjectsOfTypeAll<TargetCam>())
             {
                 if (!candidate.gameObject.scene.IsValid()) continue;
-                var attached = AccessTools.Field(typeof(TargetCam), "attachedPart")?.GetValue(candidate) as UnitPart;
-                if (attached != null && attached.parentUnit == aircraft) return candidate;
+                inScene++;
+                if (found != null) continue;
+                var part = TargetCamPart?.GetValue(candidate) as UnitPart;
+                if (part != null && part.parentUnit == aircraft) { found = candidate; continue; }
+                if (TargetCamAircraft?.GetValue(candidate) as Aircraft == aircraft) found = candidate;
             }
-            return null;
+            return found;
         }
 
         // The physical panels in the cockpit -- the tac screen, and on a glass
@@ -654,6 +719,7 @@ namespace NavalPower
         {
             RemoveCockpitScreens(aircraft);
             ReleaseThreatAlarms(aircraft);
+            ReturnAuthority(aircraft);
             if (SceneSingleton<CombatHUD>.i != null) SceneSingleton<CombatHUD>.i.RemoveAircraft();
 
             // CombatHUD.SetAircraft builds one of these every time and nothing
@@ -710,6 +776,7 @@ namespace NavalPower
             hudExtras = null;
             bindDisplaysFrame = 0;
             builtScreens = false;
+            claimedAuthority = false;
         }
     }
 

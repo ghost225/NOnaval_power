@@ -21,6 +21,7 @@ namespace NavalPower
         internal static ConfigEntry<bool> DeckTrace;
         internal static ConfigEntry<bool> LaunchCostFromAllocation;
         internal static ConfigEntry<bool> SortieBonusOnRecovery;
+        internal static ConfigEntry<bool> ClaimAuthority;
         internal static ConfigEntry<bool> CarrierApproachFix;
         internal static ConfigEntry<float> CarrierApproachFactor;
         internal static ConfigEntry<float> StrikePatience;
@@ -96,6 +97,12 @@ namespace NavalPower
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
                 "Press the attack again once clear, while ordnance remains and the target lives. " +
                 "Off means one pass per order.");
+
+            ClaimAuthority = config.Bind("Flights", "Take ownership when flying a flight", true,
+                "Claim network ownership of an aircraft while you fly it, and hand it back on release. " +
+                "The game builds an aircraft's targeting camera only for an owned airframe, so without " +
+                "this the cockpit's target view has nothing behind it. Turn off if ownership causes " +
+                "trouble in multiplayer.");
 
             DeckTrace = config.Bind("Diagnostics", "Deck clearance trace", true,
                 "Log how a landed aircraft leaves the deck: which of the game's two removal paths it takes, " +
