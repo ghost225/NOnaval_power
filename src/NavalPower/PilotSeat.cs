@@ -31,13 +31,21 @@ namespace NavalPower
             AccessTools.Method(typeof(ThreatList), "ThreatList_OnAircraftDisable");
         private static readonly MethodInfo ThreatListWarn =
             AccessTools.Method(typeof(ThreatList), "ThreatList_OnMissileWarning");
+        private static readonly MethodInfo CockpitBuild =
+            AccessTools.Method(typeof(Cockpit), "Cockpit_OnAircraftInitialize");
+        private static readonly MethodInfo CockpitTearDown =
+            AccessTools.Method(typeof(Cockpit), "Cockpit_OnAircraftDisable");
+        private static readonly FieldInfo CockpitTacScreen = AccessTools.Field(typeof(Cockpit), "tacScreen");
 
         internal static string Report() =>
             "pilot seat:" +
             "\n  " + (AircraftStatusDisplay != null ? "ok      " : "MISSING ") + "Aircraft.statusDisplay" +
             "\n  " + (HudThreatList != null ? "ok      " : "MISSING ") + "CombatHUD.threatList" +
             "\n  " + (ThreatListRelease != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnAircraftDisable" +
-            "\n  " + (ThreatListWarn != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnMissileWarning";
+            "\n  " + (ThreatListWarn != null ? "ok      " : "MISSING ") + "ThreatList.ThreatList_OnMissileWarning" +
+            "\n  " + (CockpitBuild != null ? "ok      " : "MISSING ") + "Cockpit.Cockpit_OnAircraftInitialize" +
+            "\n  " + (CockpitTearDown != null ? "ok      " : "MISSING ") + "Cockpit.Cockpit_OnAircraftDisable" +
+            "\n  " + (CockpitTacScreen != null ? "ok      " : "MISSING ") + "Cockpit.tacScreen";
 
         internal static Flight Flying { get; private set; }
         internal static bool Active => Flying != null;
@@ -45,6 +53,7 @@ namespace NavalPower
         private static Ship home;
         private static string flyingName;
         private static int bindDisplaysFrame;
+        private static bool builtScreens;
         private static GameObject hudExtras;
         private static StatusDisplay statusDisplay;
 
@@ -101,6 +110,7 @@ namespace NavalPower
             // built before it would ask while the answer is still nothing.
             SceneSingleton<CombatHUD>.i.SetAircraft(aircraft);
             AnnounceExistingThreats(aircraft);
+            BuildCockpitScreens(aircraft);
             SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
             SceneSingleton<DynamicMap>.i.DeselectAllIcons();
 
@@ -281,6 +291,69 @@ namespace NavalPower
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning("[seat] could not bind " + what + ": " + ex.Message);
+            }
+        }
+
+        // The physical panels in the cockpit -- the tac screen, and on a glass
+        // cockpit that is most of the instrumentation -- are built once, when
+        // the aircraft initialises, and only for an aircraft the combat HUD is
+        // already showing:
+        //
+        //     if (CombatHUD.i != null && CombatHUD.i.aircraft == aircraft)
+        //     { tacScreen = Instantiate(tacScreenUIPrefab, transform); ... }
+        //     else base.enabled = false;
+        //
+        // An AI aircraft can never satisfy that at the moment it is born, so
+        // its cockpit switches itself off and the screens are never made. There
+        // is nothing to light up later, which is why they were dark whatever
+        // was enabled around them. Arriving late means building them late: the
+        // condition is true now, so the game's own routine is run now.
+        private static void BuildCockpitScreens(Aircraft aircraft)
+        {
+            if (aircraft == null || CockpitBuild == null || CockpitTacScreen == null) return;
+            // Aircraft.cockpit is the structural part, not the component that
+            // owns the screens.
+            Cockpit cockpit = aircraft.GetComponentInChildren<Cockpit>(includeInactive: true);
+            if (cockpit == null) { Plugin.Log.LogInfo("[seat] this airframe has no cockpit screens"); return; }
+            try
+            {
+                if (CockpitTacScreen.GetValue(cockpit) != null)
+                {
+                    cockpit.enabled = true;              // already built, just left off
+                    Plugin.Log.LogInfo("[seat] cockpit screens already built");
+                    return;
+                }
+                CockpitBuild.Invoke(cockpit, null);
+                builtScreens = CockpitTacScreen.GetValue(cockpit) != null;
+                Plugin.Log.LogInfo("[seat] cockpit screens " + (builtScreens ? "built" : "NOT built"));
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not build the cockpit screens: " + ex.Message);
+            }
+        }
+
+        // And taken down again, or a second sortie in the same airframe stacks
+        // a second screen on the first.
+        private static void RemoveCockpitScreens(Aircraft aircraft)
+        {
+            if (!builtScreens || aircraft == null || CockpitTearDown == null) return;
+            builtScreens = false;
+            Cockpit cockpit = aircraft.GetComponentInChildren<Cockpit>(includeInactive: true);
+            if (cockpit == null) return;
+            try
+            {
+                CockpitTearDown.Invoke(cockpit, new object[] { aircraft });
+                CockpitTacScreen?.SetValue(cockpit, null);
+                cockpit.enabled = false;
+                // Its teardown destroys the screen but leaves itself subscribed.
+                var handler = (Action<Unit>)Delegate.CreateDelegate(
+                    typeof(Action<Unit>), cockpit, (MethodInfo)CockpitTearDown);
+                aircraft.onDisableUnit -= handler;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not remove the cockpit screens: " + ex.Message);
             }
         }
 
@@ -467,6 +540,7 @@ namespace NavalPower
         // takes its own down.
         private static void Dismantle(Aircraft aircraft)
         {
+            RemoveCockpitScreens(aircraft);
             ReleaseThreatAlarms(aircraft);
             if (SceneSingleton<CombatHUD>.i != null) SceneSingleton<CombatHUD>.i.RemoveAircraft();
 
@@ -516,6 +590,7 @@ namespace NavalPower
             statusDisplay = null;
             hudExtras = null;
             bindDisplaysFrame = 0;
+            builtScreens = false;
         }
     }
 
