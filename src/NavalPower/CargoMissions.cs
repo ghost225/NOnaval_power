@@ -56,7 +56,13 @@ namespace NavalPower
             if (aircraft == null || aircraft.weaponStations == null) return false;
             foreach (WeaponStation station in aircraft.weaponStations)
             {
-                if (station?.WeaponInfo == null) continue;
+                if (station == null) continue;
+                // The station itself declares it carries cargo -- a container
+                // or troops sit on one of these, not on a hook or a ramp, which
+                // is why looking only for those missed an aircraft that was
+                // plainly loaded.
+                if (station.Cargo) return true;
+                if (station.Weapons == null) continue;
                 foreach (Weapon weapon in station.Weapons)
                     if (weapon is SlingloadHook) return true;
             }

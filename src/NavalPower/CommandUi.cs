@@ -502,45 +502,51 @@ namespace NavalPower
             pinnedFlight = flight;
             popupKey = "flight";
 
-            string legs = flight.Route.Count > 0 ? flight.Route.Count + " leg(s) queued" : "no route";
+            bool carries = CargoMissions.CanCarry(flight.Aircraft);
+            // Counted rather than hand-numbered: fixed indices silently stacked
+            // rows on top of each other whenever the panel changed shape, which
+            // is how the cargo row came to be invisible.
+            int rows = 11 + (carries ? 1 : 0);
             StartPopup(flight.Name + "  ·  " + flight.Describe() +
                 "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.StoresSummary +
-                "   ·   " + flight.Stores, null, 13);
+                "   ·   " + flight.Stores, null, rows);
 
-            // The panel stays open, so this reads as standing guidance rather
-            // than an instruction to be dismissed.
-            Button tasking = Row("TASKING  ·  right-click a contact to attack it, the map to set a task area  ·  " + legs, 1, () =>
+            int row = 1;
+            // Standing guidance, not something to click.
+            InformationRow(flight.Route.Count > 0
+                ? "Right-click the map to task it  ·  " + flight.Route.Count + " leg(s) queued"
+                : "Right-click the map to task it  ·  a contact to attack it", row++);
+
+            if (carries)
             {
-                flight.Route.Clear();
-                FlightOrders.Orbit(flight, flight.Aircraft.GlobalPosition());
-                CommandState.Say(flight.Name + " · route cleared");
-                FlightMenu(flight);
-            });
-            tasking.image.color = Theme.AccentFill;
-            tasking.GetComponentInChildren<Text>().color = Theme.Text;
+                Button cargo = Row(flight.Mode == FlightMode.Cargo
+                        ? "CARGO  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change the zone"
+                        : "CARGO  ·  land or airdrop at a point…", row++, () => CargoMenu(flight));
+                if (flight.Mode == FlightMode.Cargo) cargo.image.color = Theme.AccentFill;
+            }
 
-            Row("Hold here  ·  task area on the aircraft", 2, () =>
+            Row("Hold here  ·  task area on the aircraft", row++, () =>
             {
                 FlightOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
                 CommandState.Say(flight.Name + " · holding overhead");
                 FlightMenu(flight);
             });
-            Row("Station on the ship  ·  offboard sensor", 3, () =>
+            Row("Station on the ship  ·  offboard sensor", row++, () =>
             {
                 FlightOrders.Station(flight);
                 CommandState.Say(flight.Name + " · keeping company");
                 FlightMenu(flight);
             });
-            if (CargoMissions.CanCarry(flight.Aircraft))
+            Row("Clear the route", row++, () =>
             {
-                Button cargo = Row(flight.Mode == FlightMode.Cargo
-                        ? "CARGO  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change the zone"
-                        : "CARGO  ·  land or airdrop at a point…", 2, () => CargoMenu(flight));
-                if (flight.Mode == FlightMode.Cargo) cargo.image.color = Theme.AccentFill;
-            }
-            Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), 4, () => AltitudeMenu(flight));
-            Row("Task area radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), 5, () => RadiusMenu(flight));
-            Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), 12, () =>
+                FlightOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
+                CommandState.Say(flight.Name + " · route cleared");
+                FlightMenu(flight);
+            });
+            Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), row++, () => AltitudeMenu(flight));
+            Row("Task area radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), row++, () => RadiusMenu(flight));
+            Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), row++, () => FlightRoeMenu(flight));
+            Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), row++, () =>
             {
                 FlightOrders.SetConfined(flight, !flight.ConfineToArea);
                 CommandState.Say(flight.Name + (flight.ConfineToArea
@@ -548,27 +554,20 @@ namespace NavalPower
                     : " · released to engage anywhere in reach"));
                 FlightMenu(flight);
             });
-            Row("WEAPONS FREE  ·  hand to the AI", 6, () =>
+            Row("WEAPONS FREE  ·  hand to the AI", row++, () =>
             {
                 FlightOrders.Engage(flight);
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
                 FlightMenu(flight);
             });
-            Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), 7, () => FlightRoeMenu(flight));
-            Row(flight.Mode == FlightMode.Strike ? "Break off the attack" : "Break off  ·  no attack running", 8, () =>
-            {
-                FlightOrders.BreakOff(flight);
-                CommandState.Say(flight.Name + " · breaking off");
-                FlightMenu(flight);
-            });
-            Row("Return to base", 9, () =>
+            Row("Return to base", row++, () =>
             {
                 FlightOrders.ReturnToBase(flight);
                 CommandState.Say(flight.Name + " · recovering");
                 FlightMenu(flight);
             });
-            Row("Other flights", 10, AirOpsMenu);
-            Row("DONE  ·  return the map to the ship", 11, ClosePopup);
+            Row("Other flights", row++, AirOpsMenu);
+            Row("DONE  ·  return the map to the ship", row, ClosePopup);
         }
 
         private void FlightRoeMenu(Flight flight)
