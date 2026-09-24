@@ -36,6 +36,7 @@ namespace NavalPower
         private Unit contextTarget;
         private bool contextAppend;
         private string popupKey;
+        private bool popupIsFlightPanel;
         private Text popupHeader;
         private ScrollRect popupScroll;
         private int popupRows;
@@ -62,7 +63,11 @@ namespace NavalPower
 
         internal void RefreshPinned()
         {
-            if (!Pinned || pinnedFlight == null) return;
+            // Pinned covers the whole flight family so map clicks keep tasking
+            // the flight from its submenus too. Only the flight panel itself is
+            // what gets rebuilt -- rebuilding while a submenu is up replaced the
+            // submenu with the panel a moment after it opened.
+            if (!Pinned || !popupIsFlightPanel || pinnedFlight == null) return;
             // Never rebuild under the cursor: recreating rows mid-click eats it.
             if (PointerInside() || Time.unscaledTime < nextPinnedRefresh) return;
             nextPinnedRefresh = Time.unscaledTime + 1f;
@@ -511,6 +516,7 @@ namespace NavalPower
             StartPopup(flight.Name + "  ·  " + flight.Describe() +
                 "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.StoresSummary +
                 "   ·   " + flight.Stores, null, rows);
+            popupIsFlightPanel = true;
 
             int row = 1;
             // Standing guidance, not something to click.
@@ -900,6 +906,7 @@ namespace NavalPower
                 Destroy(child.gameObject);
             }
             popup.gameObject.SetActive(true);
+            popupIsFlightPanel = false;
             popupContent.anchoredPosition = Vector2.zero;        // every menu opens at the top
             // Every menu opens down the left edge rather than wherever it was
             // invoked. A popup over the middle of the map covers the thing the
@@ -931,15 +938,16 @@ namespace NavalPower
         private void SizePopup(int rows)
         {
             float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
+            // The panel hangs below the air bar and grows down towards the
+            // control bar; anything longer than that gap scrolls.
+            float top = Screen.height - (Theme.AirBarHeight + 12f) * scale;
+            float floor = (Theme.BarHeight + 12f) * scale;
+            float room = Mathf.Max(200f * scale, top - floor) / scale;
             float content = rows * 38f + 8f;
-            float room = Mathf.Max(200f, 1080f - Theme.AirBarHeight - Theme.BarHeight - 60f);
-            float height = Mathf.Min(content, room) + 46f;
+            float height = Mathf.Min(content + 46f, room);
             popup.sizeDelta = new Vector2(392, height);
             popupContent.sizeDelta = new Vector2(0, content);
-            popup.position = new Vector2(
-                16f * scale,
-                Mathf.Clamp(Theme.BarHeight * scale + 16f, 4f,
-                    Mathf.Max(4f, Screen.height - height * scale - 4f)));
+            popup.position = new Vector2(16f * scale, top);
         }
 
         internal void ClosePopup()
@@ -948,6 +956,7 @@ namespace NavalPower
             popup.gameObject.SetActive(false);
             contextTarget = null;
             popupKey = null;
+            popupIsFlightPanel = false;
             // Closing the flight panel is what hands the map back to the ship.
             pinnedFlight = null;
             CommandState.SelectedFlight = null;
@@ -1353,7 +1362,10 @@ namespace NavalPower
         {
             popup = Box("Popup", (RectTransform)root.transform, Theme.SurfaceRaised);
             popup.anchorMin = popup.anchorMax = new Vector2(0, 0);
-            popup.pivot = new Vector2(0, 0);
+            // Hung from its top edge: menus differ in length, and growing the
+            // panel downwards keeps row one in the same place instead of
+            // sliding the rows out from under the cursor on every submenu.
+            popup.pivot = new Vector2(0, 1);
             popupHeader = Label(popup, "", Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
             Place(popupHeader.rectTransform, 12, 9, 368, 26);
             RectTransform popupRule = Box("rule", popup, Theme.Divider);
