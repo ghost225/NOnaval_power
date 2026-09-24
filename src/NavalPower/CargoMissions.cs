@@ -27,13 +27,13 @@ namespace NavalPower
         private static readonly FieldInfo LastSpotCheck = AccessTools.Field(typeof(AIHeloTransportState), "lastLandingSpotCheck");
         private static readonly FieldInfo ValidMission = DestinationType != null
             ? AccessTools.Field(DestinationType, "validMission") : null;
-        private static readonly MethodInfo UpdateLz = DestinationType != null
-            ? AccessTools.Method(DestinationType, "UpdateLZ",
-                new[] { typeof(Aircraft), typeof(GlobalPosition?), typeof(float), typeof(Vector3).MakeByRefType() })
-            : null;
         private static readonly MethodInfo UpdateTouchdown = DestinationType != null
             ? AccessTools.Method(DestinationType, "UpdateTouchdownPoint", new[] { typeof(float), typeof(Aircraft) })
             : null;
+        private static readonly FieldInfo Lz = DestinationType != null
+            ? AccessTools.Field(DestinationType, "LZ") : null;
+        private static readonly FieldInfo Touchdown = DestinationType != null
+            ? AccessTools.Field(DestinationType, "touchdownPoint") : null;
         private static readonly ConstructorInfo NewDestination = DestinationType != null
             ? AccessTools.Constructor(DestinationType,
                 new[] { typeof(GlobalPosition), typeof(GlobalPosition), typeof(float) })
@@ -44,7 +44,8 @@ namespace NavalPower
             Line("AIHeloTransportState.transportMode", TransportMode) +
             Line("AIHeloTransportState.airdrop", Airdrop) +
             Line("AIHeloTransportState.transportDestination", Destination) +
-            Line("TransportDestination.UpdateLZ", UpdateLz) +
+            Line("TransportDestination.LZ", Lz) +
+            Line("TransportDestination.touchdownPoint", Touchdown) +
             Line("TransportDestination.UpdateTouchdownPoint", UpdateTouchdown) +
             Line("TransportDestination..ctor", NewDestination);
 
@@ -53,8 +54,8 @@ namespace NavalPower
 
         internal static bool Available =>
             TransportMode != null && Airdrop != null && Destination != null &&
-            UpdateLz != null && UpdateTouchdown != null && ValidMission != null &&
-            NewDestination != null;
+            UpdateTouchdown != null && ValidMission != null && NewDestination != null &&
+            Lz != null && Touchdown != null;
 
         // Can this aircraft actually carry anything?
         internal static bool CanCarry(Aircraft aircraft)
@@ -120,15 +121,31 @@ namespace NavalPower
             Aircraft aircraft = StateAircraft?.GetValue(state) as Aircraft;
             if (aircraft == null) return;
 
-            Vector3 approach = aircraft.transform.forward;
-            approach.y = 0f;
-            if (approach.sqrMagnitude < 0.001f) approach = Vector3.forward;
-
+            // UpdateLZ is not "go to this point" -- it is the state's standoff
+            // solver. Given an enemy position it backs a landing zone away from
+            // it, along the inbound track, by as much as ten kilometres, so
+            // troops are not set down on top of what they came to fight. Fed a
+            // zone the commander picked, it walked that zone back up the track
+            // until it sat on the aircraft itself, and the load went out the
+            // door where the aircraft happened to be. The zone is not a guess
+            // to be refined; it is the order. It stays where it was put.
+            //
             // A struct field has to be unboxed, mutated and written back; the
             // methods act on the box, not on the field in place.
-            object[] lzArgs = { aircraft, (GlobalPosition?)flight.CargoPoint, 100f, approach };
-            UpdateLz.Invoke(destination, lzArgs);
-            UpdateTouchdown.Invoke(destination, new object[] { flight.Airdrop ? 1000f : 100f, aircraft });
+            Lz.SetValue(destination, flight.CargoPoint);
+            if (flight.Airdrop)
+            {
+                // A parachute pass wants the point itself. What the ground is
+                // like underneath is the cargo's problem, not the approach's.
+                Touchdown.SetValue(destination, flight.CargoPoint);
+            }
+            else
+            {
+                // A landing has to be put down on something usable, so the
+                // state's own search runs -- but close in, around the ordered
+                // point rather than around a zone of its choosing.
+                UpdateTouchdown.Invoke(destination, new object[] { 120f, aircraft });
+            }
             Destination.SetValue(state, destination);
             // Only stamped when we actually re-solved, or the state's own
             // throttling is defeated and it re-plans as fast as we do.
