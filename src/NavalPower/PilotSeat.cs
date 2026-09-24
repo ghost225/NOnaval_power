@@ -125,6 +125,16 @@ namespace NavalPower
             SceneSingleton<DynamicMap>.i.Minimize();
             DynamicMap.EnableCanvas(enable: true);
 
+            // The map dance above is what the game does on spawning into an
+            // aircraft, and maximizing the map is one of the things that turns
+            // the flight HUD off. It turns it back on again on the way down,
+            // but only from states it believes it left -- so the HUD is asked
+            // for once more here, where nothing follows to countermand it.
+            FlightHud.EnableCanvas(enable: true);
+            Plugin.Log.LogInfo("[seat] cockpit up · camera " + CameraStateManager.cameraMode +
+                " · map " + (DynamicMap.mapMaximized ? "maximized" : "minimized") +
+                " · combat HUD on " + (SceneSingleton<CombatHUD>.i?.aircraft == aircraft ? "this aircraft" : "something else"));
+
             // Next frame, not now. These managers live under the flight HUD
             // canvas, which the cockpit camera has only just switched on, and
             // Unity runs Awake on activation but defers Start. Looking now

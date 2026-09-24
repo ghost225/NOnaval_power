@@ -33,13 +33,21 @@ namespace NavalPower
         private static void Postfix(AIPilotLandingState __instance) =>
             Guard.Run("Carrier recovery", () => Adjust(__instance));
 
+        // Only the approach speed. Writing the airbase field as well, which
+        // this did briefly, is not the same as sending an aircraft somewhere:
+        // LandingState_SearchAirbase picks the airbase and reserves a runway on
+        // it in the same breath, and everything after uses that reservation for
+        // the glideslope, the touchdown point and the deregistration, while the
+        // airbase field is what registers usage. Replace one and they disagree
+        // -- the aircraft flies a correct approach to the right deck, lands,
+        // disembarks, and is never struck below, because the deck it told was
+        // not the deck it booked. Doing it properly means moving the
+        // reservation too, which is more machinery than the difference is
+        // worth: at sea the nearest usable field already is the carrier.
         private static void Adjust(AIPilotLandingState __instance)
         {
-            if (AirbaseField == null) return;
+            if (AirbaseField == null || LandingSpeed == null) return;
             var aircraft = StateAircraft?.GetValue(__instance) as Aircraft;
-            RecoverToOwnDeck(__instance, aircraft);
-
-            if (LandingSpeed == null) return;
             if (!Settings.CarrierApproachFix.Value) return;
             if (!(AirbaseField.GetValue(__instance) is Airbase airbase) || !airbase.AttachedAirbase) return;
 
@@ -52,19 +60,5 @@ namespace NavalPower
                     " · deck approach " + speed.ToString("0") + " to " + wanted.ToString("0"));
         }
 
-        // Sent home to its own ship, a flight recovers there. The landing state
-        // searches for the nearest usable field, which at sea is usually the
-        // carrier anyway -- but "usually" is not what the order said.
-        private static void RecoverToOwnDeck(AIPilotLandingState state, Aircraft aircraft)
-        {
-            Flight flight = FlightOrders.Of(aircraft);
-            if (flight == null || !flight.RecoverToParent) return;
-            if (flight.Parent == null || flight.Parent.disabled) return;
-            Airbase deck = CarrierOps.Deck(flight.Parent);
-            if (deck == null || ReferenceEquals(AirbaseField.GetValue(state), deck)) return;
-            AirbaseField.SetValue(state, deck);
-            Plugin.Log.LogInfo("[recovery] " + flight.Name + " · recovering to " +
-                (flight.Parent.definition?.unitName ?? "its own ship"));
-        }
     }
 }

@@ -1250,7 +1250,7 @@ namespace NavalPower
 
             MakeButton(seatBar, "RETURN CONTROL  ·  back to its task area", 1272, 8, 316, 32,
                 () => PilotSeat.Release(recoverToShip: false));
-            MakeButton(seatBar, "DROP CONTROL  ·  recover to the ship", 1600, 8, 304, 32,
+            MakeButton(seatBar, "DROP CONTROL  ·  recover to base", 1600, 8, 304, 32,
                 () => PilotSeat.Release(recoverToShip: true));
 
             seatBar.gameObject.SetActive(false);
