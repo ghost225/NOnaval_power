@@ -47,6 +47,14 @@ namespace NavalPower
         // Set by the UI each frame: nobody is looking, so nothing is rendered.
         internal bool WantLive;
 
+        // A glance rather than a feed: whatever the cursor is resting on, shown
+        // in its hover card for as long as it rests there. Set by the UI every
+        // frame, and rendered only while set.
+        internal Unit Peek;
+        private Camera peek;
+        private RenderTexture peekTexture;
+        internal Texture PeekTexture => peekTexture;
+
         internal bool HasSubject => (subject != null && !subject.disabled) || Lingering;
         internal string Caption { get; private set; } = "";
         internal Color CaptionColor { get; private set; } = Theme.Text;
@@ -172,6 +180,7 @@ namespace NavalPower
             if (!Settings.TargetFeed.Value || !CommandState.Active) return;
 
             RenderPins();
+            RenderPeek();
 
             // Noticed before a new subject is chosen, or the next check would
             // cut straight to the next thing and the destruction would be missed.
@@ -224,6 +233,21 @@ namespace NavalPower
                 if (!pane.Lost) FrameOn(pane.Camera, pane.Unit);
                 pane.Camera.Render();
             }
+        }
+
+        private void RenderPeek()
+        {
+            if (Peek == null || Peek.disabled || !Settings.FeedHoverPeek.Value) return;
+            if (peek == null)
+            {
+                int width = Mathf.Clamp(Settings.FeedResolution.Value / 2, 160, 960);
+                peekTexture = new RenderTexture(width, width * 9 / 16, 24) { name = "Naval Power peek" };
+                peekTexture.Create();
+                peek = MakeCamera("Naval Power peek camera", peekTexture, -12f);
+                if (peek == null) return;
+            }
+            FrameOn(peek, Peek);
+            peek.Render();
         }
 
         // ---- choosing and framing the live subject ---------------------------------
@@ -376,6 +400,8 @@ namespace NavalPower
         {
             if (feed != null) Destroy(feed.gameObject);
             if (texture != null) { texture.Release(); Destroy(texture); }
+            if (peek != null) Destroy(peek.gameObject);
+            if (peekTexture != null) { peekTexture.Release(); Destroy(peekTexture); }
             foreach (Pane pane in pins) Release(pane);
             pins.Clear();
         }

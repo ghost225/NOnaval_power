@@ -101,14 +101,25 @@ namespace NavalPower
             Panel.pivot = growUp ? Vector2.zero : new Vector2(0, 1);
             Panel.gameObject.AddComponent<SurfaceFocus>().Owner = this;
 
-            RectTransform bar = titleBar = UiKit.Box("Title bar", Panel, Theme.Dim(Theme.Accent, 0.10f));
+            // A solid bar, a shade lighter than the body, with the accent as a
+            // hairline underneath rather than as the colour of the words: the
+            // pale theme colour was hard to read as text.
+            RectTransform bar = titleBar = UiKit.Box("Title bar", Panel, Theme.TitleBar);
             bar.anchorMin = new Vector2(0, 1); bar.anchorMax = new Vector2(1, 1);
             bar.pivot = new Vector2(0.5f, 1);
             bar.sizeDelta = new Vector2(0, HeaderHeight - 4f);
             bar.anchoredPosition = Vector2.zero;
             bar.gameObject.AddComponent<SurfaceDrag>().Owner = this;
 
-            header = UiKit.Label(bar, "", Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
+            RectTransform rule = UiKit.Box("rule", bar, Theme.Dim(Theme.Accent, 0.55f));
+            rule.anchorMin = new Vector2(0, 0); rule.anchorMax = new Vector2(1, 0);
+            rule.pivot = new Vector2(0.5f, 0);
+            rule.sizeDelta = new Vector2(0, 1.5f);
+            rule.anchoredPosition = Vector2.zero;
+            rule.GetComponent<Image>().raycastTarget = false;
+
+            header = UiKit.Label(bar, "", Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Text);
+            header.fontStyle = FontStyle.Bold;
             UiKit.Fill(header.rectTransform, 12f, 0f);
             // Standing windows can be folded down to their title bar as well as
             // closed; the right-click menu only closes.
@@ -148,7 +159,20 @@ namespace NavalPower
             rect.anchorMin = rect.anchorMax = new Vector2(1, 0.5f);
             rect.pivot = new Vector2(1, 0.5f);
             rect.anchoredPosition = new Vector2(-5f - titleButtons * 34f, 0f);
-            button.image.color = Theme.Dim(Theme.Text, 0.06f);
+            button.image.color = Theme.Control;
+            Text glyph = button.GetComponentInChildren<Text>();
+            glyph.fontSize = 16;
+            glyph.fontStyle = FontStyle.Bold;
+            glyph.color = Theme.Text;
+            UiKit.Fill(glyph.rectTransform);
+            // Close turns red under the cursor, so it is unmistakable which of
+            // the two title buttons is about to be pressed.
+            if (label == "✕")
+            {
+                ColorBlock colors = button.colors;
+                colors.highlightedColor = new Color(1.9f, 0.7f, 0.65f);
+                button.colors = colors;
+            }
             titleButtons++;
             header.rectTransform.offsetMax = new Vector2(-12f - titleButtons * 34f, 0f);
             return button;
@@ -444,6 +468,14 @@ namespace NavalPower
         {
             if (minimizeLabel != null && PlayerPrefs.GetInt(Pref("folded"), 0) == 1 && !collapsed) SetCollapsed(true);
             Panel.anchoredPosition = TryRecall(out Vector2 saved) ? saved : fallback;
+            Clamp();
+        }
+
+        // Put exactly here, ignoring where it was last left -- for a window that
+        // belongs beside another one rather than wherever it was dragged.
+        internal void PlaceAt(Vector2 at)
+        {
+            Panel.anchoredPosition = at;
             Clamp();
         }
 

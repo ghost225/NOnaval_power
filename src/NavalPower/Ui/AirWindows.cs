@@ -28,7 +28,7 @@ namespace NavalPower
             {
                 DeckTraffic.Hangars(ship, out int ready, out int busy);
                 s.Row("LAUNCH AN AIRCRAFT…   ·   " + ready + " hangar(s) ready" +
-                    (busy > 0 ? ", " + busy + " working" : ""), () => Open("deck", DeckPage));
+                    (busy > 0 ? ", " + busy + " working" : ""), () => s.Show(DeckPage));
             }
 
             if (airborne.Count == 0) s.Info("Nothing airborne.", Theme.TextMuted);
@@ -130,7 +130,23 @@ namespace NavalPower
 
         // ---- one flight ------------------------------------------------------
 
-        private void OpenFlight(Flight flight) => Open("flight", s => FlightPage(s, flight));
+        // Beside the list it was picked from, rather than wherever it was last
+        // dragged or on the far side of the screen: the two are used together.
+        private void OpenFlight(Flight flight)
+        {
+            Surface window = Window("flight");
+            bool wasOpen = window.IsOpen;
+            window.Show(s => FlightPage(s, flight));
+            if (wasOpen) return;
+            if (windows.TryGetValue("air", out Surface air) && air.IsOpen)
+            {
+                Vector2 at = air.Panel.anchoredPosition;
+                float x = at.x - window.Width - 8f;
+                if (x < 8f) x = at.x + air.Width + 8f;       // no room to its left
+                window.PlaceAt(new Vector2(x, at.y));
+            }
+            else window.Place(DropUp(window, ToolFor("air")));
+        }
 
         // While this window is open the map tasks this flight, including from
         // its sub-pages: an altitude change on the way to laying down a route
@@ -203,6 +219,16 @@ namespace NavalPower
             });
             if (flight.Mode == FlightMode.ReturnToBase) home.image.color = Theme.AccentFill;
             s.Row("Callsign  ·  " + flight.Name + "  ·  rename", () => s.Show(x => RenamePage(x, flight)));
+            if (feedView != null)
+            {
+                bool pinned = feedView.IsPinned(flight.Aircraft);
+                Button feed = s.Row(pinned ? "Close its camera feed" : "Pin a camera feed on it", () =>
+                {
+                    feedView.Pin(flight.Aircraft, out string reason);
+                    CommandState.Say(flight.Name + " · " + reason);
+                });
+                if (pinned) feed.image.color = Theme.AccentFill;
+            }
             s.Row("TAKE THE CONTROLS  ·  fly it yourself", () =>
             {
                 if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
@@ -403,6 +429,7 @@ namespace NavalPower
                     });
                 if (!spare || !affordable) entry.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
+            s.Row("Back to air operations", () => s.Show(AirPage));
         }
 
         // Every station listed individually. No presets: a named profile is

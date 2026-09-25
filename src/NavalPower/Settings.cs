@@ -40,6 +40,7 @@ namespace NavalPower
         internal static ConfigEntry<float> FeedWidth;
         internal static ConfigEntry<float> FeedLinger;
         internal static ConfigEntry<bool> FeedAutoOpen;
+        internal static ConfigEntry<bool> FeedHoverPeek;
         internal static ConfigEntry<float> FeedFieldOfView;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
@@ -201,6 +202,10 @@ namespace NavalPower
                 new ConfigDescription("Seconds a feed holds on the spot after what it was watching is destroyed, " +
                     "so the destruction is seen rather than cut away from.",
                     new AcceptableValueRange<float>(0f, 15f)));
+
+            FeedHoverPeek = config.Bind("Interface", "Camera peek on hover", true,
+                "Show a small live picture of a contact in its hover card, after a moment's hover. " +
+                "One more camera render while it is up.");
 
             FeedAutoOpen = config.Bind("Interface", "Open the target feed on launch", true,
                 "Open the live feed when one of our weapons leaves the rails, unless it was closed by hand " +

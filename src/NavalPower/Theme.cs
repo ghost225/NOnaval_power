@@ -38,6 +38,7 @@ namespace NavalPower
         public static readonly Color Control = new Color(0.137f, 0.161f, 0.196f, 1f);
         public static readonly Color ControlHover = new Color(0.180f, 0.212f, 0.255f, 1f);
         public static readonly Color Divider = new Color(1f, 1f, 1f, 0.07f);
+        public static readonly Color TitleBar = new Color(0.150f, 0.176f, 0.214f, 1f);
 
         public static Color Accent => OwnTrack;
         public static Color AccentFill => Dim(OwnTrack, 0.26f);

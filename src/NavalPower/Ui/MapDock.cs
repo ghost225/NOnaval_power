@@ -25,6 +25,7 @@ namespace NavalPower
         private RectTransform fullBar;
         private readonly List<Graphic> hiddenGraphics = new List<Graphic>();
         private readonly List<GameObject> hiddenObjects = new List<GameObject>();
+        private readonly List<GameObject> hiddenPanels = new List<GameObject>();
         private bool reportedBackdrop;
         private bool mapDrag;
 
@@ -80,6 +81,7 @@ namespace NavalPower
             if (!DynamicMap.mapMaximized) return;              // not allowed to open just now
             docked = true;
             HideBackdrop(map);
+            HideSidePanels();
             // Maximizing also raises the spectator and airbase panels, which
             // belong to the full-screen map, not to a window beside the world.
             SceneSingleton<GameplayUI>.i?.HideSpectatorPanel();
@@ -125,6 +127,8 @@ namespace NavalPower
             if (!docked) return;
             docked = false;
             RestoreBackdrop();
+            foreach (GameObject panel in hiddenPanels) if (panel != null) panel.SetActive(true);
+            hiddenPanels.Clear();
             var map = SceneSingleton<DynamicMap>.i;
             if (map != null) map.transform.localScale = Vector3.one;
             if (mapWindow != null && mapWindow.IsOpen)
@@ -172,6 +176,22 @@ namespace NavalPower
             if (have > 0.01f) frame.localScale = frame.localScale * (want / have);
             Vector3 middle = background.TransformPoint(background.rect.center);
             frame.position += centre - middle;
+        }
+
+        // The option buttons down either side of the full-screen map are not on
+        // the map's canvas at all -- they are VirtualMFD, on the gameplay canvas,
+        // switched on by the map's maximize event. Docked, the map is still
+        // maximized, so they stayed up beside a map no longer there. They are
+        // put away through the game's own map-closed handler, and held off
+        // until the map is undocked, when its own events decide again.
+        private void HideSidePanels()
+        {
+            foreach (VirtualMFD panel in Resources.FindObjectsOfTypeAll<VirtualMFD>())
+            {
+                if (!panel.gameObject.scene.IsValid()) continue;
+                panel.VirtualMFD_onMapMinimized();
+                if (panel.gameObject.activeSelf) { panel.gameObject.SetActive(false); hiddenPanels.Add(panel.gameObject); }
+            }
         }
 
         // ---- the backdrop --------------------------------------------------------

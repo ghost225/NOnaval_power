@@ -23,11 +23,14 @@ namespace NavalPower
         private Canvas canvas;
         private TargetFeed feedView;
         private GameObject root;
-        private RectTransform strip, windowLayer, menuLayer, hover, seatBar;
+        private RectTransform strip, eventLine, windowLayer, menuLayer, hover, seatBar;
         private Text stripName, stripNav, stripStatus, stripState, hoverText, seatLabel;
+        private RawImage hoverPicture;
+        private Unit peekCandidate;
+        private float peekSince;
         private float nextRefresh;
 
-        private const float StripHeight = 36f;
+        private const float StripHeight = 36f, EventHeight = 24f;
 
         // ---- the outside world's view of the UI ------------------------------
 
@@ -105,6 +108,7 @@ namespace NavalPower
             bool flying = PilotSeat.Active;
             RefreshSeatBar(flying);
             strip.gameObject.SetActive(!flying);
+            eventLine.gameObject.SetActive(!flying);
             windowLayer.gameObject.SetActive(!flying);
             menuLayer.gameObject.SetActive(!flying);
             if (flying) { hover.gameObject.SetActive(false); return; }
@@ -193,10 +197,20 @@ namespace NavalPower
             edge.sizeDelta = new Vector2(0, 1.5f);
             edge.anchoredPosition = Vector2.zero;
 
-            stripName = StripText(12, 290, Theme.BodySize + 1, Theme.Text);
-            stripNav = StripText(310, 300, Theme.CaptionSize, Theme.TextMuted);
-            stripStatus = StripText(620, 440, Theme.CaptionSize, Theme.TextMuted);
-            stripState = StripText(1070, 270, Theme.CaptionSize, Theme.TextMuted);
+            stripName = StripText(strip, 12, 290, Theme.BodySize + 1, Theme.Text);
+            stripNav = StripText(strip, 310, 340, Theme.CaptionSize, Theme.TextMuted);
+            stripState = StripText(strip, 660, 380, Theme.CaptionSize, Theme.TextMuted);
+
+            // Events -- order confirmations, what is being tasked, what a weapon
+            // is waiting for -- get a line of their own above the strip. Sharing
+            // the strip, a long confirmation ran over the EMCON and rules text.
+            eventLine = UiKit.Box("Event line", (RectTransform)root.transform, Theme.Dim(Theme.Surface, 0.78f));
+            eventLine.anchorMin = new Vector2(0, 0); eventLine.anchorMax = new Vector2(1, 0);
+            eventLine.pivot = new Vector2(0.5f, 0);
+            eventLine.sizeDelta = new Vector2(0, EventHeight);
+            eventLine.anchoredPosition = new Vector2(0f, StripHeight);
+            eventLine.GetComponent<Image>().raycastTarget = false;
+            stripStatus = StripText(eventLine, 12, 1880, Theme.CaptionSize, Theme.TextMuted);
 
             string[,] defs =
             {
@@ -220,9 +234,9 @@ namespace NavalPower
             }
         }
 
-        private Text StripText(float x, float width, int size, Color color)
+        private static Text StripText(RectTransform parent, float x, float width, int size, Color color)
         {
-            Text text = UiKit.Label(strip, "", size, TextAnchor.MiddleLeft, color);
+            Text text = UiKit.Label(parent, "", size, TextAnchor.MiddleLeft, color);
             text.rectTransform.anchorMin = new Vector2(0, 0); text.rectTransform.anchorMax = new Vector2(0, 1);
             text.rectTransform.pivot = new Vector2(0, 0.5f);
             text.rectTransform.anchoredPosition = new Vector2(x, 0f);
@@ -432,7 +446,7 @@ namespace NavalPower
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0f;
 
-            Surface.ReservedBottom = StripHeight + 8f;
+            Surface.ReservedBottom = StripHeight + EventHeight + 8f;
             Surface.ReservedTop = 12f;
 
             // Drawing order is creation order: map strokes at the back, then the
@@ -484,8 +498,21 @@ namespace NavalPower
             hover.pivot = new Vector2(0, 1);
             hover.GetComponent<Image>().raycastTarget = false;
             hoverText = UiKit.Label(hover, "", 15, TextAnchor.UpperLeft);
-            UiKit.Fill(hoverText.rectTransform, 12f, 9f);
+            RectTransform words = hoverText.rectTransform;
+            words.anchorMin = new Vector2(0, 1); words.anchorMax = new Vector2(1, 1);
+            words.pivot = new Vector2(0.5f, 1);
+            words.anchoredPosition = new Vector2(0f, -9f);
             hoverText.verticalOverflow = VerticalWrapMode.Overflow;
+
+            var picture = new GameObject("Peek", typeof(RectTransform), typeof(RawImage));
+            picture.transform.SetParent(hover, false);
+            var frame = (RectTransform)picture.transform;
+            frame.anchorMin = new Vector2(0, 0); frame.anchorMax = new Vector2(1, 0);
+            frame.pivot = new Vector2(0.5f, 0);
+            frame.anchoredPosition = new Vector2(0f, 6f);
+            hoverPicture = picture.GetComponent<RawImage>();
+            hoverPicture.raycastTarget = false;
+            hoverPicture.gameObject.SetActive(false);
             hover.gameObject.SetActive(false);
         }
 
@@ -494,13 +521,37 @@ namespace NavalPower
             Unit unit = MapCommand.Instance?.HoverUnit;
             EsmContact estimate = MapCommand.Instance?.HoverEsm;
             if (estimate == null && (unit == null || unit == CommandState.Ship))
-            { hover.gameObject.SetActive(false); return; }
+            {
+                hover.gameObject.SetActive(false);
+                if (feedView != null) feedView.Peek = null;
+                peekCandidate = null;
+                return;
+            }
             hover.gameObject.SetActive(true);
             hover.SetAsLastSibling();
             hoverText.text = estimate != null
                 ? TrackReadout.DescribeEsm(CommandState.Ship, estimate)
                 : TrackReadout.Describe(CommandState.Ship, unit, CommandState.SelectedWeapon());
-            Vector2 size = new Vector2(Mathf.Max(260f, hoverText.preferredWidth + 24f), hoverText.preferredHeight + 18f);
+
+            // A peek once the cursor has rested for a moment, so sweeping across
+            // a crowded map does not flash a picture at every icon it crosses.
+            if (unit != peekCandidate) { peekCandidate = unit; peekSince = Time.unscaledTime; }
+            bool peeking = estimate == null && unit != null && Settings.FeedHoverPeek.Value &&
+                Settings.TargetFeed.Value && Time.unscaledTime - peekSince > 0.3f;
+            if (feedView != null) feedView.Peek = peeking ? unit : null;
+            bool picture = peeking && feedView != null && feedView.PeekTexture != null;
+
+            float textHeight = hoverText.preferredHeight;
+            float width = Mathf.Max(260f, hoverText.preferredWidth + 24f, picture ? 340f : 0f);
+            float pictureHeight = picture ? (width - 12f) * 9f / 16f : 0f;
+            hoverText.rectTransform.sizeDelta = new Vector2(-24f, textHeight);
+            hoverPicture.gameObject.SetActive(picture);
+            if (picture)
+            {
+                hoverPicture.texture = feedView.PeekTexture;
+                hoverPicture.rectTransform.sizeDelta = new Vector2(-12f, pictureHeight);
+            }
+            Vector2 size = new Vector2(width, textHeight + 18f + (picture ? pictureHeight + 8f : 0f));
             hover.sizeDelta = size;
             float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
             Vector2 pixels = size * scale;
