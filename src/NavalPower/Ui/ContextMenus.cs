@@ -43,9 +43,10 @@ namespace NavalPower
             Unit target = contextTarget;
             s.Title(target != null
                 ? (target.definition?.unitName ?? target.name).ToUpperInvariant()
-                : (CommandState.Ship?.definition?.unitName ?? "SHIP").ToUpperInvariant());
+                : CommandState.PostName.ToUpperInvariant());
 
-            s.Row("Engage with…", () => s.Show(EngagePage));
+            bool ship = CommandState.Ship != null;
+            if (ship) s.Row("Engage with…", () => s.Show(EngagePage));
             if (target != null && feedView != null)
                 s.Row(feedView.IsPinned(target) ? "Close its camera feed" : "Pin a camera feed on it", () =>
                 {
@@ -58,10 +59,14 @@ namespace NavalPower
 
             // Shortcuts to the standing windows, for when the menu is where your
             // hand already is.
-            s.Row("Navigation…", () => { Open("nav", NavigationPage); s.Close(); });
-            s.Row("Rules of engagement…", () => { Open("roe", EngagementPage); s.Close(); });
-            s.Row("Sensors / EMCON…", () => { Open("sns", SensorsPage); s.Close(); });
+            if (ship)
+            {
+                s.Row("Navigation…", () => { Open("nav", NavigationPage); s.Close(); });
+                s.Row("Rules of engagement…", () => { Open("roe", EngagementPage); s.Close(); });
+                s.Row("Sensors / EMCON…", () => { Open("sns", SensorsPage); s.Close(); });
+            }
             s.Row("Air operations…", () => { Open("air", AirPage); s.Close(); });
+            if (!ship) return;
             Button cease = s.Row("CEASE FIRE", () =>
             {
                 WeaponOrders.CeaseFire(CommandState.Ship, out string reason);

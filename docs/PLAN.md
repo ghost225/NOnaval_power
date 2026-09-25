@@ -1,6 +1,8 @@
 # Naval Power — next phase plan
 
-Status: planned, not started. Resumes after the MFD target-camera work is resolved.
+Status: tasks 2–7 done. Task 1 (airbase command) built — commanded through `CommandState.Base`
+alongside `CommandState.Ship` rather than a full `CommandPost` type, with air operations written
+against `Airbase` throughout (a ship's deck is one). Awaiting first in-game test.
 
 The request, grouped into eight tasks. Each section records what the game actually
 provides (from the decompiled source), the approach, and the risk. Order of work is

@@ -78,6 +78,7 @@ namespace NavalPower
         // The ship we were commanding, so command can be resumed after a pause
         // menu or a look at something else, rather than having to be re-found.
         private Ship lastCommanded;
+        private Airbase lastField;
         private readonly PointerGesture leftGesture = new PointerGesture();
         private readonly CameraGesture cameraGesture = new CameraGesture();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>(32);
@@ -134,7 +135,12 @@ namespace NavalPower
         {
             if (CommandState.Active)
             {
-                if (unit == CommandState.Ship) return;
+                if (unit == CommandState.Ship && unit != null) return;
+                // An airfield is watched from a free camera, which follows
+                // nothing: the map's own camera jumps land here too, and none
+                // of them is a reason to give up the field.
+                if (CommandState.Base != null && unit == null) return;
+                lastField = null;
                 Leave();
                 // Same rule when the camera moves by some other route.
                 if (unit is Ship next && CommandableShip.CanCommand(next, out _)) { Enter(next); return; }
@@ -170,8 +176,10 @@ namespace NavalPower
         internal void Enter(Ship ship)
         {
             if (!GameplayReady()) return;
+            CommandState.Base = null;
             CommandState.Ship = ship;
             lastCommanded = ship;
+            lastField = null;
             CommandState.SelectedKey = null;
             CommandState.Quantity = 1;
             Esm.Configure(ship);
@@ -180,6 +188,57 @@ namespace NavalPower
             CreditKillsToCommander(ship);
             CursorManager.SetFlag(CommandCursor, true);
             CommandState.Say("Command active · right-click map: waypoint · shift: append · right-click contact: menu");
+        }
+
+        // Command of a land airbase. There is no unit to follow, so the view
+        // becomes a free camera over the field -- fly it anywhere with the
+        // usual keys; command holds until the camera is sent to follow some
+        // unit, the field changes hands, or command is left.
+        internal void EnterAirfield(Airbase field)
+        {
+            string blocked = WhyNotReady();
+            if (blocked == null && !Airfields.CanCommand(field, out string why)) blocked = why;
+            if (blocked != null)
+            {
+                string line = Airfields.NameOf(field) + " · not taking command · " + blocked;
+                Plugin.Log.LogInfo("[command] " + line);
+                CommandState.Say(line);
+                return;
+            }
+            Leave();
+            // The camera first: moving it to a free view fires the follow
+            // event, and that must not find a half-entered field.
+            FrameAirfield(field);
+            CommandState.Base = field;
+            lastField = field;
+            lastCommanded = null;
+            CommandState.SelectedKey = null;
+            CommandState.Quantity = 1;
+            CursorManager.SetFlag(CommandCursor, true);
+            Plugin.Log.LogInfo("[command] airfield · " + Airfields.NameOf(field));
+            CommandState.Say("Airfield command · " + Airfields.NameOf(field) + " · AIR to launch · fly the view with the movement keys");
+        }
+
+        // Up and back from the field's centre, looking down across it.
+        private static void FrameAirfield(Airbase field)
+        {
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (cameras == null || field == null) return;
+            Vector3 centre = field.center != null ? field.center.position : field.transform.position;
+            float distance = Mathf.Clamp(field.GetRadius() * 0.9f, 500f, 2500f);
+            Quaternion view = Quaternion.Euler(32f, cameras.transform.eulerAngles.y, 0f);
+            cameras.FocusPosition(centre, view, distance);
+        }
+
+        // Whether what is being commanded is still ours to command, from
+        // where the camera is.
+        private bool StillCommanding()
+        {
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (!GameplayReady() || cameras == null) return false;
+            if (CommandState.Base != null)
+                return cameras.followingUnit == null && Airfields.CanCommand(CommandState.Base, out _);
+            return cameras.followingUnit == CommandState.Ship && CommandableShip.CanCommand(CommandState.Ship, out _);
         }
 
         internal void Leave()
@@ -192,6 +251,15 @@ namespace NavalPower
             CommandState.Clear();
             Ui?.Tidy();
             CursorManager.SetFlag(CommandCursor, false);
+        }
+
+        // The EXIT button: a decision, not an interruption, so nothing comes
+        // back on its own afterwards. Resuming is for the pause menu.
+        internal void Dismiss()
+        {
+            lastCommanded = null;
+            lastField = null;
+            LeaveForNativeFlow();
         }
 
         internal void LeaveForNativeFlow()
@@ -292,12 +360,10 @@ namespace NavalPower
             Guard.Run("Flight orders", FlightOrders.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
             Guard.Run("Damage control", DamageControl.WorkAll);
-            Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Ship));
+            Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Active));
             UpdateGesture();
             if (!CommandState.Active) { TryResume(); return; }
-            var cameras = SceneSingleton<CameraStateManager>.i;
-            if (!GameplayReady() || cameras == null || cameras.followingUnit != CommandState.Ship ||
-                !CommandableShip.CanCommand(CommandState.Ship, out _))
+            if (!StillCommanding())
             {
                 LeaveForNativeFlow();
                 return;
@@ -359,13 +425,30 @@ namespace NavalPower
                     if (CommandableShip.CanCommand(followed, out string reason)) { Enter(followed); return; }
                     why = reason ?? why;
                 }
+                else if (cameras != null && cameras.followingUnit == null && lastField != null)
+                {
+                    EnterAirfield(lastField);
+                    return;
+                }
                 CommandState.Say(why);
                 return;
             }
 
             if (!Settings.AutoResume.Value) return;
-            if (lastCommanded == null || Time.frameCount == suppressEntryFrame) return;
+            if (Time.frameCount == suppressEntryFrame) return;
             var camera = SceneSingleton<CameraStateManager>.i;
+            // A field is resumed only while the view is still a free camera:
+            // the pause menu drops command without moving it.
+            if (lastField != null)
+            {
+                if (camera == null || camera.followingUnit != null || !GameplayReady() ||
+                    !Airfields.CanCommand(lastField, out _)) return;
+                Airbase field = lastField;
+                CommandState.Base = field;
+                CursorManager.SetFlag(CommandCursor, true);
+                return;
+            }
+            if (lastCommanded == null) return;
             if (camera == null || camera.followingUnit != lastCommanded) return;
             if (!GameplayReady() || !CommandableShip.CanCommand(lastCommanded, out _)) return;
             Enter(lastCommanded);
@@ -382,6 +465,8 @@ namespace NavalPower
             if (action == SelectionAction.Consume) return false;
             if (action == SelectionAction.Exit)
             {
+                // Choosing something else to look at is leaving the field.
+                lastField = null;
                 // Going from one commandable ship to another is a change of
                 // command, not an exit. Suppressing entry treats the click as
                 // leaving, and the camera arrives at the new ship on the same
@@ -439,7 +524,7 @@ namespace NavalPower
             // with a flight in hand, right-clicking a hostile plainly means
             // "attack that". Refuse rather than send it when nothing aboard can.
             if (tasking != null && pointed != null && pointed != CommandState.Ship &&
-                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Ship.NetworkHQ)
+                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Hq)
             {
                 string contact = pointed.definition?.unitName ?? pointed.name;
                 if (FlightOrders.BestStationFor(tasking.Aircraft, pointed) == null)
@@ -493,6 +578,12 @@ namespace NavalPower
                     CommandState.Say(tasking.Name + " · task area set · " +
                         UnitConverter.DistanceReading(tasking.OrbitRadius) + " radius");
                     if (!pinned) CommandState.SelectedFlight = null;
+                    break;
+                // An airfield does not move, and there is nothing else a
+                // bare click on the map could mean for one.
+                case RightClickAction.AppendWaypoint when CommandState.Ship == null:
+                case RightClickAction.ReplaceWaypoint when CommandState.Ship == null:
+                    CommandState.Say("Select a flight to task it, or right-click a contact");
                     break;
                 case RightClickAction.AppendWaypoint:
                     NavigationOrders.AppendWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string appendReason);
@@ -717,6 +808,21 @@ namespace NavalPower
             if (matches != 1) throw new InvalidOperationException("Native orbit input gate changed; refusing to patch.");
             foreach (CodeInstruction item in code) if (item.Calls(native)) item.operand = adapter;
             return code;
+        }
+    }
+
+    // Shift-click on an airbase takes command of it. A plain click stays the
+    // native one, which is how you pick a field to fly from yourself.
+    [HarmonyPatch(typeof(AirbaseMapIcon), nameof(AirbaseMapIcon.ClickIcon))]
+    internal static class AirbaseSelectionPatch
+    {
+        private static bool Prefix(AirbaseMapIcon __instance)
+        {
+            if (!(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) return true;
+            if (MapCommand.Instance == null || __instance.airbase == null || __instance.airbase.AttachedAirbase) return true;
+            if (PilotSeat.Active) return true;
+            Guard.Run("Airfield command", () => MapCommand.Instance.EnterAirfield(__instance.airbase));
+            return false;
         }
     }
 

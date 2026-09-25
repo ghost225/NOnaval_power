@@ -24,10 +24,12 @@ namespace NavalPower
             return text.ToString();
         }
 
+        // From the ship when there is one, else from the airfield being
+        // commanded -- which has the faction's picture but no sensors of its own.
         internal static string Describe(Ship ship, Unit contact, WeaponCommandInfo weapon)
         {
-            if (ship == null || contact == null) return "";
-            FactionHQ hq = ship.NetworkHQ;
+            if (!CommandState.Active || contact == null) return "";
+            FactionHQ hq = ship != null ? ship.NetworkHQ : CommandState.Hq;
             string name = contact.definition?.unitName ?? contact.name;
             bool friendly = hq != null && contact.NetworkHQ == hq;
 
@@ -42,7 +44,7 @@ namespace NavalPower
 
             var text = new System.Text.StringBuilder();
             text.Append(name).Append(friendly ? "  ·  FRIENDLY" : observed ? "  ·  TRACKED" : "  ·  STALE TRACK");
-            if (!friendly) text.Append("\n").Append(TrackPicture.Describe(ship, contact));
+            if (!friendly && ship != null) text.Append("\n").Append(TrackPicture.Describe(ship, contact));
 
             if (!known)
             {
@@ -50,7 +52,7 @@ namespace NavalPower
                 return text.ToString();
             }
 
-            Vector3 offset = position - ship.GlobalPosition();
+            Vector3 offset = position - (ship != null ? ship.GlobalPosition() : CommandState.PostPosition);
             float range = offset.magnitude;
             Vector3 flat = offset; flat.y = 0f;
             float bearing = (Mathf.Atan2(flat.x, flat.z) * Mathf.Rad2Deg + 360f) % 360f;
@@ -70,7 +72,7 @@ namespace NavalPower
                     : "\nLast seen " + age.ToString("0") + " s ago · position estimated");
             }
 
-            if (weapon != null)
+            if (weapon != null && ship != null)
             {
                 WeaponInfo info = WeaponOrders.StationsFor(ship, weapon.Key) is var stations && stations.Length > 0
                     ? stations[0].WeaponInfo : null;

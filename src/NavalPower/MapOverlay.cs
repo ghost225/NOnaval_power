@@ -35,8 +35,10 @@ namespace NavalPower
         {
             vh.Clear();
             drewLastFrame = false;
+            // A ship draws its sensors, weapons and tracks; an airfield has
+            // none of those, only its flights and its traffic.
             Ship ship = CommandState.Ship;
-            if (ship == null || !DynamicMap.mapMaximized) return;
+            if (!CommandState.Active || !DynamicMap.mapMaximized) return;
             map = SceneSingleton<DynamicMap>.i;
             if (map == null || map.mapImage == null || !map.gameObject.activeInHierarchy) return;
             drewLastFrame = true;
@@ -54,7 +56,13 @@ namespace NavalPower
                     !Intersect(parent as RectTransform)) return;
             }
 
-            Vector2 center = Project(ship.GlobalPosition());
+            Vector2 center = Project(CommandState.PostPosition);
+            if (ship != null) DrawShip(vh, ship, center);
+            DrawFlights(vh);
+        }
+
+        private void DrawShip(VertexHelper vh, Ship ship, Vector2 center)
+        {
 
             // What the ship is currently lighting up. Nothing is drawn under
             // EMCON, which is the point: the picture goes quiet with the ship.
@@ -164,6 +172,22 @@ namespace NavalPower
                         contact.CrossRangeUncertaintyMetres, contact.BearingDegrees, color);
             }
 
+            NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
+            GlobalPosition[] route = nav?.Waypoints;
+            if (route == null) return;
+            Vector2 previous = center;
+            for (int i = 0; i < route.Length && i < 64; i++)
+            {
+                Vector2 point = Project(route[i]);
+                Line(vh, previous, point, RouteColor, 2f);
+                Diamond(vh, point, 5f, RouteColor);
+                previous = point;
+            }
+        }
+
+        private void DrawFlights(VertexHelper vh)
+        {
+            Vector2 center = Project(CommandState.PostPosition);
             // Orders for the selected flight only: every flight's route drawn at
             // once turns the map into spaghetti.
             Flight selected = CommandState.SelectedFlight;
@@ -211,16 +235,16 @@ namespace NavalPower
                         Diamond(vh, zone, 8f, color);
                     }
                 }
-                else if (selected.Mode == FlightMode.Station && selected.Parent != null)
+                else if (selected.Mode == FlightMode.Station && selected.Home != null)
                 {
-                    Line(vh, at, Project(selected.Parent.GlobalPosition()), Theme.Dim(color, 0.5f), 1.4f);
+                    Line(vh, at, Project(selected.HomePosition), Theme.Dim(color, 0.5f), 1.4f);
                 }
             }
 
             // Anything in the pattern for our deck, so the recovery picture is
             // visible without opening a panel.
             foreach (DeckMovement movement in Settings.ShowRecoveryTracks.Value
-                ? DeckTraffic.Movements(ship) : new List<DeckMovement>())
+                ? DeckTraffic.Movements(CommandState.Airfield) : new List<DeckMovement>())
             {
                 if (movement.Phase != TrafficPhase.Recovering || movement.Aircraft == null) continue;
                 Vector2 inbound = Project(movement.Aircraft.GlobalPosition());
@@ -230,25 +254,15 @@ namespace NavalPower
             }
 
             Unit hovered = MapCommand.Instance?.HoverUnit;
-            if (hovered != null && hovered != ship && ship.NetworkHQ != null &&
-                ship.NetworkHQ.TryGetKnownPosition(hovered, out GlobalPosition known))
+            FactionHQ hq = CommandState.Hq;
+            if (hovered != null && hovered != CommandState.Ship && hq != null &&
+                hq.TryGetKnownPosition(hovered, out GlobalPosition known))
             {
                 Vector2 point = Project(known);
                 Line(vh, point + Vector2.left * 7, point + Vector2.right * 7, TrackColor, 2f);
                 Line(vh, point + Vector2.down * 7, point + Vector2.up * 7, TrackColor, 2f);
             }
 
-            NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
-            GlobalPosition[] route = nav?.Waypoints;
-            if (route == null) return;
-            Vector2 previous = center;
-            for (int i = 0; i < route.Length && i < 64; i++)
-            {
-                Vector2 point = Project(route[i]);
-                Line(vh, previous, point, RouteColor, 2f);
-                Diamond(vh, point, 5f, RouteColor);
-                previous = point;
-            }
         }
 
         private bool drewLastFrame;

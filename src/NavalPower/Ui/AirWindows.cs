@@ -18,15 +18,15 @@ namespace NavalPower
         // grows, and a group that is not wanted folds away to one line.
         private void AirPage(Surface s)
         {
-            Ship ship = CommandState.Ship;
+            Airbase field = CommandState.Airfield;
             List<Flight> airborne = FlightOrders.All();
-            bool deck = ship != null && CarrierOps.HasDeck(ship);
+            bool deck = field != null;
 
             s.Title("AIR OPERATIONS  ·  " + airborne.Count + " airborne");
 
             if (deck)
             {
-                DeckTraffic.Hangars(ship, out int ready, out int busy);
+                Airfields.Hangars(field, out int ready, out int busy);
                 s.Row("LAUNCH AN AIRCRAFT…   ·   " + ready + " hangar(s) ready" +
                     (busy > 0 ? ", " + busy + " working" : ""), () => s.Show(DeckPage));
             }
@@ -84,10 +84,11 @@ namespace NavalPower
 
             if (deck)
             {
-                List<DeckMovement> traffic = DeckTraffic.Movements(ship);
+                List<DeckMovement> traffic = DeckTraffic.Movements(field);
                 if (traffic.Count > 0)
                 {
-                    s.Info("DECK TRAFFIC  ·  " + (ship.definition?.unitName ?? ship.name));
+                    s.Info((CommandState.Base != null ? "FIELD TRAFFIC  ·  " : "DECK TRAFFIC  ·  ") +
+                        Airfields.NameOf(field));
                     foreach (DeckMovement movement in traffic)
                     {
                         Button entry = s.Row((movement.Ours ? "▸ " : "") + movement.Name + "  ·  " +
@@ -99,6 +100,36 @@ namespace NavalPower
                     }
                 }
             }
+
+            s.Row("Command an airfield…", () => s.Show(AirfieldsPage));
+        }
+
+        // Land bases the faction holds, nearest first. Taking command of one
+        // moves the view over it; its hangars, and the runway-only airframes
+        // a deck cannot host, are then what the launch page offers.
+        private void AirfieldsPage(Surface s)
+        {
+            List<Airbase> fields = Airfields.Friendly();
+            s.Title("AIRFIELDS  ·  " + fields.Count + " held");
+            if (fields.Count == 0) s.Info("Your faction holds no land airfields.", Theme.TextMuted);
+            foreach (Airbase field in fields)
+            {
+                Airbase chosen = field;
+                Airfields.Hangars(field, out int ready, out int busy);
+                bool here = CommandState.Base == field;
+                bool usable = Airfields.CanCommand(field, out string why);
+                Button row = s.Row(Airfields.NameOf(field) + "   ·   " +
+                    (ready + busy == 0 ? "no hangars" : ready + " hangar(s) ready" + (busy > 0 ? ", " + busy + " working" : "")) +
+                    (here ? "   ·   commanding" : usable ? "" : "   ·   " + why), () =>
+                    {
+                        if (here) return;
+                        MapCommand.Instance?.EnterAirfield(chosen);
+                    });
+                if (here) row.image.color = Theme.AccentFill;
+                else if (!usable) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
+            }
+            s.Info("Shift-click an airbase on the map to take command of it directly.", Theme.TextMuted);
+            s.Row("Back to air operations", () => s.Show(AirPage));
         }
 
         // Low on fuel, under fire, or out of what it was sent to use: a strike
@@ -307,9 +338,9 @@ namespace NavalPower
 
             s.Row("Deliver at " + flight.HomeName, () =>
             {
-                if (flight.Parent != null)
+                if (flight.Home != null)
                 {
-                    FlightOrders.Deliver(flight, flight.Parent.GlobalPosition(), flight.Airdrop);
+                    FlightOrders.Deliver(flight, flight.HomePosition, flight.Airdrop);
                     CommandState.Say(flight.Name + " · returning cargo to " + flight.HomeName);
                 }
                 s.Show(x => FlightPage(x, flight));
@@ -392,18 +423,19 @@ namespace NavalPower
 
         private void DeckPage(Surface s)
         {
-            Ship ship = CommandState.Ship;
-            if (ship == null || !CarrierOps.HasDeck(ship))
+            Airbase field = CommandState.Airfield;
+            if (field == null)
             {
                 s.Title("FLIGHT DECK");
                 s.Info("This ship has no flight deck.", Theme.TextMuted);
+                s.Row("Back to air operations", () => s.Show(AirPage));
                 return;
             }
-            DeckAircraft[] available = CarrierOps.Available(ship);
-            DeckTraffic.Hangars(ship, out int ready, out int busy);
+            DeckAircraft[] available = CarrierOps.Available(field);
+            Airfields.Hangars(field, out int ready, out int busy);
             bool ownFunds = Settings.LaunchCostFromAllocation.Value;
 
-            s.Title("FLIGHT DECK  ·  " + ready + " ready" + (busy > 0 ? ", " + busy + " working" : "") +
+            s.Title((CommandState.Base != null ? "FIELD" : "FLIGHT DECK") + "  ·  " + ready + " ready" + (busy > 0 ? ", " + busy + " working" : "") +
                 (ownFunds ? "  ·  " + Allocation().ToString("0") + " available" : ""));
 
             Button funding = s.Row(ownFunds
@@ -412,6 +444,7 @@ namespace NavalPower
                 () => Settings.LaunchCostFromAllocation.Value = !Settings.LaunchCostFromAllocation.Value);
             if (ownFunds) funding.image.color = Theme.AccentFill;
 
+            if (available.Length == 0) s.Info("Nothing here can be launched just now.", Theme.TextMuted);
             foreach (DeckAircraft airframe in available)
             {
                 DeckAircraft chosen = airframe;
@@ -454,7 +487,7 @@ namespace NavalPower
             // a second can be sent straight after the first.
             Button launch = s.Row("LAUNCH", () =>
             {
-                CarrierOps.Launch(CommandState.Ship, plan, out string reason);
+                CarrierOps.Launch(CommandState.Airfield, plan, out string reason);
                 CommandState.Say(reason);
                 s.Show(DeckPage);
             });
@@ -486,7 +519,7 @@ namespace NavalPower
         {
             if (plan == null) { s.Show(DeckPage); return; }
             s.Title(plan.Definition.unitName.ToUpperInvariant() + "  ·  livery");
-            List<(LiveryKey key, string label)> options = CarrierOps.Liveries(plan.Definition, CommandState.Ship);
+            List<(LiveryKey key, string label)> options = CarrierOps.Liveries(plan.Definition, CommandState.Hq);
             if (options.Count == 0) s.Info("No liveries for this airframe.", Theme.TextMuted);
             foreach ((LiveryKey key, string label) option in options)
             {
@@ -527,7 +560,7 @@ namespace NavalPower
             if (station.Selected == null) empty.image.color = Theme.AccentFill;
             foreach (WeaponMount option in station.Options)
             {
-                if (!CarrierOps.Releasable(CommandState.Ship, option)) continue;
+                if (!CarrierOps.Releasable(CommandState.Hq, option)) continue;
                 WeaponMount mount = option;
                 string detail = mount.info != null ? "  ·  " + mount.info.weaponName : "";
                 if (mount.ammo > 1) detail += " ×" + mount.ammo;

@@ -286,7 +286,7 @@ namespace NavalPower
             Ship ship = CommandState.Ship;
             Unit previous = subject;
             lingerUntil = -1f;
-            if (ship == null) { subject = null; return; }
+            if (!CommandState.Active) { subject = null; return; }
 
             if (weapons.Count > 0)
             {
@@ -300,7 +300,7 @@ namespace NavalPower
                 chasing = false;
                 subject = null;
                 var engaged = new List<Unit>();
-                ShipWeapons.CollectTargets(ship, engaged);
+                if (ship != null) ShipWeapons.CollectTargets(ship, engaged);
                 foreach (Unit target in engaged)
                     if (target != null && !target.disabled) { subject = target; break; }
                 if (subject == null)

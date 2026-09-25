@@ -37,12 +37,12 @@ namespace NavalPower
             }
         }
 
-        internal static void Refresh(Ship ship)
+        internal static void Refresh(bool show)
         {
             stale.Clear();
             foreach (KeyValuePair<UnitMapIcon, Tint> entry in tinted) stale.Add(entry.Key);
 
-            if (ship != null)
+            if (show)
             {
                 foreach (Flight flight in FlightOrders.All())
                 {

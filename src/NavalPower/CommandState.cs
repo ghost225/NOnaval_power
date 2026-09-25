@@ -6,7 +6,9 @@ namespace NavalPower
     // on the same weapon/quantity selection, so it lives in one place.
     internal static class CommandState
     {
+        // What is being commanded: a ship, or a land airbase. Never both.
         internal static Ship Ship;
+        internal static Airbase Base;
         internal static string SelectedKey;
         internal static int Quantity = 1;
         // While a flight is selected, map right-clicks task it rather than the ship.
@@ -31,7 +33,15 @@ namespace NavalPower
             AwaitingFromMode = flight.Mode;
         }
 
-        internal static bool Active => Ship != null;
+        internal static bool Active => Ship != null || Base != null;
+
+        // The field air operations run from: the base itself, or the ship's deck.
+        internal static Airbase Airfield => Base != null ? Base : CarrierOps.Deck(Ship);
+        internal static FactionHQ Hq => Ship != null ? Ship.NetworkHQ : Base != null ? Base.CurrentHQ : null;
+        internal static string PostName =>
+            Ship != null ? (Ship.definition?.unitName ?? Ship.name) : Base != null ? Airfields.NameOf(Base) : "";
+        internal static GlobalPosition PostPosition =>
+            Ship != null ? Ship.GlobalPosition() : Base != null ? Airfields.PositionOf(Base) : default;
         internal static bool Armed => SelectedKey != null;
 
         private static string feedback = "";
@@ -49,6 +59,7 @@ namespace NavalPower
         internal static void Clear()
         {
             Ship = null;
+            Base = null;
             SelectedKey = null;
             SelectedFlight = null;
             AwaitingCargoZone = null;

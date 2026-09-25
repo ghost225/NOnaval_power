@@ -111,6 +111,7 @@ namespace NavalPower
             eventLine.gameObject.SetActive(!flying);
             windowLayer.gameObject.SetActive(!flying);
             menuLayer.gameObject.SetActive(!flying);
+            RefreshCompass(flying);
             if (flying) { hover.gameObject.SetActive(false); return; }
 
             WatchFeeds();
@@ -218,20 +219,43 @@ namespace NavalPower
                 { "air", "AIR" }, { "cam", "CAM" }, { "rpl", "RPL" }, { "map", "MAP" }, { "exit", "EXIT" }
             };
             int count = defs.GetLength(0);
-            const float width = 60f, gap = 4f;
             for (int i = 0; i < count; i++)
             {
                 var tool = new Tool { Key = defs[i, 0], Label = defs[i, 1] };
-                tool.Button = UiKit.Button(strip, tool.Label, 0, 0, width, StripHeight - 8f, () => Use(tool));
+                tool.Button = UiKit.Button(strip, tool.Label, 0, 0, ToolWidth, StripHeight - 8f, () => Use(tool));
                 var rect = (RectTransform)tool.Button.transform;
                 rect.anchorMin = rect.anchorMax = new Vector2(1, 0.5f);
                 rect.pivot = new Vector2(1, 0.5f);
-                rect.anchoredPosition = new Vector2(-(12f + (count - 1 - i) * (width + gap)), 0f);
                 tool.Text = tool.Button.GetComponentInChildren<Text>();
                 tool.Text.fontSize = Theme.CaptionSize;
                 tool.Text.supportRichText = true;
                 tools.Add(tool);
             }
+        }
+
+        private const float ToolWidth = 60f, ToolGap = 4f;
+
+        // The tools a ship has that an airfield does not: it cannot steer,
+        // fire, radiate, flood or take on stores.
+        private static bool ShipOnly(string key) =>
+            key == "nav" || key == "wpn" || key == "sns" || key == "roe" || key == "dmg" || key == "rpl";
+
+        // Right-aligned, closing up over whatever this post does not have.
+        private void LayoutTools(bool ship)
+        {
+            float x = 12f;
+            for (int i = tools.Count - 1; i >= 0; i--)
+            {
+                Tool tool = tools[i];
+                bool shown = ship || !ShipOnly(tool.Key);
+                tool.Button.gameObject.SetActive(shown);
+                if (!shown) continue;
+                ((RectTransform)tool.Button.transform).anchoredPosition = new Vector2(-x, 0f);
+                x += ToolWidth + ToolGap;
+            }
+            if (ship) return;
+            foreach (KeyValuePair<string, Surface> window in windows)
+                if (ShipOnly(window.Key) && window.Value.IsOpen) window.Value.Close();
         }
 
         private static Text StripText(RectTransform parent, float x, float width, int size, Color color)
@@ -250,7 +274,7 @@ namespace NavalPower
             switch (tool.Key)
             {
                 case "exit":
-                    MapCommand.Instance?.LeaveForNativeFlow();
+                    MapCommand.Instance?.Dismiss();
                     return;
                 case "cam":
                     ToggleLiveFeed();
@@ -267,7 +291,8 @@ namespace NavalPower
         private void RefreshStrip()
         {
             Ship ship = CommandState.Ship;
-            if (ship == null) return;
+            LayoutTools(ship != null);
+            if (ship == null) { RefreshFieldStrip(); return; }
 
             stripName.text = ship.definition?.unitName ?? ship.name;
 
@@ -299,6 +324,41 @@ namespace NavalPower
                     roe == EngagementMode.WeaponsFree ? Theme.Bad
                     : roe == EngagementMode.WeaponsTight ? Theme.Warn : Theme.Good) + "   " +
                 UiKit.Tint("DC " + reserve.ToString("0") + "%", Theme.Scale(reserve));
+
+            foreach (Tool tool in tools)
+            {
+                bool open = tool.Key == "map" ? DynamicMap.mapMaximized
+                    : windows.TryGetValue(tool.Key, out Surface window) && window.IsOpen;
+                tool.Button.image.color = open ? Theme.AccentFill : Theme.Control;
+                if (tool.Key == "air") tool.Text.text = AirToolLabel();
+            }
+        }
+
+        // An airfield's strip: which field, what its hangars are doing, and
+        // what is in the air.
+        private void RefreshFieldStrip()
+        {
+            Airbase field = CommandState.Base;
+            if (field == null) return;
+            stripName.text = Airfields.NameOf(field);
+            Airfields.Hangars(field, out int ready, out int busy);
+            int traffic = DeckTraffic.Movements(field).Count;
+            stripNav.text = ready + " hangar(s) ready" + (busy > 0 ? "  ·  " + busy + " working" : "") +
+                (traffic > 0 ? "  ·  " + traffic + " in the pattern" : "");
+
+            string said = CommandState.Feedback;
+            stripStatus.text = said != null ? UiKit.Tint(said, Theme.Accent)
+                : CommandState.SelectedFlight != null
+                    ? UiKit.Tint("Tasking " + CommandState.SelectedFlight.Name, Theme.Accent) +
+                      "  ·  right-click the map to order it"
+                : "Open AIR to launch or task flights  ·  the view flies with the movement keys";
+
+            List<Flight> airborne = FlightOrders.All();
+            int trouble = 0;
+            foreach (Flight flight in airborne) if (flight.Threat == FlightThreat.Missile || flight.FuelPercent < 25f) trouble++;
+            stripState.text = UiKit.Tint("AIRFIELD", Theme.Passive) + "   " +
+                airborne.Count + " airborne" +
+                (trouble > 0 ? "   " + UiKit.Tint(trouble + " need attention", Theme.Bad) : "");
 
             foreach (Tool tool in tools)
             {
@@ -457,6 +517,7 @@ namespace NavalPower
             // The feeds' cameras; their windows are made like any other.
             feedView = gameObject.AddComponent<TargetFeed>();
             BuildStrip();
+            BuildCompass();
             windowLayer = Layer("Windows");
             menuLayer = Layer("Menus");
             context = new Surface("context", menuLayer, canvas, 420f, growUp: false, closable: true);

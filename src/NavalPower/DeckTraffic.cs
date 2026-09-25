@@ -38,50 +38,40 @@ namespace NavalPower
             "\n  " + (LandingAirbase != null ? "ok      " : "MISSING ") + "AIPilotLandingState.airbase" +
             "\n  " + (HeloLandingAirbase != null ? "ok      " : "MISSING ") + "PilotBaseState.nearestAirbase";
 
-        // Aircraft that actually came off a given ship's hangars. Proximity is
+        // Aircraft that actually came off a given field's hangars. Proximity is
         // no test at all: a nearby airfield, or another carrier in company,
         // fills the list with movements that have nothing to do with this deck.
-        private static readonly Dictionary<Aircraft, Ship> launchedFrom = new Dictionary<Aircraft, Ship>();
+        private static readonly Dictionary<Aircraft, Airbase> launchedFrom = new Dictionary<Aircraft, Airbase>();
 
-        internal static void NoteLaunch(Ship ship, Aircraft aircraft)
+        internal static void NoteLaunch(Airbase field, Aircraft aircraft)
         {
-            if (ship == null || aircraft == null) return;
-            launchedFrom[aircraft] = ship;
+            if (field == null || aircraft == null) return;
+            launchedFrom[aircraft] = field;
         }
 
-        private static bool CameFrom(Ship ship, Aircraft aircraft) =>
-            aircraft != null && launchedFrom.TryGetValue(aircraft, out Ship from) && from == ship;
+        private static bool CameFrom(Airbase field, Aircraft aircraft) =>
+            aircraft != null && launchedFrom.TryGetValue(aircraft, out Airbase from) && from == field;
 
         private static void Forget()
         {
             if (launchedFrom.Count == 0) return;
             var gone = new List<Aircraft>();
-            foreach (KeyValuePair<Aircraft, Ship> entry in launchedFrom)
+            foreach (KeyValuePair<Aircraft, Airbase> entry in launchedFrom)
                 if (entry.Key == null || entry.Key.disabled || entry.Value == null) gone.Add(entry.Key);
             foreach (Aircraft aircraft in gone) launchedFrom.Remove(aircraft);
         }
 
-        public static void Hangars(Ship ship, out int ready, out int busy)
-        {
-            ready = 0; busy = 0;
-            if (ship == null) return;
-            foreach (Hangar hangar in ship.GetComponentsInChildren<Hangar>(true))
-            {
-                if (hangar == null || !hangar.IsFunctional()) continue;
-                if (hangar.Available) ready++; else busy++;
-            }
-        }
-
-        public static List<DeckMovement> Movements(Ship ship)
+        public static List<DeckMovement> Movements(Airbase deck)
         {
             var rows = new List<DeckMovement>();
-            Airbase deck = CarrierOps.Deck(ship);
-            if (deck == null || ship.NetworkHQ == null) return rows;
-            Hangars(ship, out int ready, out _);
+            if (deck == null || deck.disabled || deck.CurrentHQ == null) return rows;
+            FactionHQ hq = deck.CurrentHQ;
+            GlobalPosition centre = Airfields.PositionOf(deck);
+            Airfields.Hangars(deck, out int ready, out _);
             Forget();
 
             // Our own requested launches that have not appeared yet.
-            foreach (string waiting in FlightOrders.PendingNames(ship))
+            foreach (string waiting in FlightOrders.PendingNames(deck))
                 rows.Add(new DeckMovement
                 {
                     Phase = TrafficPhase.Queued,
@@ -93,11 +83,11 @@ namespace NavalPower
             foreach (Unit unit in UnitRegistry.allUnits)
             {
                 if (!(unit is Aircraft aircraft) || aircraft.disabled) continue;
-                if (aircraft.NetworkHQ != ship.NetworkHQ) continue;
+                if (aircraft.NetworkHQ != hq) continue;
                 Pilot pilot = FlightOrders.FirstPilot(aircraft);
                 if (pilot == null) continue;
 
-                float range = FastMath.Distance(aircraft.GlobalPosition(), ship.GlobalPosition());
+                float range = FastMath.Distance(aircraft.GlobalPosition(), centre);
                 bool ours = FlightOrders.Of(aircraft) != null;
                 string name = aircraft.definition?.unitName ?? aircraft.name;
 
@@ -106,7 +96,7 @@ namespace NavalPower
                 if (pilot.currentState is AIPilotTaxiState || pilot.currentState is AIPilotTakeoffState ||
                     pilot.currentState is AIHeloTakeoffState)
                 {
-                    if (!CameFrom(ship, aircraft)) continue;
+                    if (!CameFrom(deck, aircraft)) continue;
                     rows.Add(new DeckMovement
                     {
                         Phase = TrafficPhase.Launching,

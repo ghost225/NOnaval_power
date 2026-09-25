@@ -64,10 +64,13 @@ namespace NavalPower
         }
     }
 
-    // Flight deck operations for any ship carrying an Airbase. Nuclear Option
-    // models a ship-borne deck as an Airbase component with AttachedAirbase
-    // set -- the same component a runway uses -- so nothing here is specific to
-    // carriers, and a destroyer's helipad works the same way.
+    // Flight operations for any Airbase: a land field, or a ship's deck.
+    // Nuclear Option models a ship-borne deck as an Airbase component with
+    // AttachedAirbase set -- the same component a runway uses -- so nothing
+    // here is specific to carriers, and a destroyer's helipad and a land
+    // field work the same way. What a field can launch is its own business:
+    // GetAvailableAircraft already filters by what its hangars can host,
+    // which is how runway-only airframes appear at a land base and not at sea.
     public static class CarrierOps
     {
         public static Airbase Deck(Ship ship)
@@ -77,27 +80,12 @@ namespace NavalPower
             return airbase != null && !airbase.disabled ? airbase : null;
         }
 
-        public static bool HasDeck(Ship ship) => Deck(ship) != null;
-
-        public static string DeckStatus(Ship ship)
-        {
-            Airbase deck = Deck(ship);
-            if (deck == null) return "No flight deck";
-            int functional = 0, total = 0;
-            foreach (Hangar hangar in ship.GetComponentsInChildren<Hangar>(true))
-            {
-                total++;
-                if (hangar.IsFunctional()) functional++;
-            }
-            return functional + " of " + total + " hangar" + (total == 1 ? "" : "s") + " serviceable";
-        }
-
-        public static DeckAircraft[] Available(Ship ship)
+        public static DeckAircraft[] Available(Airbase field)
         {
             var rows = new List<DeckAircraft>();
-            Airbase deck = Deck(ship);
-            if (deck == null || ship.NetworkHQ == null) return rows.ToArray();
-            List<AircraftDefinition> available = deck.GetAvailableAircraft();
+            FactionHQ hq = field != null ? field.CurrentHQ : null;
+            if (field == null || hq == null) return rows.ToArray();
+            List<AircraftDefinition> available = field.GetAvailableAircraft();
             if (available == null) return rows.ToArray();
             foreach (AircraftDefinition definition in available)
             {
@@ -106,7 +94,7 @@ namespace NavalPower
                 {
                     Definition = definition,
                     Name = definition.unitName,
-                    InReserve = ship.NetworkHQ.GetUnitSupply(definition) > 0,
+                    InReserve = hq.GetUnitSupply(definition) > 0,
                     Price = definition.value
                 });
             }
@@ -133,12 +121,11 @@ namespace NavalPower
         // Exactly what the native spawn screen lists for this airframe and
         // faction -- LoadoutSelector builds it as a public static, workshop
         // skins included.
-        internal static List<(LiveryKey key, string label)> Liveries(AircraftDefinition definition, Ship ship)
+        internal static List<(LiveryKey key, string label)> Liveries(AircraftDefinition definition, FactionHQ hq)
         {
             var options = new List<(LiveryKey key, string label)>();
             if (definition == null) return options;
-            string faction = ship != null && ship.NetworkHQ != null && ship.NetworkHQ.faction != null
-                ? ship.NetworkHQ.faction.factionName : "";
+            string faction = hq != null && hq.faction != null ? hq.faction.factionName : "";
             try { LoadoutSelector.GetLiveryOptions(options, definition, faction, allowFactionLivery: true); }
             catch (System.Exception ex) { Plugin.Log.LogWarning("[deck] could not list liveries: " + ex.Message); }
             return options;
@@ -186,10 +173,9 @@ namespace NavalPower
         // Mirrors Loadout.AllowedByHQ per mount, so a station never offers a
         // weapon the faction would refuse at launch -- nuclear stores before
         // release authority, and anything on the HQ's restricted list.
-        public static bool Releasable(Ship ship, WeaponMount mount)
+        public static bool Releasable(FactionHQ hq, WeaponMount mount)
         {
             if (mount == null) return false;
-            FactionHQ hq = ship != null ? ship.NetworkHQ : null;
             if (hq != null && hq.restrictedWeapons != null && hq.restrictedWeapons.Contains(mount.name)) return false;
             if (mount.info == null || !mount.info.nuclear) return true;
             if (!MissionManager.AllowTactical()) return false;
@@ -197,18 +183,19 @@ namespace NavalPower
             return true;
         }
 
-        public static bool Launch(Ship ship, LoadoutPlan plan, out string reason)
+        public static bool Launch(Airbase deck, LoadoutPlan plan, out string reason)
         {
-            if (!CommandableShip.CanCommand(ship, out reason)) return false;
-            Airbase deck = Deck(ship);
-            if (deck == null) { reason = "This ship has no flight deck."; return false; }
+            if (deck == null || deck.disabled) { reason = "No flight deck or field."; return false; }
+            Ship ship = Airfields.ShipOf(deck);
+            if (ship != null ? !CommandableShip.CanCommand(ship, out reason) : !Airfields.CanCommand(deck, out reason))
+                return false;
             if (plan == null || plan.Definition == null) { reason = "Choose an airframe first."; return false; }
-            FactionHQ hq = ship.NetworkHQ;
+            FactionHQ hq = deck.CurrentHQ;
             if (hq == null) { reason = "No faction."; return false; }
 
             bool serviceable = false;
-            foreach (Hangar hangar in ship.GetComponentsInChildren<Hangar>(true))
-                if (hangar.IsFunctional()) { serviceable = true; break; }
+            foreach (Hangar hangar in deck.hangars)
+                if (hangar != null && hangar.IsFunctional()) { serviceable = true; break; }
             if (!serviceable) { reason = "No serviceable hangar."; return false; }
 
             if (!deck.CanSpawnAircraft(plan.Definition))
@@ -269,12 +256,12 @@ namespace NavalPower
             }
 
             Remember(plan);
-            FlightOrders.ExpectLaunch(ship, plan.Definition, loadout, plan.Callsign);
+            FlightOrders.ExpectLaunch(deck, plan.Definition, loadout, plan.Callsign);
             reason = "Launching " + (string.IsNullOrEmpty(plan.Callsign) ? "" : plan.Callsign + " · ") +
                 plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
                 (payer != null ? " · " + price.ToString("0") + " from your allocation"
                     : purchased ? " · purchased" : " · from reserve");
-            Plugin.Log.LogInfo("[deck] " + ship.definition?.unitName + ": " + reason);
+            Plugin.Log.LogInfo("[deck] " + Airfields.NameOf(deck) + ": " + reason);
             return true;
         }
     }

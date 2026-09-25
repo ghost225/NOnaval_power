@@ -21,7 +21,10 @@ namespace NavalPower
     public sealed class Flight
     {
         public Aircraft Aircraft;
-        public Ship Parent;
+        // Where it launched from and belongs to: a carrier's deck or a land
+        // field. Both are Airbases; Parent is the ship when the home is a deck.
+        public Airbase Home;
+        public Ship Parent => Airfields.ShipOf(Home);
         public FlightMode Mode = FlightMode.Orbit;
         public readonly List<GlobalPosition> Route = new List<GlobalPosition>();
         public GlobalPosition OrbitCentre;      // task area centre
@@ -60,7 +63,10 @@ namespace NavalPower
 
         // Where it came from, for display: flights from every deck are shown
         // together now, so which deck matters for reading the list.
-        public string HomeName => Parent != null ? (Parent.definition?.unitName ?? Parent.name) : "unknown";
+        public string HomeName => Home != null ? Airfields.NameOf(Home) : "unknown";
+
+        // Where "home" is right now -- a deck moves.
+        public GlobalPosition HomePosition => Home != null ? Airfields.PositionOf(Home) : OrbitCentre;
 
         // 0-100. The constraint that actually governs carrier operations, and
         // until now it was invisible until the automatic recovery fired.
@@ -165,7 +171,7 @@ namespace NavalPower
                 case FlightMode.Route: return Route.Count > 0 ? "Route · " + Route.Count + " leg(s)" : "Route complete";
                 case FlightMode.Orbit: return "Station area · " + UnitConverter.DistanceReading(OrbitRadius) +
                     (ConfineToArea ? "" : " · unrestricted");
-                case FlightMode.Station: return "Station on " + (Parent?.definition?.unitName ?? "ship");
+                case FlightMode.Station: return "Station on " + HomeName;
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
                 case FlightMode.Egress: return "Egressing · weapons away";
@@ -186,7 +192,7 @@ namespace NavalPower
         // it rather than guessing, and give up if it never arrives.
         private sealed class Pending
         {
-            internal Ship Ship;
+            internal Airbase Field;
             internal AircraftDefinition Definition;
             internal NuclearOption.SavedMission.Loadout Loadout;   // identity of this launch
             internal string Callsign;
@@ -208,12 +214,12 @@ namespace NavalPower
             persistent.player = player;
         }
 
-        internal static void ExpectLaunch(Ship ship, AircraftDefinition definition,
+        internal static void ExpectLaunch(Airbase field, AircraftDefinition definition,
             NuclearOption.SavedMission.Loadout loadout, string callsign)
         {
             pending.Add(new Pending
             {
-                Ship = ship,
+                Field = field,
                 Definition = definition,
                 Loadout = loadout,
                 Callsign = callsign,
@@ -248,16 +254,16 @@ namespace NavalPower
             for (int i = 0; i < pending.Count; i++)
             {
                 if (!ReferenceEquals(pending[i].Loadout, loadout)) continue;
-                Ship parent = pending[i].Ship;
+                Airbase home = pending[i].Field;
                 string callsign = pending[i].Callsign;
                 pending.RemoveAt(i);
-                if (parent == null) return null;
+                if (home == null) return null;
                 var flight = new Flight
                 {
                     Aircraft = aircraft,
-                    Parent = parent,
+                    Home = home,
                     Mode = FlightMode.Orbit,
-                    OrbitCentre = parent.GlobalPosition(),
+                    OrbitCentre = Airfields.PositionOf(home),
                     Altitude = Settings.DefaultAltitude.Value,
                     OrbitRadius = Settings.DefaultAreaRadius.Value
                 };
@@ -270,11 +276,11 @@ namespace NavalPower
         }
 
         // Launches requested but not yet seen on deck.
-        internal static List<string> PendingNames(Ship ship)
+        internal static List<string> PendingNames(Airbase field)
         {
             var names = new List<string>();
             foreach (Pending request in pending)
-                if (request.Ship == ship && request.Definition != null) names.Add(request.Definition.unitName);
+                if (request.Field == field && request.Definition != null) names.Add(request.Definition.unitName);
             return names;
         }
 
@@ -307,14 +313,6 @@ namespace NavalPower
             return result;
         }
 
-        public static List<Flight> For(Ship ship)
-        {
-            var result = new List<Flight>();
-            foreach (Flight flight in All())
-                if (flight.Parent == ship) result.Add(flight);
-            return result;
-        }
-
         public static Flight Of(Aircraft aircraft)
         {
             foreach (Flight flight in flights) if (flight.Aircraft == aircraft) return flight;
@@ -340,7 +338,7 @@ namespace NavalPower
             for (int i = pending.Count - 1; i >= 0; i--)
             {
                 Pending request = pending[i];
-                if (request.Ship == null || Time.unscaledTime > request.ExpiresAt) { pending.RemoveAt(i); continue; }
+                if (request.Field == null || Time.unscaledTime > request.ExpiresAt) { pending.RemoveAt(i); continue; }
                 // The spawn hook normally claims the aircraft outright; this
                 // only covers a build where that hook failed to bind.
                 Aircraft found = FindNew(request);
@@ -351,16 +349,16 @@ namespace NavalPower
                 var flight = new Flight
                 {
                     Aircraft = found,
-                    Parent = request.Ship,
+                    Home = request.Field,
                     Mode = FlightMode.Orbit,
-                    OrbitCentre = request.Ship.GlobalPosition(),
+                    OrbitCentre = Airfields.PositionOf(request.Field),
                     Altitude = Settings.DefaultAltitude.Value,
                     OrbitRadius = Settings.DefaultAreaRadius.Value
                 };
                 flights.Add(flight);
                 CreditKills(found);
                 Rename(flight, request.Callsign ?? Callsigns.Suggest(found.definition));
-                Plugin.Log.LogInfo("[flight] adopted " + flight.Name + " from " + (request.Ship.definition?.unitName ?? "ship"));
+                Plugin.Log.LogInfo("[flight] adopted " + flight.Name + " from " + Airfields.NameOf(request.Field));
             }
 
             // Install our state once the aircraft is actually flying: taking it
@@ -572,7 +570,7 @@ namespace NavalPower
 
         private static Aircraft FindNew(Pending request)
         {
-            FactionHQ hq = request.Ship.NetworkHQ;
+            FactionHQ hq = request.Field.CurrentHQ;
             if (hq == null) return null;
             foreach (Unit unit in UnitRegistry.allUnits)
             {
@@ -582,8 +580,9 @@ namespace NavalPower
                 if (Of(aircraft) != null) continue;
                 Pilot crew = FirstPilot(aircraft);
                 if (crew == null || crew.playerControlled) continue;
-                // Close aboard: it came off this deck rather than an airfield.
-                if (FastMath.Distance(aircraft.GlobalPosition(), request.Ship.GlobalPosition()) > 1200f) continue;
+                // Close by: it came off this field rather than another one.
+                if (FastMath.Distance(aircraft.GlobalPosition(), Airfields.PositionOf(request.Field)) >
+                    Mathf.Max(1200f, request.Field.GetRadius())) continue;
                 return aircraft;
             }
             return null;
@@ -631,12 +630,12 @@ namespace NavalPower
             (flight.Mode == FlightMode.Orbit || flight.Mode == FlightMode.Station);
 
         internal static GlobalPosition AreaCentre(Flight flight) =>
-            flight.Mode == FlightMode.Station && flight.Parent != null
-                ? flight.Parent.GlobalPosition() : flight.OrbitCentre;
+            flight.Mode == FlightMode.Station && flight.Home != null
+                ? flight.HomePosition : flight.OrbitCentre;
 
         public static void Station(Flight flight)
         {
-            if (flight == null || flight.Parent == null) return;
+            if (flight == null || flight.Home == null) return;
             flight.Route.Clear();
             // Abeam and slightly ahead: clear of the ship, still close aboard.
             flight.StationOffset = new Vector3(2200f, 0f, 1200f);
@@ -725,7 +724,7 @@ namespace NavalPower
             away.y = 0f;
             away.Normalize();
 
-            GlobalPosition home = flight.Parent != null ? flight.Parent.GlobalPosition() : flight.OrbitCentre;
+            GlobalPosition home = flight.HomePosition;
             Vector3 toHome = home - here;
             toHome.y = 0f;
             if (toHome.sqrMagnitude > 1f)

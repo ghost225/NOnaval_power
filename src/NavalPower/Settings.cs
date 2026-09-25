@@ -41,6 +41,7 @@ namespace NavalPower
         internal static ConfigEntry<float> FeedLinger;
         internal static ConfigEntry<bool> FeedAutoOpen;
         internal static ConfigEntry<bool> FeedHoverPeek;
+        internal static ConfigEntry<bool> ShowCompass;
         internal static ConfigEntry<float> FeedFieldOfView;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
@@ -206,6 +207,9 @@ namespace NavalPower
             FeedHoverPeek = config.Bind("Interface", "Camera peek on hover", true,
                 "Show a small live picture of a contact in its hover card, after a moment's hover. " +
                 "One more camera render while it is up.");
+            ShowCompass = config.Bind("Interface", "Compass tape", true,
+                "A heading tape across the top of the screen while commanding, with markers for the " +
+                "ship's heading and next waypoint, the flight being tasked and the contact under the cursor.");
 
             FeedAutoOpen = config.Bind("Interface", "Open the target feed on launch", true,
                 "Open the live feed when one of our weapons leaves the rails, unless it was closed by hand " +

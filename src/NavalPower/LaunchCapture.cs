@@ -32,10 +32,10 @@ namespace NavalPower
             Aircraft aircraft = spawned.GetComponent<Aircraft>();
             if (aircraft == null) return;
 
-            // Note every launch off a ship's deck, ours or the faction AI's:
-            // deck traffic is about this deck, not about whatever happens to be
-            // flying nearby.
-            if (__instance.attachedUnit is Ship ship) DeckTraffic.NoteLaunch(ship, aircraft);
+            // Note every launch off a deck or field, ours or the faction AI's:
+            // deck traffic is about this field, not about whatever happens to
+            // be flying nearby.
+            DeckTraffic.NoteLaunch(__instance.parentAirbase, aircraft);
 
             if (loadout == null) return;                                // an AI spawn
             Flight claimed = FlightOrders.ClaimLaunch(loadout, aircraft);

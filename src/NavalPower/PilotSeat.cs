@@ -56,7 +56,10 @@ namespace NavalPower
         internal static Flight Flying { get; private set; }
         internal static bool Active => Flying != null;
 
+        // Where to go back to: the bridge or the field command was taken from,
+        // or the flight's own ship if it was taken from somewhere else.
         private static Ship home;
+        private static Airbase homeField;
         private static string flyingName;
         private static int bindDisplaysFrame;
         private static bool builtScreens;
@@ -97,7 +100,8 @@ namespace NavalPower
             GameManager.GetLocalPlayer(out Player player);
             Aircraft aircraft = flight.Aircraft;
             Pilot crew = Seat(aircraft);
-            home = flight.Parent;
+            homeField = CommandState.Base;
+            home = homeField != null ? null : CommandState.Ship ?? flight.Parent;
 
             // Command mode ends the moment the camera moves, and it would hand
             // the ship's kill credit back on the way out. We are not giving the
@@ -234,11 +238,18 @@ namespace NavalPower
 
             var cameras = SceneSingleton<CameraStateManager>.i;
             Ship ship = home != null && !home.disabled ? home : null;
+            Airbase field = homeField;
             home = null;
-            if (cameras != null) cameras.SetFollowingUnit(ship != null ? (Unit)ship : aircraft);
+            homeField = null;
+            if (field != null && Airfields.CanCommand(field, out _) && MapCommand.Instance != null)
+            {
+                MapCommand.Instance.EnterAirfield(field);
+                if (CommandState.Base != field && cameras != null) cameras.SetFollowingUnit(aircraft);
+            }
+            else if (cameras != null) cameras.SetFollowingUnit(ship != null ? (Unit)ship : aircraft);
             Plugin.Log.LogInfo("[seat] handed " + flight.Name + " back · " + flight.Describe());
             CommandState.Say(flight.Name + (recoverToShip
-                ? " · released and recovering to the ship"
+                ? " · released and recovering to base"
                 : " · released to its task area"));
         }
 
@@ -785,6 +796,7 @@ namespace NavalPower
             Plugin.Log.LogInfo("[seat] " + (flyingName ?? "flight") + " · seat lost, the game has it now");
             Flying = null;
             home = null;
+            homeField = null;
             // Dropping the references is not the same as taking the objects
             // down. The airframe's HUD extras are ours -- we instantiated them
             // onto the flight HUD -- and nothing in the game removes them,
