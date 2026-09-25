@@ -19,7 +19,11 @@ dotnet build -c Release --nologo ${args[@]+"${args[@]}"}
 if (( install )); then
     # Overwriting the DLL while Mono has it mapped corrupts the loaded image and
     # takes the game down with "BadImageFormatException: Method has zero rva".
-    if pgrep -f "NuclearOption" >/dev/null 2>&1; then
+    # Match the game's executable only. A bare "NuclearOption" also matches any
+    # shell whose command line merely mentions it -- including the one running
+    # this -- and refused installs with the game closed. The bracket keeps this
+    # pattern from matching its own text.
+    if pgrep -f 'NuclearOption[.]exe' >/dev/null 2>&1; then
         echo "REFUSING TO INSTALL: Nuclear Option is running." >&2
         echo "Close the game first, then re-run with --install." >&2
         exit 1
