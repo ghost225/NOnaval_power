@@ -27,7 +27,7 @@
       "type": "plugin",
       "gameVersion": "0.34.1",
       "downloadUrl": "https://github.com/ghost225/NOnaval_power/releases/download/v0.1.0/NavalPower_0.1.0.zip",
-      "hash": "sha256:FILL_IN_FROM_THE_RELEASE_PAGE",
+      "hash": "sha256:23a5a95c77bf051c6567b811f67e8342dd12945748ebf0a47b2096c8ec98af29",
       "incompatibilities": [
         {
           "id": "com.resolute.command",
