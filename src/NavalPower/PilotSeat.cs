@@ -127,8 +127,8 @@ namespace NavalPower
             // weapon built it again.
             if (aircraft.weaponManager != null)
                 SceneSingleton<CombatHUD>.i.ShowWeaponStation(aircraft.weaponManager.currentWeaponStation);
+            PrepareTargetCamera(aircraft);
             BuildCockpitScreens(aircraft);
-            ResetTargetCamera(aircraft);
             SceneSingleton<DynamicMap>.i.SetFaction(aircraft.NetworkHQ);
             SceneSingleton<DynamicMap>.i.DeselectAllIcons();
 
@@ -315,59 +315,6 @@ namespace NavalPower
             }
         }
 
-        // The target camera only announces itself on a change. SetTargetCam
-        // raises its event inside `if (!cam.enabled)`, and refuses outright
-        // while the camera is in landing mode, which gear extension puts it in
-        // and only gear retraction or a touchdown takes it out of. An aircraft
-        // that has been flying itself since it left the deck can therefore be
-        // holding either state, and a tac screen built a moment ago has heard
-        // nothing either way -- so the panel never switches to the target view,
-        // however many targets are selected afterwards.
-        //
-        // Handing the camera over in a known state is what the game itself does
-        // on touchdown: mode forward, camera off. The combat HUD asks for the
-        // target camera every frame there is a target, so the next frame turns
-        // it back on properly and the screen hears about it.
-        private static void ResetTargetCamera(Aircraft aircraft)
-        {
-            if (aircraft == null || TargetCamMode == null || TargetCamCamera == null) return;
-            TargetCam view = aircraft.targetCam;
-            if (view == null)
-            {
-                // Two different failures read the same here. A reference that
-                // is genuinely null means TargetCam.Initialize never ran -- it
-                // is gated on the aircraft having client authority, which an AI
-                // aircraft is not given. One that is merely Unity-null is a
-                // camera that existed and has since been destroyed.
-                bool never = ReferenceEquals(aircraft.targetCam, null);
-                TargetCam part = FindTargetCam(aircraft, out int inScene);
-                Plugin.Log.LogInfo("[seat] target camera " + (never ? "was never built" : "has been destroyed") +
-                    " · component on the airframe: " + (part == null ? "none" : "yes") +
-                    " · " + inScene + " in the scene" +
-                    " · authority " + (aircraft.Identity != null && aircraft.Identity.HasAuthority));
-                if (part == null) return;
-                // Its own initialiser is the only thing that builds the lenses,
-                // and it will decline again if the authority is still not ours.
-                part.Initialize();
-                view = aircraft.targetCam;
-                Plugin.Log.LogInfo("[seat] target camera " + (view == null ? "still not built" : "built"));
-                if (view == null) return;
-            }
-            try
-            {
-                object mode = TargetCamMode.GetValue(view);
-                var lens = TargetCamCamera.GetValue(view) as Camera;
-                Plugin.Log.LogInfo("[seat] target camera was " + mode +
-                    " · " + (lens == null ? "no lens" : lens.enabled ? "on" : "off"));
-                TargetCamMode.SetValue(view, TargetCam.CamMode.targetForward);
-                if (lens != null) lens.enabled = false;
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log.LogWarning("[seat] could not reset the target camera: " + ex.Message);
-            }
-        }
-
         // An aircraft's targeting camera is built by TargetCam.Initialize, and
         // that routine does nothing at all unless the airframe is owned:
         //
@@ -420,26 +367,98 @@ namespace NavalPower
             }
         }
 
-        // Like the cockpit, reached through the part rather than the hierarchy,
-        // and by either of the two things a camera knows about its aircraft:
-        // the part it hangs on, and the aircraft it recorded for itself.
-        private static readonly FieldInfo TargetCamPart = AccessTools.Field(typeof(TargetCam), "attachedPart");
-        private static readonly FieldInfo TargetCamAircraft = AccessTools.Field(typeof(TargetCam), "aircraft");
-
-        private static TargetCam FindTargetCam(Aircraft aircraft, out int inScene)
+        // An aircraft's targeting camera is born with every airframe and dies on
+        // its first frame unless someone is flying it:
+        //
+        //     if (aircraft == null || aircraft.Player == null || !aircraft.Player.IsLocalPlayer)
+        //     { Object.Destroy(this); return; }
+        //
+        // KeepTargetCamPatch holds that off for the flights we launch, so the
+        // component is still here when we take the seat -- but it has never been
+        // initialised, because its initialiser only builds lenses for an owned
+        // airframe. Ownership is claimed before this runs, so the game's own
+        // routine builds them now.
+        //
+        // After that it is handed over the way the game hands it over on
+        // touchdown -- forward mode, lens off -- so the first frame with a target
+        // turns it on through the path that tells the cockpit screen.
+        private static void PrepareTargetCamera(Aircraft aircraft)
         {
-            inScene = 0;
-            TargetCam found = null;
-            foreach (TargetCam candidate in Resources.FindObjectsOfTypeAll<TargetCam>())
+            if (aircraft == null || TargetCamMode == null || TargetCamCamera == null) return;
+            TargetCam view = aircraft.targetCam;
+            if (view == null)
             {
-                if (!candidate.gameObject.scene.IsValid()) continue;
-                inScene++;
-                if (found != null) continue;
-                var part = TargetCamPart?.GetValue(candidate) as UnitPart;
-                if (part != null && part.parentUnit == aircraft) { found = candidate; continue; }
-                if (TargetCamAircraft?.GetValue(candidate) as Aircraft == aircraft) found = candidate;
+                Plugin.Log.LogInfo("[seat] target camera already gone -- it went before this flight " +
+                    "was known to be ours, so there was nothing to keep");
+                return;
             }
-            return found;
+            try
+            {
+                var lens = TargetCamCamera.GetValue(view) as Camera;
+                if (lens == null)
+                {
+                    view.Initialize();
+                    lens = TargetCamCamera.GetValue(view) as Camera;
+                    Plugin.Log.LogInfo("[seat] target camera " + (lens != null ? "built"
+                        : "NOT built · authority " + (aircraft.Identity != null && aircraft.Identity.HasAuthority)));
+                    if (lens == null) return;
+                }
+                else
+                {
+                    // Built on an earlier sortie; its gear and touchdown hooks
+                    // were taken off when that sortie ended, so put them back.
+                    Hook(view, aircraft, attach: true);
+                }
+                TargetCamMode.SetValue(view, TargetCam.CamMode.targetForward);
+                lens.enabled = false;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not prepare the target camera: " + ex.Message);
+            }
+        }
+
+        // On the way out: lens off, screen told, and the gear and touchdown hooks
+        // removed. Left on, a flight flown by the AI again would switch its
+        // landing camera on every time its gear came down, rendering a picture
+        // for a cockpit nobody is sitting in.
+        private static void StandDownTargetCamera(Aircraft aircraft)
+        {
+            TargetCam view = aircraft != null ? aircraft.targetCam : null;
+            if (view == null || TargetCamCamera == null) return;
+            try
+            {
+                if (TargetCamCamera.GetValue(view) is Camera lens && lens != null)
+                {
+                    view.CancelTarget();
+                    lens.enabled = false;
+                    Hook(view, aircraft, attach: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[seat] could not stand down the target camera: " + ex.Message);
+            }
+        }
+
+        private static readonly MethodInfo CamOnSetGear = AccessTools.Method(typeof(TargetCam), "TargetCam_OnSetGear");
+        private static readonly MethodInfo CamOnTouchdown = AccessTools.Method(typeof(TargetCam), "TargetCam_OnTouchdown");
+
+        private static void Hook(TargetCam view, Aircraft aircraft, bool attach)
+        {
+            if (CamOnSetGear != null)
+            {
+                var gear = (Action<Aircraft.OnSetGear>)Delegate.CreateDelegate(
+                    typeof(Action<Aircraft.OnSetGear>), view, CamOnSetGear);
+                aircraft.onSetGear -= gear;                  // never twice
+                if (attach) aircraft.onSetGear += gear;
+            }
+            if (CamOnTouchdown != null)
+            {
+                var touchdown = (Action)Delegate.CreateDelegate(typeof(Action), view, CamOnTouchdown);
+                aircraft.OnTouchdown -= touchdown;
+                if (attach) aircraft.OnTouchdown += touchdown;
+            }
         }
 
         // The physical panels in the cockpit -- the tac screen, and on a glass
@@ -717,6 +736,7 @@ namespace NavalPower
         // takes its own down.
         private static void Dismantle(Aircraft aircraft)
         {
+            StandDownTargetCamera(aircraft);
             RemoveCockpitScreens(aircraft);
             ReleaseThreatAlarms(aircraft);
             ReturnAuthority(aircraft);

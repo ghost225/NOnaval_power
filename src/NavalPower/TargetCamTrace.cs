@@ -56,7 +56,11 @@ namespace NavalPower
                         " · aircraft " + (aircraft == null ? "none"
                             : (aircraft.definition?.unitName ?? aircraft.name)) +
                         " · authority " + (aircraft?.Identity != null && aircraft.Identity.HasAuthority) +
-                        " · lenses " + (aircraft != null && aircraft.targetCam == __instance ? "built" : "not built"));
+                        // The aircraft's targetCam field is serialized in the prefab,
+                        // so it names this component whether or not anything was
+                        // built. The lens is what Initialize actually creates.
+                        " · lenses " + (AccessTools.Field(typeof(TargetCam), "cam")
+                            ?.GetValue(__instance) is UnityEngine.Camera ? "built" : "not built"));
                 });
         }
 
