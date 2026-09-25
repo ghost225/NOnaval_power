@@ -141,8 +141,9 @@ namespace NavalPower
             CommandState.SelectedFlight = flight;
 
             s.Title(flight.Name.ToUpperInvariant() + "  ·  " + flight.Describe());
-            s.Info(flight.FuelPercent.ToString("0") + "% fuel   ·   " + flight.StoresSummary + "   ·   from " +
-                flight.HomeName, flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
+            s.Info(flight.TypeName + "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " +
+                flight.StoresSummary + "   ·   from " + flight.HomeName,
+                flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
             s.Info(flight.Stores);
             s.Info(CommandState.AwaitingCargoZone == flight
                     ? UiKit.Tint("WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +
@@ -201,6 +202,7 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · recovering");
             });
             if (flight.Mode == FlightMode.ReturnToBase) home.image.color = Theme.AccentFill;
+            s.Row("Callsign  ·  " + flight.Name + "  ·  rename", () => s.Show(x => RenamePage(x, flight)));
             s.Row("TAKE THE CONTROLS  ·  fly it yourself", () =>
             {
                 if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
@@ -216,6 +218,21 @@ namespace NavalPower
             s.Title("FLIGHT LOST");
             s.Info("This flight is no longer flying.", Theme.TextMuted);
             return false;
+        }
+
+        private void RenamePage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            CommandState.SelectedFlight = flight;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  callsign");
+            s.Field(flight.Label, value =>
+            {
+                FlightOrders.Rename(flight, value);
+                CommandState.Say(flight.TypeName + " is now " + flight.Name);
+                s.Show(x => FlightPage(x, flight));
+            });
+            s.Info("It shows on the map, in the hover card and in the kill feed, as a player's name does");
+            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
         }
 
         private void FlightRoePage(Surface s, Flight flight)
@@ -395,8 +412,8 @@ namespace NavalPower
             if (plan == null) { s.Show(DeckPage); return; }
             int armed = 0;
             foreach (LoadoutStation st in plan.Stations) if (st.Selected != null) armed++;
-            s.Title(plan.Definition.unitName.ToUpperInvariant() + "  ·  " +
-                (armed > 0 ? armed + " station(s) set" : "clean"));
+            s.Title((plan.Callsign ?? plan.Definition.unitName).ToUpperInvariant() + "  ·  " +
+                plan.Definition.unitName + "  ·  " + (armed > 0 ? armed + " station(s) set" : "clean"));
             foreach (LoadoutStation station in plan.Stations)
             {
                 LoadoutStation shown = station;
@@ -404,6 +421,8 @@ namespace NavalPower
                 if (station.Selected == null) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
             s.Row("Fuel  ·  " + (plan.Fuel * 100f).ToString("0") + "%", () => s.Show(FuelPage));
+            s.Row("Callsign  ·  " + (plan.Callsign ?? "none"), () => s.Show(CallsignPage));
+            s.Row("Livery  ·  " + plan.LiveryName, () => s.Show(LiveryPage));
             // A launch leaves the window on the deck rather than closing it, so
             // a second can be sent straight after the first.
             Button launch = s.Row("LAUNCH", () =>
@@ -414,6 +433,46 @@ namespace NavalPower
             });
             launch.image.color = Theme.Dim(Theme.Good, 0.35f);
             s.Row("Back to airframes", () => s.Show(DeckPage));
+        }
+
+        private void CallsignPage(Surface s)
+        {
+            if (plan == null) { s.Show(DeckPage); return; }
+            s.Title(plan.Definition.unitName.ToUpperInvariant() + "  ·  callsign");
+            s.Field(plan.Callsign, value =>
+            {
+                value = (value ?? "").Trim();
+                if (value.Length > 0) plan.Callsign = value;
+                s.Show(LoadoutPage);
+            });
+            s.Row("Suggest one  ·  " + Callsigns.Suggest(plan.Definition), () =>
+            {
+                plan.Callsign = Callsigns.Suggest(plan.Definition);
+                s.Show(LoadoutPage);
+            });
+            s.Row("Back", () => s.Show(LoadoutPage));
+        }
+
+        // The same list the game's own spawn screen offers for this airframe
+        // and faction, workshop skins included.
+        private void LiveryPage(Surface s)
+        {
+            if (plan == null) { s.Show(DeckPage); return; }
+            s.Title(plan.Definition.unitName.ToUpperInvariant() + "  ·  livery");
+            List<(LiveryKey key, string label)> options = CarrierOps.Liveries(plan.Definition, CommandState.Ship);
+            if (options.Count == 0) s.Info("No liveries for this airframe.", Theme.TextMuted);
+            foreach ((LiveryKey key, string label) option in options)
+            {
+                (LiveryKey key, string label) chosen = option;
+                Button row = s.Row(option.label, () =>
+                {
+                    plan.Livery = chosen.key;
+                    plan.LiveryName = chosen.label;
+                    s.Show(LoadoutPage);
+                });
+                if (option.key.Equals(plan.Livery)) row.image.color = Theme.AccentFill;
+            }
+            s.Row("Back", () => s.Show(LoadoutPage));
         }
 
         private void FuelPage(Surface s)

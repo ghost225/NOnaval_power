@@ -52,7 +52,11 @@ namespace NavalPower
         public bool Interrupted;            // native pilot has it while it fights or evades
         public float ThreatClearedAt;
 
-        public string Name => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
+        // Its callsign when it has one -- which every flight launched through us
+        // does -- and the airframe otherwise.
+        public string Label;
+        public string Name => !string.IsNullOrEmpty(Label) ? Label : TypeName;
+        public string TypeName => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
 
         // Where it came from, for display: flights from every deck are shown
         // together now, so which deck matters for reading the list.
@@ -141,16 +145,6 @@ namespace NavalPower
             }
         }
 
-        public string ShortName
-        {
-            get
-            {
-                string full = Name;
-                int space = full.IndexOf(' ');
-                return space > 0 ? full.Substring(0, space) : full;
-            }
-        }
-
         // Whatever the standing task is, what it is doing right now comes first.
         public string Status =>
             Threat == FlightThreat.Missile ? "EVADING"
@@ -195,6 +189,7 @@ namespace NavalPower
             internal Ship Ship;
             internal AircraftDefinition Definition;
             internal NuclearOption.SavedMission.Loadout Loadout;   // identity of this launch
+            internal string Callsign;
             internal float ExpiresAt;
         }
         private static readonly List<Pending> pending = new List<Pending>();
@@ -214,15 +209,34 @@ namespace NavalPower
         }
 
         internal static void ExpectLaunch(Ship ship, AircraftDefinition definition,
-            NuclearOption.SavedMission.Loadout loadout)
+            NuclearOption.SavedMission.Loadout loadout, string callsign)
         {
             pending.Add(new Pending
             {
                 Ship = ship,
                 Definition = definition,
                 Loadout = loadout,
+                Callsign = callsign,
                 ExpiresAt = Time.unscaledTime + 90f
             });
+        }
+
+        // Callsigns already spoken for: flying, or on a deck waiting to launch.
+        internal static IEnumerable<string> LabelsInUse()
+        {
+            foreach (Flight flight in All())
+                if (!string.IsNullOrEmpty(flight.Label)) yield return flight.Label;
+            foreach (Pending request in pending)
+                if (!string.IsNullOrEmpty(request.Callsign)) yield return request.Callsign;
+        }
+
+        public static void Rename(Flight flight, string label)
+        {
+            if (flight == null) return;
+            label = (label ?? "").Trim();
+            if (label.Length == 0) return;
+            flight.Label = label;
+            Callsigns.Apply(flight.Aircraft, label);
         }
 
         // Claimed the moment the hangar builds it, matched on the loadout we
@@ -235,6 +249,7 @@ namespace NavalPower
             {
                 if (!ReferenceEquals(pending[i].Loadout, loadout)) continue;
                 Ship parent = pending[i].Ship;
+                string callsign = pending[i].Callsign;
                 pending.RemoveAt(i);
                 if (parent == null) return null;
                 var flight = new Flight
@@ -248,6 +263,7 @@ namespace NavalPower
                 };
                 flights.Add(flight);
                 CreditKills(aircraft);
+                Rename(flight, callsign ?? Callsigns.Suggest(aircraft.definition));
                 return flight;
             }
             return null;
@@ -343,6 +359,7 @@ namespace NavalPower
                 };
                 flights.Add(flight);
                 CreditKills(found);
+                Rename(flight, request.Callsign ?? Callsigns.Suggest(found.definition));
                 Plugin.Log.LogInfo("[flight] adopted " + flight.Name + " from " + (request.Ship.definition?.unitName ?? "ship"));
             }
 

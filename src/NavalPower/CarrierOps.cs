@@ -39,6 +39,12 @@ namespace NavalPower
         // the flight turns straight back for home, so this is worth choosing.
         public float Fuel = 1f;
 
+        public string Callsign;
+        // The skin, from the same list the game's own spawn screen offers:
+        // faction liveries plus app-data and workshop skins.
+        public LiveryKey Livery = new LiveryKey(0);
+        public string LiveryName = "Default";
+
         public Loadout Build()
         {
             var loadout = new Loadout();
@@ -111,6 +117,8 @@ namespace NavalPower
         // the previous choice rather than from empty stations.
         private static readonly Dictionary<AircraftDefinition, Dictionary<int, string>> remembered =
             new Dictionary<AircraftDefinition, Dictionary<int, string>>();
+        private static readonly Dictionary<AircraftDefinition, (LiveryKey key, string name)> rememberedLivery =
+            new Dictionary<AircraftDefinition, (LiveryKey, string)>();
 
         internal static void Remember(LoadoutPlan plan)
         {
@@ -119,12 +127,33 @@ namespace NavalPower
             foreach (LoadoutStation station in plan.Stations)
                 record[station.Index] = station.Selected != null ? station.Selected.name : null;
             remembered[plan.Definition] = record;
+            rememberedLivery[plan.Definition] = (plan.Livery, plan.LiveryName);
+        }
+
+        // Exactly what the native spawn screen lists for this airframe and
+        // faction -- LoadoutSelector builds it as a public static, workshop
+        // skins included.
+        internal static List<(LiveryKey key, string label)> Liveries(AircraftDefinition definition, Ship ship)
+        {
+            var options = new List<(LiveryKey key, string label)>();
+            if (definition == null) return options;
+            string faction = ship != null && ship.NetworkHQ != null && ship.NetworkHQ.faction != null
+                ? ship.NetworkHQ.faction.factionName : "";
+            try { LoadoutSelector.GetLiveryOptions(options, definition, faction, allowFactionLivery: true); }
+            catch (System.Exception ex) { Plugin.Log.LogWarning("[deck] could not list liveries: " + ex.Message); }
+            return options;
         }
 
         // Every station the airframe has, with every mount it will accept.
         public static LoadoutPlan PlanFor(AircraftDefinition definition)
         {
             var plan = new LoadoutPlan { Definition = definition, Fuel = Mathf.Clamp01(Settings.DefaultFuel.Value) };
+            plan.Callsign = Callsigns.Suggest(definition);
+            if (definition != null && rememberedLivery.TryGetValue(definition, out var livery))
+            {
+                plan.Livery = livery.key;
+                plan.LiveryName = livery.name;
+            }
             if (definition == null || definition.unitPrefab == null) return plan;
             var prefab = definition.unitPrefab.GetComponent<Aircraft>();
             HardpointSet[] sets = prefab != null && prefab.weaponManager != null ? prefab.weaponManager.hardpointSets : null;
@@ -228,7 +257,7 @@ namespace NavalPower
             }
 
             Airbase.TrySpawnResult result = deck.TrySpawnAircraft(null, plan.Definition,
-                new LiveryKey(0), loadout, Mathf.Clamp01(plan.Fuel));
+                plan.Livery, loadout, Mathf.Clamp01(plan.Fuel));
             if (!result.Allowed)
             {
                 // Nothing left the deck, so nothing was spent.
@@ -240,8 +269,9 @@ namespace NavalPower
             }
 
             Remember(plan);
-            FlightOrders.ExpectLaunch(ship, plan.Definition, loadout);
-            reason = "Launching " + plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
+            FlightOrders.ExpectLaunch(ship, plan.Definition, loadout, plan.Callsign);
+            reason = "Launching " + (string.IsNullOrEmpty(plan.Callsign) ? "" : plan.Callsign + " · ") +
+                plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
                 (payer != null ? " · " + price.ToString("0") + " from your allocation"
                     : purchased ? " · purchased" : " · from reserve");
             Plugin.Log.LogInfo("[deck] " + ship.definition?.unitName + ": " + reason);

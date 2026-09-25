@@ -99,7 +99,56 @@ namespace NavalPower
                 context.Render();
             }
             RefreshHover();
+            RefreshFlightLabels();
         }
+
+        // ---- flight labels on the map ----------------------------------------
+
+        // A flight's callsign beside its map icon, the way a player's name reads
+        // beside theirs -- readable at a glance rather than on hover. Drawn
+        // every frame while the map is up, since the map pans and zooms under
+        // them; a handful of labels costs nothing.
+        private RectTransform labelLayer;
+        private readonly List<Text> flightLabels = new List<Text>();
+
+        private void RefreshFlightLabels()
+        {
+            var map = SceneSingleton<DynamicMap>.i;
+            List<Flight> flights = DynamicMap.mapMaximized && map != null && map.mapImage != null
+                ? FlightOrders.All() : null;
+            int used = 0;
+            if (flights != null)
+            {
+                foreach (Flight flight in flights)
+                {
+                    if (flight.Aircraft == null) continue;
+                    Vector3 at = MapGeometry.ToScreen(map, flight.Aircraft.GlobalPosition());
+                    // Only where the map is actually showing: panned off its
+                    // visible area, a label would float over the world.
+                    if (!OnMap(map, at)) continue;
+                    if (used == flightLabels.Count)
+                    {
+                        Text made = UiKit.Label(labelLayer, "", Theme.CaptionSize, TextAnchor.MiddleLeft, Theme.Text);
+                        made.rectTransform.pivot = new Vector2(0f, 0.5f);
+                        made.rectTransform.sizeDelta = new Vector2(220f, 20f);
+                        var shadow = made.gameObject.AddComponent<Shadow>();
+                        shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
+                        flightLabels.Add(made);
+                    }
+                    Text label = flightLabels[used++];
+                    label.gameObject.SetActive(true);
+                    label.text = flight.Name;
+                    label.color = CommandState.SelectedFlight == flight
+                        ? Color.Lerp(FlightIcons.For(flight), Color.white, 0.4f) : FlightIcons.For(flight);
+                    label.rectTransform.position = at + new Vector3(14f, 0f, 0f);
+                }
+            }
+            for (int i = used; i < flightLabels.Count; i++) flightLabels[i].gameObject.SetActive(false);
+        }
+
+        private static bool OnMap(DynamicMap map, Vector3 screen) =>
+            map.mapBackground != null &&
+            RectTransformUtility.RectangleContainsScreenPoint(map.mapBackground.rectTransform, screen, null);
 
         // ---- the status strip and its tools ----------------------------------
 
@@ -362,6 +411,7 @@ namespace NavalPower
             // camera feeds, the strip, standing windows, the right-click menu,
             // and the hover card over everything.
             BuildOverlay();
+            labelLayer = Layer("Flight labels");
             feedView = gameObject.AddComponent<TargetFeed>();
             feedView.Build((RectTransform)root.transform, font);
             BuildStrip();

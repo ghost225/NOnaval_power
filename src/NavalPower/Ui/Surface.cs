@@ -44,7 +44,7 @@ namespace NavalPower
         private string title;
         private int cursor;
 
-        private enum Kind { Button, Info, Group, Slider }
+        private enum Kind { Button, Info, Group, Slider, Field }
 
         private sealed class RowView
         {
@@ -61,6 +61,8 @@ namespace NavalPower
             internal SliderHold Hold;
             internal Action<float> OnSlide;
             internal bool Updating;
+            internal InputField Input;
+            internal Action<string> OnCommit;
         }
         private readonly List<RowView> rows = new List<RowView>();
 
@@ -214,6 +216,16 @@ namespace NavalPower
             return view.Slider;
         }
 
+        // A line of text to type into, committed on Enter or on clicking away.
+        internal InputField Field(string current, Action<string> onCommit)
+        {
+            RowView view = Take(Kind.Field, 1);
+            view.OnCommit = onCommit;
+            // Never overwrite what is being typed.
+            if (!view.Input.isFocused && view.Input.text != current) view.Input.SetTextWithoutNotify(current ?? "");
+            return view.Input;
+        }
+
         // ---- rows -----------------------------------------------------------
 
         private RowView Take(Kind kind, int parts)
@@ -272,6 +284,24 @@ namespace NavalPower
                             () => view.GroupAction?.Invoke(part));
                         view.Texts[i] = view.Buttons[i].GetComponentInChildren<Text>();
                     }
+                    break;
+
+                case Kind.Field:
+                    view.Rect = UiKit.Box("Field", content, Theme.Dim(Theme.Text, 0.10f));
+                    UiKit.Place(view.Rect, 8, y, inner, RowHeight);
+                    Text typed = UiKit.Label(view.Rect, "", 16, TextAnchor.MiddleLeft, Theme.Text);
+                    UiKit.Fill(typed.rectTransform, 10f, 0f);
+                    typed.supportRichText = false;
+                    Text hint = UiKit.Label(view.Rect, "Type a name, then Enter", 15, TextAnchor.MiddleLeft, Theme.TextFaint);
+                    UiKit.Fill(hint.rectTransform, 10f, 0f);
+                    view.Input = view.Rect.gameObject.AddComponent<InputField>();
+                    view.Input.textComponent = typed;
+                    view.Input.placeholder = hint;
+                    view.Input.characterLimit = 32;
+                    view.Input.lineType = InputField.LineType.SingleLine;
+                    view.Input.targetGraphic = view.Rect.GetComponent<Image>();
+                    view.Input.gameObject.AddComponent<InputCapture>();
+                    view.Input.onEndEdit.AddListener(value => view.OnCommit?.Invoke(value));
                     break;
 
                 case Kind.Slider:
@@ -375,5 +405,56 @@ namespace NavalPower
         public void OnPointerDown(PointerEventData e) => Held = true;
         public void OnPointerUp(PointerEventData e) => Held = false;
         private void OnDisable() => Held = false;
+    }
+
+    // While a field has focus the game's own bindings are switched off, the way
+    // its chat box does it, or every letter typed would also be a command: a
+    // throttle change, a view switch, the pause menu on Escape. Only the maps
+    // this switched off are switched back on, and not until a moment after the
+    // field lets go, so the Enter that committed the text is not also taken by
+    // the game.
+    internal sealed class InputCapture : MonoBehaviour, ISelectHandler, IDeselectHandler
+    {
+        private readonly List<Rewired.ControllerMap> disabled = new List<Rewired.ControllerMap>();
+        private bool captured, pauseWas;
+        private float releaseAt = -1f;
+
+        public void OnSelect(BaseEventData e)
+        {
+            releaseAt = -1f;
+            if (captured) return;
+            captured = true;
+            try
+            {
+                Rewired.Player player = Rewired.ReInput.players.GetPlayer(0);
+                foreach (Rewired.ControllerType type in new[] { Rewired.ControllerType.Keyboard, Rewired.ControllerType.Mouse })
+                    foreach (Rewired.ControllerMap map in player.controllers.maps.GetAllMaps(type))
+                        if (map.enabled) { map.enabled = false; disabled.Add(map); }
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning("[ui] could not suspend game input: " + ex.Message); }
+            CursorManager.SetFlag(CursorFlags.Chat, true);
+            pauseWas = GameplayUI.AllowPauseKeybind;
+            GameplayUI.AllowPauseKeybind = false;
+        }
+
+        public void OnDeselect(BaseEventData e) => releaseAt = Time.unscaledTime + 0.1f;
+
+        private void Update()
+        {
+            if (releaseAt >= 0f && Time.unscaledTime >= releaseAt) Release();
+        }
+
+        private void OnDisable() => Release();
+
+        private void Release()
+        {
+            releaseAt = -1f;
+            if (!captured) return;
+            captured = false;
+            foreach (Rewired.ControllerMap map in disabled) if (map != null) map.enabled = true;
+            disabled.Clear();
+            CursorManager.SetFlag(CursorFlags.Chat, false);
+            GameplayUI.AllowPauseKeybind = pauseWas;
+        }
     }
 }

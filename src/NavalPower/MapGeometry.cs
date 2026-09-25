@@ -3,9 +3,19 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    // Liang-Barsky line/rectangle clipping, shared by the map overlay.
+    // Liang-Barsky line/rectangle clipping, shared by the map overlay, and the
+    // projection from the world onto the map as it is drawn on screen.
     internal static class MapGeometry
     {
+        // Where a world position falls on screen, on the native map as it is
+        // currently panned, zoomed and sized. The map canvas is screen-space,
+        // so its image's position is already in pixels.
+        internal static Vector3 ToScreen(DynamicMap map, GlobalPosition position)
+        {
+            float factor = 900f * map.mapImage.transform.lossyScale.x / map.mapDimension;
+            return map.mapImage.transform.position + new Vector3(position.x, position.z, 0f) * factor;
+        }
+
         internal static bool ClipLine(ref Vector2 a, ref Vector2 b, Rect bounds) =>
             ClipLine(ref a.x, ref a.y, ref b.x, ref b.y, bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax);
 
