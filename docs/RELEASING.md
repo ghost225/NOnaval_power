@@ -18,10 +18,11 @@ picked up automatically.
 2. Copy `docs/nomnom/NavalPower.json` to `modManifests/NavalPower.json` in the fork.
 3. Fill in `hash` from the release page (the `sha256:…` value; the copy button
    beside the asset gives it in the right form) and check `downloadUrl` opens.
-4. Check the incompatibility with Resolute Command (`com.resolute.command`)
-   still names its latest release. NOMNOM reads that version as the newest one
-   known to conflict.
-5. Open a pull request against `main`. A workflow validates the schema; a person
+4. Open a pull request against `main`.
+
+The incompatibility with Resolute Command (`com.resolute.command`) needs no
+upkeep. NOMNOM's schema insists on a version there, but NOMM only shows the
+entry and links to that mod; it never compares the number. A workflow validates the schema; a person
    then reviews it.
 
 ## Their acceptance policy, and where we stand
