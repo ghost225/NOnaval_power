@@ -216,6 +216,7 @@ namespace NavalPower
             CommandState.Quantity = 1;
             CursorManager.SetFlag(CommandCursor, true);
             Plugin.Log.LogInfo("[command] airfield · " + Airfields.NameOf(field));
+            Airfields.Report(field);
             CommandState.Say("Airfield command · " + Airfields.NameOf(field) + " · AIR to launch · fly the view with the movement keys");
         }
 

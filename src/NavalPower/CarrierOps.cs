@@ -195,7 +195,7 @@ namespace NavalPower
 
             bool serviceable = false;
             foreach (Hangar hangar in deck.hangars)
-                if (hangar != null && hangar.IsFunctional()) { serviceable = true; break; }
+                if (Airfields.Serviceable(hangar)) { serviceable = true; break; }
             if (!serviceable) { reason = "No serviceable hangar."; return false; }
 
             if (!deck.CanSpawnAircraft(plan.Definition))

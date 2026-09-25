@@ -63,15 +63,91 @@ namespace NavalPower
             return result;
         }
 
+        // Whether a hangar can be used at all. The game's own airbase panel
+        // counts every hangar that is not disabled; the sea-level test is only
+        // for a deck, whose hangars go under with the ship. Applied to land it
+        // dropped hangars on low coastal fields whose pivots sit near the datum.
+        internal static bool Serviceable(Hangar hangar) =>
+            hangar != null && !hangar.Disabled &&
+            (hangar.parentAirbase == null || !hangar.parentAirbase.AttachedAirbase || hangar.IsFunctional());
+
+        // Serviceable hangars, split by whether one is free to build right now:
+        // a hangar is busy while its doors cycle and an aircraft rolls out.
         internal static void Hangars(Airbase airbase, out int ready, out int busy)
         {
             ready = 0; busy = 0;
             if (airbase == null) return;
             foreach (Hangar hangar in airbase.hangars)
             {
-                if (hangar == null || !hangar.IsFunctional()) continue;
+                if (!Serviceable(hangar)) continue;
                 if (hangar.Available) ready++; else busy++;
             }
+        }
+
+        // What the field has, the way the game's own tooltip counts it: by kind.
+        internal static string Inventory(Airbase airbase)
+        {
+            if (airbase == null) return "";
+            var counts = new SortedDictionary<string, int>();
+            foreach (Hangar hangar in airbase.hangars)
+            {
+                if (!Serviceable(hangar)) continue;
+                string kind = KindOf(hangar);
+                counts.TryGetValue(kind, out int n);
+                counts[kind] = n + 1;
+            }
+            var parts = new List<string>();
+            foreach (KeyValuePair<string, int> entry in counts)
+                parts.Add(entry.Value + " " + entry.Key + (entry.Value == 1 ? "" : "s"));
+            return parts.Count == 0 ? "no hangars" : string.Join(" · ", parts.ToArray());
+        }
+
+        private static string KindOf(Hangar hangar)
+        {
+            UnitDefinition definition = hangar.attachedUnit != null ? hangar.attachedUnit.definition : null;
+            switch (definition?.code)
+            {
+                case "HPAD": return "helipad";
+                case "REV": return "revetment";
+                case "HGR-M": return "hangar";
+                case "HGR-H": return "shelter";
+                case "SHP": return "deck spot";
+                default: return definition != null ? definition.unitName.ToLowerInvariant() : "hangar";
+            }
+        }
+
+        // Every hangar the field holds, and every one nearby that it does not:
+        // said once per field taken, so a count that looks short can be read
+        // against what is actually there.
+        internal static void Report(Airbase airbase)
+        {
+            if (airbase == null) return;
+            var lines = new System.Text.StringBuilder();
+            lines.Append("[field] ").Append(NameOf(airbase)).Append(" · ").Append(airbase.hangars.Count)
+                .Append(" hangar(s) registered · ").Append(Inventory(airbase));
+            foreach (Hangar hangar in airbase.hangars)
+            {
+                if (hangar == null) continue;
+                AircraftDefinition[] offers = hangar.GetAvailableAircraft();
+                lines.Append("\n  ").Append(hangar.attachedUnit != null ? hangar.attachedUnit.name : hangar.name)
+                    .Append(" [").Append(KindOf(hangar)).Append("]")
+                    .Append(hangar.Disabled ? " DISABLED" : "")
+                    .Append(hangar.Available ? " free" : " busy")
+                    .Append(" · y ").Append((hangar.transform.position.y - Datum.LocalSeaY).ToString("0"))
+                    .Append(" m · ").Append(offers != null ? offers.Length : 0).Append(" airframe(s)");
+            }
+            float radius = Mathf.Max(airbase.GetRadius(), 1500f);
+            Vector3 centre = PositionOf(airbase).ToLocalPosition();
+            foreach (Hangar hangar in Object.FindObjectsOfType<Hangar>())
+            {
+                if (hangar == null || hangar.parentAirbase == airbase) continue;
+                if ((hangar.transform.position - centre).sqrMagnitude > radius * radius) continue;
+                lines.Append("\n  nearby, not this field's: ")
+                    .Append(hangar.attachedUnit != null ? hangar.attachedUnit.name : hangar.name)
+                    .Append(" [").Append(KindOf(hangar)).Append("] belongs to ")
+                    .Append(hangar.parentAirbase != null ? NameOf(hangar.parentAirbase) : "no airbase");
+            }
+            Plugin.Log.LogInfo(lines.ToString());
         }
     }
 }

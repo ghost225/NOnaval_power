@@ -27,8 +27,9 @@ namespace NavalPower
             if (deck)
             {
                 Airfields.Hangars(field, out int ready, out int busy);
-                s.Row("LAUNCH AN AIRCRAFT…   ·   " + ready + " hangar(s) ready" +
-                    (busy > 0 ? ", " + busy + " working" : ""), () => s.Show(DeckPage));
+                s.Row("LAUNCH AN AIRCRAFT…   ·   " + ready + " free" +
+                    (busy > 0 ? ", " + busy + " working" : "") + "   ·   " + Airfields.Inventory(field),
+                    () => s.Show(DeckPage));
             }
 
             if (airborne.Count == 0) s.Info("Nothing airborne.", Theme.TextMuted);
@@ -119,7 +120,7 @@ namespace NavalPower
                 bool here = CommandState.Base == field;
                 bool usable = Airfields.CanCommand(field, out string why);
                 Button row = s.Row(Airfields.NameOf(field) + "   ·   " +
-                    (ready + busy == 0 ? "no hangars" : ready + " hangar(s) ready" + (busy > 0 ? ", " + busy + " working" : "")) +
+                    (ready + busy == 0 ? "no hangars" : Airfields.Inventory(field) + "  ·  " + ready + " free") +
                     (here ? "   ·   commanding" : usable ? "" : "   ·   " + why), () =>
                     {
                         if (here) return;
@@ -435,8 +436,9 @@ namespace NavalPower
             Airfields.Hangars(field, out int ready, out int busy);
             bool ownFunds = Settings.LaunchCostFromAllocation.Value;
 
-            s.Title((CommandState.Base != null ? "FIELD" : "FLIGHT DECK") + "  ·  " + ready + " ready" + (busy > 0 ? ", " + busy + " working" : "") +
+            s.Title((CommandState.Base != null ? "FIELD" : "FLIGHT DECK") + "  ·  " + ready + " free" + (busy > 0 ? ", " + busy + " working" : "") +
                 (ownFunds ? "  ·  " + Allocation().ToString("0") + " available" : ""));
+            s.Info(Airfields.Inventory(field), Theme.TextMuted);
 
             Button funding = s.Row(ownFunds
                 ? "FUNDING  ·  you pay for airframes not in reserve"
@@ -448,13 +450,16 @@ namespace NavalPower
             foreach (DeckAircraft airframe in available)
             {
                 DeckAircraft chosen = airframe;
-                bool spare = ready > 0;
+                // Free for this airframe specifically: a helicopter wants a
+                // helipad, a jet a hangar, and one being free says nothing
+                // about the other.
+                bool spare = field.CanSpawnAircraft(airframe.Definition);
                 bool affordable = airframe.InReserve || !ownFunds || Allocation() >= airframe.Price;
                 Button entry = s.Row(airframe.Name + "  ·  " +
                     (airframe.InReserve ? "in reserve  ·  no cost"
                         : ownFunds ? airframe.Price.ToString("0") + " from your allocation"
                         : "purchase " + airframe.Price.ToString("0")) +
-                    (spare ? "" : "  ·  no hangar free") +
+                    (spare ? "" : "  ·  none of its hangars free") +
                     (affordable ? "" : "  ·  cannot afford"), () =>
                     {
                         plan = CarrierOps.PlanFor(chosen.Definition);

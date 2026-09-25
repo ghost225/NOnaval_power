@@ -343,7 +343,7 @@ namespace NavalPower
             stripName.text = Airfields.NameOf(field);
             Airfields.Hangars(field, out int ready, out int busy);
             int traffic = DeckTraffic.Movements(field).Count;
-            stripNav.text = ready + " hangar(s) ready" + (busy > 0 ? "  ·  " + busy + " working" : "") +
+            stripNav.text = ready + " free" + (busy > 0 ? ", " + busy + " working" : "") + "  ·  " + Airfields.Inventory(field) +
                 (traffic > 0 ? "  ·  " + traffic + " in the pattern" : "");
 
             string said = CommandState.Feedback;
