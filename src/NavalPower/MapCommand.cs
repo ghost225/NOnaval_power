@@ -186,12 +186,11 @@ namespace NavalPower
         {
             if (!CommandState.Active) return;
             FlightIcons.Clear();
-            NativeChat.Restore();
             ReleaseKillCredit();
             // lastCommanded deliberately survives, so command can be resumed.
             RestoreNativeBar();
             CommandState.Clear();
-            Ui?.ClosePopup();
+            Ui?.Tidy();
             CursorManager.SetFlag(CommandCursor, false);
         }
 
@@ -408,7 +407,7 @@ namespace NavalPower
             // Native left-drag orbits the world camera; do not pick there.
             if (left && !onMap)
             {
-                if (Ui != null && Ui.PopupOpen && !Ui.Pinned) { leftGesture.Claim(); Ui.ClosePopup(); }
+                if (Ui != null && Ui.PopupOpen) { leftGesture.Claim(); Ui.ClosePopup(); }
                 return;
             }
 
@@ -419,14 +418,16 @@ namespace NavalPower
 
             if (left)
             {
-                if (Ui != null && Ui.PopupOpen && !Ui.Pinned) { leftGesture.Claim(); Ui.ClosePopup(); }
+                if (Ui != null && Ui.PopupOpen) { leftGesture.Claim(); Ui.ClosePopup(); }
                 return;
             }
 
             if (PointerOnForeignUi(onMap ? map : null)) return;
             Flight tasking = CommandState.SelectedFlight;
             bool pinned = Ui != null && Ui.Pinned && tasking != null;
-            if (!pinned) Ui?.ClosePopup();
+            // A new right-click makes the old menu stale; standing windows,
+            // including a flight being tasked, stay as they are.
+            Ui?.ClosePopup();
             bool append = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
 
             if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }

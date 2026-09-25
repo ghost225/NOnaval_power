@@ -39,7 +39,6 @@ namespace NavalPower
         internal static ConfigEntry<int> FeedResolution;
         internal static ConfigEntry<float> FeedWidth;
         internal static ConfigEntry<float> FeedFieldOfView;
-        internal static ConfigEntry<bool> ShowFlightStrip;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
         internal static ConfigEntry<bool> FlightTrace;
@@ -199,9 +198,6 @@ namespace NavalPower
             FeedFieldOfView = config.Bind("Interface", "Target feed field of view", 35f,
                 new ConfigDescription("Narrower reads like a sensor feed; wider shows more context.",
                     new AcceptableValueRange<float>(10f, 80f)));
-
-            ShowFlightStrip = config.Bind("Interface", "Flight strip", true,
-                "Show airborne flights as chips along the command bar.");
 
             ShowRecoveryTracks = config.Bind("Interface", "Recovery tracks", true,
                 "Draw aircraft in the pattern to recover on this deck.");
