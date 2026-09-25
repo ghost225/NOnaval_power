@@ -625,7 +625,8 @@ namespace NavalPower
             if (unit != peekCandidate) { peekCandidate = unit; peekSince = Time.unscaledTime; }
             // Only on a current track: a stale one has no picture to give.
             bool peeking = estimate == null && unit != null && Settings.FeedHoverPeek.Value &&
-                Settings.TargetFeed.Value && Time.unscaledTime - peekSince > 0.3f && TrackReadout.IsCurrent(unit);
+                Settings.TargetFeed.Value && Time.unscaledTime - peekSince > 0.3f && TrackReadout.IsCurrent(unit) &&
+                !MapDocked;                 // a peek bigger than the docked map would cover it
             if (feedView != null) feedView.Peek = peeking ? unit : null;
             bool picture = peeking && feedView != null && feedView.PeekTexture != null;
 

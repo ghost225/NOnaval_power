@@ -524,8 +524,10 @@ namespace NavalPower
             // A selected flight takes the contact rather than opening a menu:
             // with a flight in hand, right-clicking a hostile plainly means
             // "attack that". Refuse rather than send it when nothing aboard can.
+            // Only on a live track: a stale one gets its menu, which offers a
+            // search rather than a strike on a position nobody has.
             if (tasking != null && pointed != null && pointed != CommandState.Ship &&
-                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Hq)
+                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Hq && TrackReadout.IsCurrent(pointed))
             {
                 string contact = pointed.definition?.unitName ?? pointed.name;
                 if (FlightOrders.BestStationFor(tasking.Aircraft, pointed) == null)
@@ -538,8 +540,19 @@ namespace NavalPower
                 return;
             }
 
+            // A weapon in hand shoots at contacts, not at our own side: a
+            // friendly still gets its menu.
+            bool friendly = pointed != null && pointed.NetworkHQ != null && pointed.NetworkHQ == CommandState.Hq;
             RightClickAction action = InputPolicy.RightClick(CommandState.Active, onMap,
-                pointed != null, CommandState.Armed, append);
+                pointed != null, CommandState.Armed && !friendly, append);
+            // Ctrl on a bare point asks what to do there rather than sailing to it.
+            bool ask = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (ask && onMap && pointed == null &&
+                (action == RightClickAction.ReplaceWaypoint || action == RightClickAction.AppendWaypoint))
+            {
+                Ui?.OpenPointContext(Input.mousePosition, map.GetCursorCoordinates());
+                return;
+            }
 
             switch (action)
             {
@@ -548,7 +561,7 @@ namespace NavalPower
                     CommandState.Say(attackReason);
                     break;
                 case RightClickAction.Menu:
-                    Ui?.OpenContext(Input.mousePosition, pointed == CommandState.Ship ? null : pointed, append);
+                    Ui?.OpenContext(Input.mousePosition, pointed, append);
                     break;
                 case RightClickAction.MissingTarget:
                     CommandState.Say((CommandState.SelectedWeapon()?.Name ?? "This weapon") +
@@ -580,11 +593,11 @@ namespace NavalPower
                         UnitConverter.DistanceReading(tasking.OrbitRadius) + " radius");
                     if (!pinned) CommandState.SelectedFlight = null;
                     break;
-                // An airfield does not move, and there is nothing else a
-                // bare click on the map could mean for one.
+                // An airfield does not move: a bare click asks what to send
+                // there instead.
                 case RightClickAction.AppendWaypoint when CommandState.Ship == null:
                 case RightClickAction.ReplaceWaypoint when CommandState.Ship == null:
-                    CommandState.Say("Select a flight to task it, or right-click a contact");
+                    Ui?.OpenPointContext(Input.mousePosition, map.GetCursorCoordinates());
                     break;
                 case RightClickAction.AppendWaypoint:
                     NavigationOrders.AppendWaypoint(CommandState.Ship, map.GetCursorCoordinates(), out string appendReason);
