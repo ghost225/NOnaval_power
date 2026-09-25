@@ -107,9 +107,12 @@ namespace NavalPower
         {
             TargetFeed.Pane pane = feedView.Find(slot);
             if (pane == null) { s.Close(); return; }
-            s.Title(pane.Lost ? UiKit.Tint("DESTROYED  ·  " + pane.Name, Theme.Bad)
+            s.Title(pane.Lost && pane.TrackedAtLoss ? UiKit.Tint("DESTROYED  ·  " + pane.Name, Theme.Bad)
+                : !pane.Showing ? UiKit.Tint("CONTACT LOST  ·  " + pane.Name + "  ·  no current track", Theme.Warn)
                 : UiKit.Tint("PINNED  ·  " + pane.Name, Theme.Passive));
-            s.View(pane.Texture, FeedHeight);
+            // Black rather than the last frame while the track is stale, and the
+            // same size, so the window does not jump when the track comes back.
+            s.View(pane.Showing ? pane.Texture : Texture2D.blackTexture, FeedHeight);
         }
     }
 }

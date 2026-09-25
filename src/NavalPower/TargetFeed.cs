@@ -32,6 +32,12 @@ namespace NavalPower
             internal RenderTexture Texture;
             internal float LostAt = -1f;        // when what it watched was destroyed
             internal bool Lost => LostAt >= 0f;
+            // Whether the faction holds it right now. A pin keeps its window
+            // through a stale track but shows nothing: the camera would see the
+            // unit where it really is, which nobody on our side knows.
+            internal bool Tracked = true;
+            internal bool TrackedAtLoss;        // whether its end was seen at all
+            internal bool Showing => Lost ? TrackedAtLoss : Tracked;
         }
 
         private readonly List<Pane> pins = new List<Pane>();
@@ -107,6 +113,8 @@ namespace NavalPower
         {
             if (unit == null) { reason = "Nothing to pin."; return false; }
             if (IsPinned(unit)) { Unpin(unit); reason = "Feed closed."; return true; }
+            if (!TrackReadout.IsCurrent(unit))
+            { reason = "No current track on " + (unit.definition?.unitName ?? unit.name) + " to point a camera at."; return false; }
             int slot = FreeSlot();
             if (slot < 0) { reason = "All " + MaxPinned + " pinned feeds are in use."; return false; }
 
@@ -218,7 +226,12 @@ namespace NavalPower
             {
                 Pane pane = pins[i];
                 bool gone = pane.Unit == null || pane.Unit.disabled;
-                if (gone && !pane.Lost) pane.LostAt = Time.unscaledTime;
+                if (gone && !pane.Lost)
+                {
+                    pane.LostAt = Time.unscaledTime;
+                    pane.TrackedAtLoss = pane.Tracked;
+                }
+                if (!pane.Lost) pane.Tracked = TrackReadout.IsCurrent(pane.Unit);
                 if (pane.Lost && Time.unscaledTime - pane.LostAt > Linger)
                 {
                     // Held long enough to see it go; now close, rather than leave
@@ -227,7 +240,7 @@ namespace NavalPower
                     pins.RemoveAt(i);
                     continue;
                 }
-                if (pane.Camera == null) continue;
+                if (pane.Camera == null || !pane.Showing) continue;
                 // A destroyed unit's wreck may already be gone, so the camera
                 // holds its last pose rather than being re-aimed at nothing.
                 if (!pane.Lost) FrameOn(pane.Camera, pane.Unit);
