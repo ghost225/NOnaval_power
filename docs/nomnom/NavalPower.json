@@ -16,6 +16,8 @@
   "authors": [
     "ghost225"
   ],
+  "imageUrl": "https://raw.githubusercontent.com/ghost225/NOnaval_power/75ab7723a0d2ef4d8072eae3dd354d5d80095b26/assets/icon.png",
+  "imageHash": "11c6a5c14457ce85337bd2e8b10323cd28c8b65673a4945ff71a9aba0eda1634",
   "githubOwner": "ghost225",
   "githubRepoName": "NOnaval_power",
   "autoUpdateArtifacts": "True",

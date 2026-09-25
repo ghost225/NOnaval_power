@@ -38,6 +38,10 @@ entry and links to that mod; it never compares the number. A workflow validates 
 - **One mod per repository**, releases on GitHub, a parseable tag (`v0.1.0`),
   BepInEx 5. All met.
 
-After listing, the image and client/server status are changed through issues on
-NOMNOM (`HOWTO_UPDATE_MODIMAGE.md`, `HOWTO_UPDATE_ISCLIENTORSERVER.md`); an
-image must be at most 512×512.
+The mod image is `assets/icon.png` (512×333; NOMNOM's limit is 512×512, and
+PNG because their size check reads it reliably). The draft manifest points at it
+through a link pinned to a commit, so its `imageHash` stays valid. If the
+reviewers want images set their way instead, remove `imageUrl`/`imageHash` from
+the pull request and use the *Update Mod Image URL* issue after listing, with
+the same link (`HOWTO_UPDATE_MODIMAGE.md`). Client/server status is changed the
+same way (`HOWTO_UPDATE_ISCLIENTORSERVER.md`).
