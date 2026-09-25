@@ -54,7 +54,7 @@ namespace NavalPower
         // wheel over it can zoom that camera rather than scroll the window.
         internal RectTransform ViewRect { get; private set; }
 
-        private enum Kind { Button, Info, Group, Slider, Field, View }
+        private enum Kind { Button, Info, Group, Slider, Field, View, Spacer }
 
         private sealed class RowView
         {
@@ -80,7 +80,15 @@ namespace NavalPower
 
         internal bool IsOpen => Panel.gameObject.activeSelf;
 
+        private readonly RectTransform titleBar;
+        private int titleButtons;
+        private bool passThrough;
+
         internal Surface(string key, RectTransform parent, Canvas canvas, float width, bool growUp, bool closable)
+            : this(key, parent, canvas, width, growUp, closable, minimizable: closable && growUp) { }
+
+        internal Surface(string key, RectTransform parent, Canvas canvas, float width, bool growUp, bool closable,
+            bool minimizable)
         {
             Key = key;
             Width = width;
@@ -93,7 +101,7 @@ namespace NavalPower
             Panel.pivot = growUp ? Vector2.zero : new Vector2(0, 1);
             Panel.gameObject.AddComponent<SurfaceFocus>().Owner = this;
 
-            RectTransform bar = UiKit.Box("Title bar", Panel, Theme.Dim(Theme.Accent, 0.10f));
+            RectTransform bar = titleBar = UiKit.Box("Title bar", Panel, Theme.Dim(Theme.Accent, 0.10f));
             bar.anchorMin = new Vector2(0, 1); bar.anchorMax = new Vector2(1, 1);
             bar.pivot = new Vector2(0.5f, 1);
             bar.sizeDelta = new Vector2(0, HeaderHeight - 4f);
@@ -104,21 +112,9 @@ namespace NavalPower
             UiKit.Fill(header.rectTransform, 12f, 0f);
             // Standing windows can be folded down to their title bar as well as
             // closed; the right-click menu only closes.
-            bool minimizable = closable && growUp;
-            header.rectTransform.offsetMax = new Vector2(minimizable ? -76f : closable ? -40f : -12f, 0f);
             header.supportRichText = true;
-
-            if (closable)
-            {
-                Button close = TitleButton(bar, "✕", -5f, Close);
-                close.image.color = Theme.Dim(Theme.Text, 0.06f);
-            }
-            if (minimizable)
-            {
-                Button minimize = TitleButton(bar, "–", -39f, ToggleCollapsed);
-                minimize.image.color = Theme.Dim(Theme.Text, 0.06f);
-                minimizeLabel = minimize.GetComponentInChildren<Text>();
-            }
+            if (closable) AddTitleButton("✕", Close);
+            if (minimizable) minimizeLabel = AddTitleButton("–", ToggleCollapsed).GetComponentInChildren<Text>();
 
             viewport = UiKit.Box("Viewport", Panel, new Color(0f, 0f, 0f, 0.004f));
             viewport.anchorMin = Vector2.zero; viewport.anchorMax = Vector2.one;
@@ -143,14 +139,31 @@ namespace NavalPower
             Panel.gameObject.SetActive(false);
         }
 
-        private static Button TitleButton(RectTransform bar, string label, float x, Action action)
+        // Buttons in the title bar, placed right to left in the order added,
+        // with the title giving way to them.
+        internal Button AddTitleButton(string label, Action action)
         {
-            Button button = UiKit.Button(bar, label, 0, 0, 30, 28, action);
+            Button button = UiKit.Button(titleBar, label, 0, 0, 30, 28, action);
             var rect = (RectTransform)button.transform;
             rect.anchorMin = rect.anchorMax = new Vector2(1, 0.5f);
             rect.pivot = new Vector2(1, 0.5f);
-            rect.anchoredPosition = new Vector2(x, 0f);
+            rect.anchoredPosition = new Vector2(-5f - titleButtons * 34f, 0f);
+            button.image.color = Theme.Dim(Theme.Text, 0.06f);
+            titleButtons++;
+            header.rectTransform.offsetMax = new Vector2(-12f - titleButtons * 34f, 0f);
             return button;
+        }
+
+        // A window whose body is a hole: nothing drawn behind its rows and no
+        // clicks taken there, so whatever lies underneath -- the native map --
+        // shows through and keeps its own input. Only the title bar is ours.
+        internal void PassThrough()
+        {
+            passThrough = true;
+            Panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
+            Panel.GetComponent<Image>().raycastTarget = false;
+            viewport.GetComponent<Image>().raycastTarget = false;
+            scroll.enabled = false;
         }
 
         // Folded down to the title bar, which drops to where the window's
@@ -202,7 +215,7 @@ namespace NavalPower
         internal void BringToFront() => Panel.SetAsLastSibling();
 
         internal bool Contains(Vector2 screenPoint) =>
-            IsOpen && RectTransformUtility.RectangleContainsScreenPoint(Panel, screenPoint, null);
+            IsOpen && RectTransformUtility.RectangleContainsScreenPoint(passThrough ? titleBar : Panel, screenPoint, null);
 
         // ---- the page's vocabulary ------------------------------------------
 
@@ -293,6 +306,15 @@ namespace NavalPower
             return view;
         }
 
+        // Empty space of a given height, drawn as nothing and taking no clicks:
+        // the hole a pass-through window leaves for what shows through it.
+        internal RectTransform Spacer(float height)
+        {
+            RowView view = Take(Kind.Spacer, Mathf.RoundToInt(height));
+            ViewRect = view.Rect;
+            return view.Rect;
+        }
+
         // A picture -- a camera feed's texture -- the full width of the window.
         internal RawImage View(Texture texture, float height)
         {
@@ -376,6 +398,13 @@ namespace NavalPower
                     UiKit.Fill((RectTransform)picture.transform, 1f, 1f);
                     view.Image = picture.GetComponent<RawImage>();
                     view.Image.raycastTarget = false;
+                    break;
+
+                case Kind.Spacer:
+                    view.Height = parts;
+                    view.Rect = UiKit.Box("Spacer", content, new Color(0, 0, 0, 0));
+                    UiKit.Place(view.Rect, 8, y, inner, parts);
+                    view.Rect.GetComponent<Image>().raycastTarget = false;
                     break;
 
                 case Kind.Slider:

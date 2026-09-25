@@ -318,7 +318,10 @@ namespace NavalPower
             // open world space. While the map is up, or over any of our own or
             // the game's UI, the mouse belongs to the map, not the camera.
             bool overOwnUi = Ui != null && (Ui.PointerInside() || Ui.PopupOpen);
-            bool ready = CommandState.Active && !DynamicMap.mapMaximized && !overOwnUi && !PointerOnForeignUi(null);
+            // Full screen the map owns every pixel; docked, only its own square,
+            // so the world can be orbited around it.
+            bool mapOwns = Ui != null ? Ui.MapCovers(Input.mousePosition) : DynamicMap.mapMaximized;
+            bool ready = CommandState.Active && !mapOwns && !overOwnUi && !PointerOnForeignUi(null);
             cameraGesture.Update(down, held, ready, leftGesture.Claimed);
         }
 
@@ -516,7 +519,7 @@ namespace NavalPower
             // A feed under the cursor takes the wheel; so does the map, which
             // has its own zoom, and so does any of our own panels.
             if (Ui != null && Ui.ZoomedAFeed(delta)) return;
-            if (DynamicMap.mapMaximized) return;
+            if (Ui != null ? Ui.MapCovers(Input.mousePosition) : DynamicMap.mapMaximized) return;
             if (Ui != null && Ui.PointerInside()) return;
 
             var cameras = SceneSingleton<CameraStateManager>.i;
@@ -658,6 +661,9 @@ namespace NavalPower
             // also drag the map underneath.
             if (instance == null || instance.Ui == null) return true;
             if (!CommandState.Active && !PilotSeat.Active) return true;
+            // Docked, the map's pan and zoom would otherwise act wherever the
+            // cursor is -- stealing every orbit and zoom of the world camera.
+            if (!instance.Ui.MapControlsAllowed()) return false;
             return !instance.Ui.PointerInside();
         }
 

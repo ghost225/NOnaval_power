@@ -75,7 +75,8 @@ namespace NavalPower
             if (context != null && context.Contains(point)) return true;
             foreach (Surface window in windows.Values)
                 if (window.Contains(point)) return true;
-            return false;
+            return fullBar != null && fullBar.gameObject.activeSelf &&
+                RectTransformUtility.RectangleContainsScreenPoint(fullBar, point);
         }
 
         // The right-click menu only; standing windows stay open.
@@ -241,9 +242,7 @@ namespace NavalPower
                     ToggleLiveFeed();
                     return;
                 case "map":
-                    var map = SceneSingleton<DynamicMap>.i;
-                    if (map == null) return;
-                    if (DynamicMap.mapMaximized) map.Minimize(); else map.Maximize();
+                    ToggleMap();
                     return;
                 default:
                     ToggleWindow(tool.Key, tool);
@@ -449,6 +448,7 @@ namespace NavalPower
             context = new Surface("context", menuLayer, canvas, 420f, growUp: false, closable: true);
             context.OnClosed = () => contextTarget = null;
             BuildSeatBar();
+            BuildFullBar();
             BuildHover();
         }
 
