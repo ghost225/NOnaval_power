@@ -1,167 +1,80 @@
 # Naval Power
 
-Command any ship in Nuclear Option — course, speed, and manual weapon orders —
-rather than one specific hull. A BepInEx 5 plugin, no dependency on other mods.
+Command ships, airfields and their air wings in Nuclear Option. A BepInEx 5
+plugin; no other mods required.
 
-## Status
+<!-- Screenshots go here. -->
 
-Early but usable. Course, speed and manual weapon orders work on stock hulls.
-A screen-space command bar appears whenever the spectator camera follows a
-commandable ship; the keybind harness below is kept for diagnostics.
+## What it does
 
-## Design
+- **Any ship, not one hull.** Course and speed, waypoint routes, manual weapon
+  orders with salvo size, rules of engagement, EMCON and passive ESM, damage
+  control and replenishment.
+- **Air operations.** Launch from carriers, helicopter decks and land airfields
+  with a loadout per station, fuel, callsign and livery. Send flights to work an
+  area, fly a route, strike a target, jam, deliver cargo or keep station.
+  Every flight you launch shows in one list, whichever deck or field it flew from.
+- **Take the controls.** Fly any of your flights yourself, then hand it back to
+  its task or send it home.
+- **A Sea Power–style interface.** A status strip and a row of tools that open
+  windows you can stack and drag, a map you can dock beside the world view,
+  pinned camera feeds, and a compass tape.
+- **An economy that means something (optional).** Launches that aren't drawn
+  from the reserve cost your own allocation, and bringing a flight home pays
+  the sortie bonus.
 
-Ships are gated by capability, not by identity: any `Ship` with a `ShipAI` and a
-`UnitCommand` can be commanded. That covers `ShipAI` subclasses such as
-`AssaultCarrierAI`, `LandingCraftAI` and third-party ship AI.
+## Install
 
-Navigation orders go through `UnitCommand.SetDestination`, the public native
-order path, rather than a Harmony patch on `ShipAI.Steer`. `Steer` is `protected
-virtual` and several hulls override it, so a patch on the base method silently
-does nothing on those ships. Route legs are advanced by this mod so the ship does
-not sit through the native multi-minute arrival hold between waypoints, and the
-speed governor writes `ShipInputs.throttle` from `LateUpdate`, after `ShipAI.Steer`
-has run inside `Update`.
+With [NOMM](https://github.com/Combat787/NuclearOptionModManager): search for
+*Naval Power*.
 
-## Building
+By hand: install [BepInEx 5](https://github.com/BepInEx/BepInEx/releases), then
+unzip the release into `BepInEx/plugins/NavalPower/`.
 
-Needs a .NET SDK and a local Nuclear Option install with BepInEx 5.
+Commanding requires single-player or being the mission host.
+
+## Use
+
+- **Ships:** follow a friendly ship with the spectator camera.
+- **Airfields:** shift-click a friendly airbase on the map, or pick one under
+  Air Operations → *Command an airfield*.
+- **Orders:** right-click the map to set a waypoint (shift appends a leg), or
+  right-click a contact for its menu. With a flight's window open, right-clicks
+  task that flight instead.
+- **Getting back in:** **F10** re-enters command, and hands back an aircraft
+  you're flying.
+
+Settings are in BepInEx ConfigurationManager (F1) under *Naval Power*.
+
+## Build
+
+Needs the .NET SDK and a Nuclear Option install with BepInEx 5.
 
 ```bash
 NUCLEAR_OPTION_GAME="/path/to/Nuclear Option" ./build.sh --install
 ```
 
-## Using it
+`./package.sh` builds the release zip. [RELEASING.md](docs/RELEASING.md) covers
+publishing.
 
-Follow a friendly ship with the spectator camera; the command bar appears and
-orders are given on the native map.
+## Credits
 
-- **Right-click the map** — set a course waypoint. Hold shift to append a leg.
-- **Right-click a contact** — opens a context menu: engage with, navigate,
-  engagement permissions, cease fire. With a weapon already selected, a
-  right-click on a contact orders the attack directly.
-- **Hover a contact** — bearing, range, altitude, speed, how stale the track is,
-  and whether the selected weapon can reach it.
-- **Bar** — speed slider and telegraph presets, clear route, rules of
-  engagement, cease fire, weapon selection and salvo size.
+Naval Power builds on the work of other Nuclear Option modders. Thank you to:
 
-Weapons a contact is immune to are shown greyed as "ineffective", from the
-game's own RoleIdentity/TypeIdentity scoring rather than a table of our own.
+- **[Resolute Command](https://github.com/RValeWorks/Resolute-Command)** by
+  RValeWorks. Naval Power began from its code: the map command layer, input
+  handling and map overlay are adapted from it. MIT licence.
+- **[NO Commander](https://github.com/DontKnowWhatImDoingHere/NOCommander)** by
+  rosa.clara. Its approach to AI cargo and helicopter transport missions
+  informed ours. Public domain (Unlicense).
+- **[NOAutopilot](https://github.com/qwerty1423/no-autopilot-mod)** by qwerty1423
+  and contributors. Its carrier auto-land and patch safety net informed ours.
+  MIT licence.
 
-### Air operations
+Licence texts are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-One surface for the whole activity: what is on deck, what is airborne, and what
-is in the pattern. A persistent strip along the command bar carries every
-flight as a chip with its state and fuel, so the air picture is visible while
-doing something else rather than only when a menu is open. Fuel is the
-constraint that actually governs carrier work and it leads the chip.
+Not affiliated with Shockfront Studios.
 
-### Task areas
+## Licence
 
-A flight is sent to work an area rather than a point. Right-click the map with
-a flight selected to set its task area; shift lays down an explicit route
-instead. The area is where the flight holds, and unless released it is also the
-only place it will prosecute anything -- which is the difference between a
-patrol and an aircraft that wanders off after the first contact it sees.
-
-### Flights
-
-Aircraft launched from the deck are commanded, not released. A custom
-`PilotBaseState` drives `Aircraft.autopilot` directly rather than leashing the
-native combat AI, so a flight holds a route, an orbit or a station until told
-otherwise instead of picking its own target and flying at it.
-
-- **Route** — right-click the map with a flight selected; shift appends a leg.
-  A finished route becomes an orbit at the last point rather than flying on.
-- **Orbit** — holds a circle at a chosen radius, aiming at a point running
-  ahead around it so it flies a curve rather than converging on the centre.
-- **Station** — the anchor moves with the ship, so the flight keeps company
-  rather than orbiting where the ship used to be. This is the offboard sensor:
-  a helo on station radiating while the ship stays silent.
-- **Weapons free** — hands the flight back to the native AI deliberately.
-- **Return to base** — hands back to the native landing state. Low fuel forces
-  this regardless of orders.
-
-The state is installed only once the aircraft is airborne and in its combat
-state; taking over during taxi or takeoff would fight the native sequence.
-
-### Sensors and EMCON
-
-`Radar` derives from `TargetDetector`, so a hull carries a mix of emitters and
-passive sensors. EMCON silences only the emitters: switching off a passive
-sensor would not reduce the ship's signature, it would just blind it.
-
-The sensor menu lists each sensor with its state, range and track count, and
-toggles emitters individually or all at once. Active emitter coverage is drawn
-on the map, so going silent visibly shuts the picture down.
-
-Component names are made readable by convention rather than a per-ship lookup
-table, so modded hulls get the same treatment: `CIWS_FL` reads as "Forward Port
-CIWS". Short position codes are read as fore/aft then port/starboard, and a lone
-trailing `R` is taken as rear rather than right, which matches how these hulls
-are actually named.
-
-### ESM
-
-Passive detection of radars that are transmitting, so it keeps working with
-every one of our own emitters shut down -- that is the pairing with EMCON. An
-emitter is heard at roughly twice its own radar range, which is the asymmetry
-that makes going silent worth doing.
-
-Estimates are bearings, not fixes: a stable per receiver/emitter bias stops a
-stationary emitter averaging out into a perfect position, and uncertainty grows
-with how far that class of emitter could have moved since it was last heard.
-Symbols distinguish airborne, surface and land emitters; the contact under the
-cursor shows its error ellipse. An estimate is suppressed while the faction
-already holds a live track on the same unit.
-
-### Tracks on the map
-
-- Filled cross — held by this ship's own sensors
-- Hollow diamond — datalink, with the reporting consort named on hover
-- Orange caret / half-diamond / square — airborne, surface and land emission
-  estimates from ESM
-- Red — our own weapons in flight, each drawn to whatever it is chasing
-
-### Rules of engagement
-
-Vanilla ships carry no `FireControl`; `ShipAI` picks the ship's target and each
-`Turret` picks its own, so there is no single native decision to patch. Instead
-a turret whose current pick is not sanctioned has it cleared and is held manual.
-
-- **Weapons Free** — unrestricted automatic engagement.
-- **Weapons Tight** — inbound weapons, and units that have fired on this ship.
-- **Weapons Hold** — point defence against inbound weapons only.
-
-Mounts carrying an explicit order are left alone by the policy.
-
-## Configuration
-
-Settings appear in BepInEx ConfigurationManager (F1 by default) under *Naval
-Power*, and are written to `BepInEx/config/com.navalpower.nuclearoption.cfg`.
-
-- **Command** — the resume key, and whether command returns on its own after
-  the pause menu.
-- **Flights** — default altitude and task area radius for a new flight,
-  minimum ground clearance, and how long a threat must stay clear before a
-  flight resumes its task.
-- **Interface** — the flight strip and recovery tracks.
-- **Diagnostics** — the five-second flight trace, off by default, and the
-  keyboard test harness.
-
-## Test harness keys
-
-Off by default; enable under Diagnostics. Superseded by the command interface
-and kept for diagnosis.
-
-
-Follow a friendly ship with the spectator camera, then:
-
-| Key | Action |
-| --- | --- |
-| `F6` | Report ship state: AI type, speed, throttle, weapons, turret targets |
-| `F7` | Order the best available weapon at the best available target |
-| `F8` | Cease fire |
-| `F9` | Waypoint 5 km off the bow |
-
-Output goes to `BepInEx/LogOutput.log`.
+[MIT](LICENSE)

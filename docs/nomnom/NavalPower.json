@@ -1,0 +1,33 @@
+{
+  "id": "NavalPower",
+  "displayName": "Naval Power",
+  "description": "Command ships, airfields and their air wings: navigation, manual weapons, ROE, EMCON and damage control, plus carrier and airfield flight operations with per-station loadouts, flight tasking and taking the controls yourself. Sea Power-style interface. Commanding requires single-player or the mission host.",
+  "tags": [
+    "Ship",
+    "Command",
+    "QoL"
+  ],
+  "urls": [
+    {
+      "name": "info",
+      "url": "https://github.com/ghost225/NOnaval_power"
+    }
+  ],
+  "authors": [
+    "ghost225"
+  ],
+  "githubOwner": "ghost225",
+  "githubRepoName": "NOnaval_power",
+  "autoUpdateArtifacts": "True",
+  "artifacts": [
+    {
+      "fileName": "NavalPower_0.1.0.zip",
+      "version": "0.1.0",
+      "category": "release",
+      "type": "plugin",
+      "gameVersion": "0.34.1",
+      "downloadUrl": "https://github.com/ghost225/NOnaval_power/releases/download/v0.1.0/NavalPower_0.1.0.zip",
+      "hash": "sha256:FILL_IN_FROM_THE_RELEASE_PAGE"
+    }
+  ]
+}
