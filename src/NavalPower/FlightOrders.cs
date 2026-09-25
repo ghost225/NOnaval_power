@@ -54,6 +54,10 @@ namespace NavalPower
 
         public string Name => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
 
+        // Where it came from, for display: flights from every deck are shown
+        // together now, so which deck matters for reading the list.
+        public string HomeName => Parent != null ? (Parent.definition?.unitName ?? Parent.name) : "unknown";
+
         // 0-100. The constraint that actually governs carrier operations, and
         // until now it was invisible until the automatic recovery fired.
         public float FuelPercent => Aircraft != null ? Mathf.Clamp01(Aircraft.GetFuelLevel()) * 100f : 0f;
@@ -275,11 +279,23 @@ namespace NavalPower
             return best <= 0.001f ? "GUN" : label;
         }
 
-        public static List<Flight> For(Ship ship)
+        // Every flight we launched and still command, whichever deck it came
+        // off. Filtering by the ship on the bridge made a flight vanish from
+        // view the moment command moved to another ship, though it was still
+        // flying its orders and still ours.
+        public static List<Flight> All()
         {
             var result = new List<Flight>();
             foreach (Flight flight in flights)
-                if (flight.Parent == ship && flight.Aircraft != null && !flight.Aircraft.disabled) result.Add(flight);
+                if (flight.Aircraft != null && !flight.Aircraft.disabled) result.Add(flight);
+            return result;
+        }
+
+        public static List<Flight> For(Ship ship)
+        {
+            var result = new List<Flight>();
+            foreach (Flight flight in All())
+                if (flight.Parent == ship) result.Add(flight);
             return result;
         }
 
@@ -732,10 +748,10 @@ namespace NavalPower
             return null;
         }
 
-        public static List<Flight> JammersFor(Ship ship)
+        public static List<Flight> Jammers()
         {
             var result = new List<Flight>();
-            foreach (Flight flight in For(ship))
+            foreach (Flight flight in All())
                 if (JammerOn(flight.Aircraft) != null) result.Add(flight);
             return result;
         }
@@ -770,10 +786,10 @@ namespace NavalPower
             return crew != null && crew.pilotType != Pilot.PilotType.Plane;
         }
 
-        public static List<Flight> CarriersFor(Ship ship)
+        public static List<Flight> Carriers()
         {
             var result = new List<Flight>();
-            foreach (Flight flight in For(ship))
+            foreach (Flight flight in All())
                 if (CargoMissions.CanCarry(flight.Aircraft)) result.Add(flight);
             return result;
         }
@@ -789,11 +805,11 @@ namespace NavalPower
         }
 
         // Every flight that could usefully be sent at this contact.
-        public static List<Flight> CapableOf(Ship ship, Unit target)
+        public static List<Flight> CapableOf(Unit target)
         {
             var result = new List<Flight>();
             if (target == null) return result;
-            foreach (Flight flight in For(ship))
+            foreach (Flight flight in All())
             {
                 if (flight.Aircraft == null) continue;
                 if (BestStationFor(flight.Aircraft, target) != null) result.Add(flight);

@@ -276,7 +276,7 @@ namespace NavalPower
                     CommandState.Say(reason);
                     ClosePopup();
                 });
-            if (target != null && FlightOrders.For(CommandState.Ship).Count > 0)
+            if (target != null && FlightOrders.All().Count > 0)
                 Row("Strike with flights…", () => StrikeMenu(target));
             Row("Navigate / speed…", NavigationMenu);
             Row("Engagement permissions…", RoeMenu);
@@ -370,7 +370,7 @@ namespace NavalPower
         private void AirOpsMenu()
         {
             Ship ship = CommandState.Ship;
-            List<Flight> airborne = FlightOrders.For(ship);
+            List<Flight> airborne = FlightOrders.All();
             List<DeckMovement> traffic = DeckTraffic.Movements(ship);
             bool deck = CarrierOps.HasDeck(ship);
             DeckTraffic.Hangars(ship, out int ready, out int busy);
@@ -463,8 +463,8 @@ namespace NavalPower
 
         private void StrikeMenu(Unit target)
         {
-            List<Flight> capable = FlightOrders.CapableOf(CommandState.Ship, target);
-            List<Flight> all = FlightOrders.For(CommandState.Ship);
+            List<Flight> capable = FlightOrders.CapableOf(target);
+            List<Flight> all = FlightOrders.All();
             string name = target.definition?.unitName ?? target.name;
             StartPopup("Strike " + name, null);
 
@@ -491,7 +491,7 @@ namespace NavalPower
 
         private void FlightsMenu()
         {
-            List<Flight> airborne = FlightOrders.For(CommandState.Ship);
+            List<Flight> airborne = FlightOrders.All();
             StartPopup("Flights  ·  " + airborne.Count + " airborne", null);
             if (airborne.Count == 0)
             {
@@ -1302,7 +1302,7 @@ namespace NavalPower
         private void RefreshStrip()
         {
             Ship ship = CommandState.Ship;
-            List<Flight> airborne = FlightOrders.For(ship);
+            List<Flight> airborne = FlightOrders.All();
             List<DeckMovement> traffic = CarrierOps.HasDeck(ship)
                 ? DeckTraffic.Movements(ship) : new List<DeckMovement>();
 

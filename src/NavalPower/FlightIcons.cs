@@ -44,7 +44,7 @@ namespace NavalPower
 
             if (ship != null)
             {
-                foreach (Flight flight in FlightOrders.For(ship))
+                foreach (Flight flight in FlightOrders.All())
                 {
                     if (flight.Aircraft == null) continue;
                     if (!DynamicMap.TryGetMapIcon(flight.Aircraft, out UnitMapIcon icon) || icon == null) continue;
