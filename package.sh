@@ -15,6 +15,19 @@ if [[ -z "$version" || "$version" != "$plugin" ]]; then
     exit 1
 fi
 
+# The SDK stamps the current commit into the DLL's version, and NOMNOM checks
+# releases against the published source, so build only a commit that is
+# committed and on GitHub -- the one the release tag will point at.
+if [[ -n "$(git status --porcelain)" ]]; then
+    echo "Uncommitted changes. Commit and push first, then package." >&2
+    exit 1
+fi
+git fetch -q origin
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse '@{u}')" ]]; then
+    echo "HEAD is not what GitHub has. Pull or push first, then package." >&2
+    exit 1
+fi
+
 ./build.sh
 
 mkdir -p build
