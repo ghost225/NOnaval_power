@@ -3,7 +3,12 @@
 Command ships, airfields and their air wings in Nuclear Option. A BepInEx 5
 plugin; no other mods required.
 
-<!-- Screenshots go here. -->
+naval Command
+<img width="1920" height="1080" alt="Screenshot From 2026-09-25 11-52-40" src="https://github.com/user-attachments/assets/8866b025-8754-4924-9f01-36cff1c732d3" />
+
+Airbase command:
+<img width="1920" height="1080" alt="Screenshot From 2026-09-25 11-40-23" src="https://github.com/user-attachments/assets/9a786a29-eff3-4899-8199-e1057dee145a" />
+
 
 ## What it does
 
