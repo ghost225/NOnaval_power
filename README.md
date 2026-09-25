@@ -33,6 +33,8 @@ unzip the release into `BepInEx/plugins/NavalPower/`.
 
 Commanding requires single-player or being the mission host.
 
+Not compatible with Resolute Command: both take over the same map controls.
+
 ## Use
 
 - **Ships:** follow a friendly ship with the spectator camera.
