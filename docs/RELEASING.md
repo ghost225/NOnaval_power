@@ -8,9 +8,10 @@ picked up automatically.
 
 1. Bump the version in **both** `NavalPower.csproj` and `src/NavalPower/Plugin.cs`.
    NOMNOM requires the manifest version to match the DLL's.
-2. `./package.sh` builds `build/NavalPower_<version>.zip` and prints its SHA-256.
+2. `./package.sh` builds `build/NavalPower.dll` and prints its SHA-256.
 3. Create a GitHub release on `ghost225/NOnaval_power` tagged `v<version>`, with
-   that zip as the **first** (or only) asset.
+   that DLL as the only asset, and link LICENSE and THIRD_PARTY_NOTICES.md in
+   the notes, since the DLL ships without them.
 
 ## First listing only
 

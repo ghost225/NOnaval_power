@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Builds the release zip for GitHub and NOMNOM: build/NavalPower_<version>.zip.
+# Builds the release file for GitHub and NOMNOM: build/NavalPower.dll.
 #
-# NOMM unpacks a mod's zip straight into BepInEx/plugins/<mod id>/, so the
-# DLL sits at the root of the archive, not under BepInEx/plugins.
+# A single DLL ships bare, as most single-DLL mods on NOMNOM do: NOMM writes a
+# non-archive download straight into BepInEx/plugins/<mod id>/. The licence
+# and third-party notices live in the repository and are linked from the
+# release notes.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -15,15 +17,11 @@ fi
 
 ./build.sh
 
-stage=build/stage
-zip="build/NavalPower_${version}.zip"
-rm -rf "$stage" "$zip"
-mkdir -p "$stage"
-cp bin/Release/NavalPower.dll README.md LICENSE THIRD_PARTY_NOTICES.md "$stage/"
-(cd "$stage" && zip -q -X "../$(basename "$zip")" ./*)
-rm -rf "$stage"
+mkdir -p build
+out=build/NavalPower.dll
+cp bin/Release/NavalPower.dll "$out"
 
 echo
-echo "  $zip"
+echo "  $out"
 echo "  version  $version  (tag the release v$version)"
-echo "  sha256:$(sha256sum "$zip" | cut -d' ' -f1)"
+echo "  sha256:$(sha256sum "$out" | cut -d' ' -f1)"

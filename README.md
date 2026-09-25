@@ -29,7 +29,7 @@ With [NOMM](https://github.com/Combat787/NuclearOptionModManager): search for
 *Naval Power*.
 
 By hand: install [BepInEx 5](https://github.com/BepInEx/BepInEx/releases), then
-unzip the release into `BepInEx/plugins/NavalPower/`.
+put `NavalPower.dll` from the latest release in `BepInEx/plugins/NavalPower/`.
 
 Commanding requires single-player or being the mission host.
 
@@ -57,7 +57,7 @@ Needs the .NET SDK and a Nuclear Option install with BepInEx 5.
 NUCLEAR_OPTION_GAME="/path/to/Nuclear Option" ./build.sh --install
 ```
 
-`./package.sh` builds the release zip. [RELEASING.md](docs/RELEASING.md) covers
+`./package.sh` builds the release DLL. [RELEASING.md](docs/RELEASING.md) covers
 publishing.
 
 ## Credits
