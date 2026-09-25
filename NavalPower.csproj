@@ -5,7 +5,7 @@
     <AssemblyName>NavalPower</AssemblyName>
     <RootNamespace>NavalPower</RootNamespace>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <!-- Set GameDir, or export NUCLEAR_OPTION_GAME before building. -->
     <GameDir Condition="'$(GameDir)' == ''">$(NUCLEAR_OPTION_GAME)</GameDir>
     <Managed>$(GameDir)/NuclearOption_Data/Managed</Managed>
