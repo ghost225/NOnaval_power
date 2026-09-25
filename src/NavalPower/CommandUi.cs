@@ -37,7 +37,25 @@ namespace NavalPower
         // the ship, so a route can be laid down leg by leg.
         internal bool Pinned => windows.TryGetValue("flight", out Surface s) && s.IsOpen;
 
-        internal bool ZoomedAFeed(float delta) => feedView != null && feedView.HandleScroll(delta);
+        // The wheel over a feed's picture zooms that camera rather than
+        // scrolling the window or zooming the world.
+        internal bool ZoomedAFeed(float delta)
+        {
+            if (feedView == null || Mathf.Abs(delta) < 0.01f) return false;
+            Vector2 point = Input.mousePosition;
+            if (Over(windows, "cam", point)) { TargetFeed.Zoom(feedView.LiveCamera, delta); return true; }
+            for (int slot = 1; slot <= TargetFeed.MaxPinned; slot++)
+                if (Over(windows, "pin" + slot, point))
+                {
+                    TargetFeed.Zoom(feedView.Find(slot)?.Camera, delta);
+                    return true;
+                }
+            return false;
+        }
+
+        private static bool Over(Dictionary<string, Surface> all, string key, Vector2 point) =>
+            all.TryGetValue(key, out Surface s) && s.IsOpen && s.ViewRect != null &&
+            RectTransformUtility.RectangleContainsScreenPoint(s.ViewRect, point, null);
 
         // Windows refresh on their own timer and reuse their rows rather than
         // rebuilding them, so there is nothing left to do here.
@@ -50,7 +68,6 @@ namespace NavalPower
         {
             if (root == null || !root.activeSelf) return false;
             Vector2 point = Input.mousePosition;
-            if (feedView != null && feedView.PointerOverAnyFeed()) return true;
             if (seatBar != null && seatBar.gameObject.activeSelf &&
                 RectTransformUtility.RectangleContainsScreenPoint(seatBar, point)) return true;
             if (strip != null && strip.gameObject.activeSelf &&
@@ -91,6 +108,7 @@ namespace NavalPower
             menuLayer.gameObject.SetActive(!flying);
             if (flying) { hover.gameObject.SetActive(false); return; }
 
+            WatchFeeds();
             if (Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + 0.2f;
@@ -182,7 +200,7 @@ namespace NavalPower
             string[,] defs =
             {
                 { "nav", "NAV" }, { "wpn", "WPN" }, { "sns", "SNS" }, { "roe", "ROE" }, { "dmg", "DMG" },
-                { "air", "AIR" }, { "rpl", "RPL" }, { "map", "MAP" }, { "exit", "EXIT" }
+                { "air", "AIR" }, { "cam", "CAM" }, { "rpl", "RPL" }, { "map", "MAP" }, { "exit", "EXIT" }
             };
             int count = defs.GetLength(0);
             const float width = 60f, gap = 4f;
@@ -218,6 +236,9 @@ namespace NavalPower
             {
                 case "exit":
                     MapCommand.Instance?.LeaveForNativeFlow();
+                    return;
+                case "cam":
+                    ToggleLiveFeed();
                     return;
                 case "map":
                     var map = SceneSingleton<DynamicMap>.i;
@@ -306,6 +327,7 @@ namespace NavalPower
             switch (key)
             {
                 case "air": width = 580f; break;
+                case "cam": case "pin1": case "pin2": case "pin3": width = FeedWindowWidth; break;
                 case "dmg": width = 540f; break;
                 case "sns": width = 500f; break;
                 case "deck": width = 480f; break;
@@ -319,6 +341,12 @@ namespace NavalPower
                 CommandState.SelectedFlight = null;
                 CommandState.AwaitingCargoZone = null;
             };
+            // Closing a pinned feed's window is how a pin is taken down.
+            if (key.StartsWith("pin") && int.TryParse(key.Substring(3), out int slot))
+                window.OnClosed = () => feedView?.Unpin(slot);
+            // Closed by hand, the live feed stays closed until asked for again,
+            // rather than springing back open with the next launch.
+            if (key == "cam") window.OnClosed = () => liveClosedByHand = true;
             windows[key] = window;
             return window;
         }
@@ -374,6 +402,7 @@ namespace NavalPower
                 case "rpl": return ReplenishmentPage;
                 case "air": return AirPage;
                 case "deck": return DeckPage;
+                case "cam": return LiveFeedPage;
                 default: return s => s.Title(key);
             }
         }
@@ -412,8 +441,8 @@ namespace NavalPower
             // and the hover card over everything.
             BuildOverlay();
             labelLayer = Layer("Flight labels");
+            // The feeds' cameras; their windows are made like any other.
             feedView = gameObject.AddComponent<TargetFeed>();
-            feedView.Build((RectTransform)root.transform, font);
             BuildStrip();
             windowLayer = Layer("Windows");
             menuLayer = Layer("Menus");

@@ -38,13 +38,23 @@ namespace NavalPower
         private readonly ScrollRect scroll;
         private readonly Text header;
         private readonly bool growUp;
+        private readonly RectTransform viewport;
+        private readonly Text minimizeLabel;
+        private bool collapsed;
+
+        internal bool Collapsed => collapsed;
 
         private Action<Surface> page;
         private bool pageChanged;
         private string title;
         private int cursor;
+        private float cursorY;
 
-        private enum Kind { Button, Info, Group, Slider, Field }
+        // The picture row, when the page has one -- a camera feed -- so the
+        // wheel over it can zoom that camera rather than scroll the window.
+        internal RectTransform ViewRect { get; private set; }
+
+        private enum Kind { Button, Info, Group, Slider, Field, View }
 
         private sealed class RowView
         {
@@ -63,6 +73,8 @@ namespace NavalPower
             internal bool Updating;
             internal InputField Input;
             internal Action<string> OnCommit;
+            internal RawImage Image;
+            internal float Height = RowHeight;
         }
         private readonly List<RowView> rows = new List<RowView>();
 
@@ -90,20 +102,25 @@ namespace NavalPower
 
             header = UiKit.Label(bar, "", Theme.CaptionSize + 1, TextAnchor.MiddleLeft, Theme.Accent);
             UiKit.Fill(header.rectTransform, 12f, 0f);
-            header.rectTransform.offsetMax = new Vector2(closable ? -40f : -12f, 0f);
+            // Standing windows can be folded down to their title bar as well as
+            // closed; the right-click menu only closes.
+            bool minimizable = closable && growUp;
+            header.rectTransform.offsetMax = new Vector2(minimizable ? -76f : closable ? -40f : -12f, 0f);
             header.supportRichText = true;
 
             if (closable)
             {
-                Button close = UiKit.Button(bar, "✕", 0, 0, 30, 28, Close);
-                var rect = (RectTransform)close.transform;
-                rect.anchorMin = rect.anchorMax = new Vector2(1, 0.5f);
-                rect.pivot = new Vector2(1, 0.5f);
-                rect.anchoredPosition = new Vector2(-5f, 0f);
+                Button close = TitleButton(bar, "✕", -5f, Close);
                 close.image.color = Theme.Dim(Theme.Text, 0.06f);
             }
+            if (minimizable)
+            {
+                Button minimize = TitleButton(bar, "–", -39f, ToggleCollapsed);
+                minimize.image.color = Theme.Dim(Theme.Text, 0.06f);
+                minimizeLabel = minimize.GetComponentInChildren<Text>();
+            }
 
-            RectTransform viewport = UiKit.Box("Viewport", Panel, new Color(0f, 0f, 0f, 0.004f));
+            viewport = UiKit.Box("Viewport", Panel, new Color(0f, 0f, 0f, 0.004f));
             viewport.anchorMin = Vector2.zero; viewport.anchorMax = Vector2.one;
             viewport.offsetMin = Vector2.zero; viewport.offsetMax = new Vector2(0f, -HeaderHeight);
             viewport.gameObject.AddComponent<RectMask2D>();
@@ -126,6 +143,30 @@ namespace NavalPower
             Panel.gameObject.SetActive(false);
         }
 
+        private static Button TitleButton(RectTransform bar, string label, float x, Action action)
+        {
+            Button button = UiKit.Button(bar, label, 0, 0, 30, 28, action);
+            var rect = (RectTransform)button.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(1, 0.5f);
+            rect.pivot = new Vector2(1, 0.5f);
+            rect.anchoredPosition = new Vector2(x, 0f);
+            return button;
+        }
+
+        // Folded down to the title bar, which drops to where the window's
+        // bottom edge was -- out of the way, still labelled, one click from
+        // coming back. The page keeps refreshing, so the title stays live.
+        internal void ToggleCollapsed() => SetCollapsed(!collapsed);
+
+        private void SetCollapsed(bool fold)
+        {
+            collapsed = fold;
+            viewport.gameObject.SetActive(!fold);
+            if (minimizeLabel != null) minimizeLabel.text = fold ? "▢" : "–";
+            PlayerPrefs.SetInt(Pref("folded"), fold ? 1 : 0);
+            if (IsOpen) Size();
+        }
+
         // ---- lifecycle ------------------------------------------------------
 
         internal void Show(Action<Surface> newPage)
@@ -141,6 +182,8 @@ namespace NavalPower
         {
             if (page == null || !IsOpen) return;
             cursor = 0;
+            cursorY = 0f;
+            ViewRect = null;
             title = null;
             page(this);
             for (int i = rows.Count - 1; i >= cursor; i--) Drop(i);
@@ -231,12 +274,32 @@ namespace NavalPower
         private RowView Take(Kind kind, int parts)
         {
             int index = cursor++;
-            if (index < rows.Count && rows[index].Kind == kind && rows[index].Parts == parts) return rows[index];
-            // The shape changed here, so everything from here down is rebuilt.
-            for (int i = rows.Count - 1; i >= index; i--) Drop(i);
-            RowView made = Make(kind, parts, index);
-            rows.Add(made);
-            return made;
+            RowView view;
+            if (index < rows.Count && rows[index].Kind == kind && rows[index].Parts == parts)
+            {
+                view = rows[index];
+            }
+            else
+            {
+                // The shape changed here, so everything from here down is rebuilt.
+                for (int i = rows.Count - 1; i >= index; i--) Drop(i);
+                view = Make(kind, parts, index);
+                rows.Add(view);
+            }
+            // Laid out by accumulated height rather than a fixed pitch, so a
+            // picture can sit among ordinary rows.
+            view.Rect.anchoredPosition = new Vector2(8f, -(cursorY + 4f));
+            cursorY += view.Height + (Pitch - RowHeight);
+            return view;
+        }
+
+        // A picture -- a camera feed's texture -- the full width of the window.
+        internal RawImage View(Texture texture, float height)
+        {
+            RowView view = Take(Kind.View, Mathf.RoundToInt(height));
+            view.Image.texture = texture;
+            ViewRect = view.Rect;
+            return view.Image;
         }
 
         private void Drop(int index)
@@ -304,6 +367,17 @@ namespace NavalPower
                     view.Input.onEndEdit.AddListener(value => view.OnCommit?.Invoke(value));
                     break;
 
+                case Kind.View:
+                    view.Height = parts;
+                    view.Rect = UiKit.Box("View", content, Color.black);
+                    UiKit.Place(view.Rect, 8, y, inner, parts);
+                    var picture = new GameObject("Picture", typeof(RectTransform), typeof(RawImage));
+                    picture.transform.SetParent(view.Rect, false);
+                    UiKit.Fill((RectTransform)picture.transform, 1f, 1f);
+                    view.Image = picture.GetComponent<RawImage>();
+                    view.Image.raycastTarget = false;
+                    break;
+
                 case Kind.Slider:
                     view.Rect = UiKit.Box("Slider row", content, new Color(0, 0, 0, 0));
                     UiKit.Place(view.Rect, 8, y, inner, RowHeight);
@@ -327,9 +401,9 @@ namespace NavalPower
 
         private void Size()
         {
-            float wanted = cursor * Pitch + 8f;
+            float wanted = cursorY + 8f;
             float room = Mathf.Max(160f, Room.y - ReservedBottom - ReservedTop);
-            float height = Mathf.Min(wanted + HeaderHeight, room);
+            float height = collapsed ? HeaderHeight - 4f : Mathf.Min(wanted + HeaderHeight, room);
             Panel.sizeDelta = new Vector2(Width, height);
             content.sizeDelta = new Vector2(0, wanted);
             Clamp();
@@ -339,6 +413,7 @@ namespace NavalPower
         // given -- the drop-up position above its button.
         internal void Place(Vector2 fallback)
         {
+            if (minimizeLabel != null && PlayerPrefs.GetInt(Pref("folded"), 0) == 1 && !collapsed) SetCollapsed(true);
             Panel.anchoredPosition = TryRecall(out Vector2 saved) ? saved : fallback;
             Clamp();
         }

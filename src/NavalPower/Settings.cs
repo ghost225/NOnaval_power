@@ -38,6 +38,8 @@ namespace NavalPower
         internal static ConfigEntry<bool> TargetFeed;
         internal static ConfigEntry<int> FeedResolution;
         internal static ConfigEntry<float> FeedWidth;
+        internal static ConfigEntry<float> FeedLinger;
+        internal static ConfigEntry<bool> FeedAutoOpen;
         internal static ConfigEntry<float> FeedFieldOfView;
         internal static ConfigEntry<bool> ShowRecoveryTracks;
 
@@ -194,6 +196,15 @@ namespace NavalPower
             FeedWidth = config.Bind("Interface", "Target feed size", 420f,
                 new ConfigDescription("On-screen width of the feed panel.",
                     new AcceptableValueRange<float>(200f, 900f)));
+
+            FeedLinger = config.Bind("Interface", "Target feed hold after destruction", 5f,
+                new ConfigDescription("Seconds a feed holds on the spot after what it was watching is destroyed, " +
+                    "so the destruction is seen rather than cut away from.",
+                    new AcceptableValueRange<float>(0f, 15f)));
+
+            FeedAutoOpen = config.Bind("Interface", "Open the target feed on launch", true,
+                "Open the live feed when one of our weapons leaves the rails, unless it was closed by hand " +
+                "during this spell of command.");
 
             FeedFieldOfView = config.Bind("Interface", "Target feed field of view", 35f,
                 new ConfigDescription("Narrower reads like a sensor feed; wider shows more context.",
