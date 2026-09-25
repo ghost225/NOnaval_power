@@ -249,6 +249,7 @@ namespace NavalPower
         {
             RowView view = Take(Kind.Button, 1);
             view.Text.text = label;
+            UiKit.Fit(view.Text, 15);
             view.Action = action;
             view.Button.image.color = Theme.Control;
             view.Text.color = Theme.Text;
@@ -262,6 +263,7 @@ namespace NavalPower
         {
             RowView view = Take(Kind.Info, 1);
             view.Text.text = text;
+            UiKit.Fit(view.Text, Theme.LabelSize + 1);
             view.Text.color = color;
         }
 
@@ -274,6 +276,7 @@ namespace NavalPower
             for (int i = 0; i < labels.Length; i++)
             {
                 view.Texts[i].text = labels[i];
+                UiKit.Fit(view.Texts[i], 15);
                 view.Texts[i].color = Theme.Text;
                 view.Buttons[i].image.color = Theme.Control;
             }

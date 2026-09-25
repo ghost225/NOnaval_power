@@ -34,6 +34,16 @@ namespace NavalPower
             return text;
         }
 
+        // One line of text that has to stay inside its box: stepped down from
+        // its normal size until it fits, to a floor a few sizes smaller.
+        internal static void Fit(Text text, int size, int shrink = 3)
+        {
+            text.fontSize = size;
+            float room = text.rectTransform.rect.width;
+            if (room <= 1f) return;
+            while (text.fontSize > size - shrink && text.preferredWidth > room) text.fontSize--;
+        }
+
         internal static Button Button(RectTransform parent, string label, float x, float y,
             float width, float height, Action action) =>
             Button(parent, label, x, y, width, height, action, TextAnchor.MiddleCenter);

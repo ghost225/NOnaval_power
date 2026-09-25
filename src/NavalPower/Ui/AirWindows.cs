@@ -64,8 +64,8 @@ namespace NavalPower
                 {
                     Flight shown = flight;
                     bool selected = CommandState.SelectedFlight == flight;
-                    Button row = s.Row("      " + flight.Name + "   ·   " + (flight.Status ?? ShortTask(flight)) +
-                        "   ·   " + flight.FuelPercent.ToString("0") + "%   ·   " + flight.StoresSummary,
+                    Button row = s.Row("    " + flight.Name + "  ·  " + (flight.Status ?? ShortTask(flight)) +
+                        "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary,
                         () => OpenFlight(shown));
                     row.GetComponentInChildren<Text>().color =
                         NeedsYou(flight) ? Theme.Bad

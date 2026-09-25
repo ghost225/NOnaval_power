@@ -258,6 +258,30 @@ namespace NavalPower
                 if (ShipOnly(window.Key) && window.Value.IsOpen) window.Value.Close();
         }
 
+        // Name, status and state one after another at their real widths, up
+        // to the tools. Fixed slots assumed short text, and an airfield's
+        // hangar list ran straight through the state beside it.
+        private void FlowStrip()
+        {
+            int shown = 0;
+            foreach (Tool tool in tools) if (tool.Button.gameObject.activeSelf) shown++;
+            float limit = strip.rect.width - 12f - shown * (ToolWidth + ToolGap) - 16f;
+            float x = Flow(stripName, 12f, limit, Theme.BodySize + 1) + 36f;
+            x = Flow(stripNav, x, limit, Theme.CaptionSize) + 36f;
+            Flow(stripState, x, limit, Theme.CaptionSize);
+        }
+
+        private static float Flow(Text text, float x, float limit, int size)
+        {
+            float room = Mathf.Max(0f, limit - x);
+            text.rectTransform.anchoredPosition = new Vector2(x, 0f);
+            text.rectTransform.sizeDelta = new Vector2(room, 0f);
+            UiKit.Fit(text, size);
+            float width = Mathf.Min(text.preferredWidth + 2f, room);
+            text.rectTransform.sizeDelta = new Vector2(width, 0f);
+            return x + width;
+        }
+
         private static Text StripText(RectTransform parent, float x, float width, int size, Color color)
         {
             Text text = UiKit.Label(parent, "", size, TextAnchor.MiddleLeft, color);
@@ -324,6 +348,7 @@ namespace NavalPower
                     roe == EngagementMode.WeaponsFree ? Theme.Bad
                     : roe == EngagementMode.WeaponsTight ? Theme.Warn : Theme.Good) + "   " +
                 UiKit.Tint("DC " + reserve.ToString("0") + "%", Theme.Scale(reserve));
+            FlowStrip();
 
             foreach (Tool tool in tools)
             {
@@ -359,6 +384,7 @@ namespace NavalPower
             stripState.text = UiKit.Tint("AIRFIELD", Theme.Passive) + "   " +
                 airborne.Count + " airborne" +
                 (trouble > 0 ? "   " + UiKit.Tint(trouble + " need attention", Theme.Bad) : "");
+            FlowStrip();
 
             foreach (Tool tool in tools)
             {
