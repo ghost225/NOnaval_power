@@ -24,6 +24,19 @@ namespace NavalPower
             return text.ToString();
         }
 
+        // Whether the faction holds this contact right now: its own, or seen
+        // by some sensor or datalink within the last few seconds. A picture of
+        // a stale track would show where it really is, not where it was last
+        // seen, which is knowledge the faction does not have.
+        internal static bool IsCurrent(Unit contact)
+        {
+            FactionHQ hq = CommandState.Hq;
+            if (contact == null || contact.disabled || hq == null) return false;
+            if (contact.NetworkHQ == hq) return true;
+            TrackingInfo track = hq.GetTrackingData(contact.persistentID);
+            return track != null && track.Observed();
+        }
+
         // From the ship when there is one, else from the airfield being
         // commanded -- which has the faction's picture but no sensors of its own.
         internal static string Describe(Ship ship, Unit contact, WeaponCommandInfo weapon)

@@ -306,7 +306,7 @@ namespace NavalPower
                 if (subject == null)
                 {
                     Unit hovered = MapCommand.Instance?.HoverUnit;
-                    subject = hovered != null && hovered != ship ? hovered : null;
+                    subject = hovered != null && hovered != ship && TrackReadout.IsCurrent(hovered) ? hovered : null;
                 }
             }
             if (subject != previous && subject != null) subjectName = subject.definition?.unitName ?? subject.name;

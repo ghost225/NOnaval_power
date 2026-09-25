@@ -623,8 +623,9 @@ namespace NavalPower
             // A peek once the cursor has rested for a moment, so sweeping across
             // a crowded map does not flash a picture at every icon it crosses.
             if (unit != peekCandidate) { peekCandidate = unit; peekSince = Time.unscaledTime; }
+            // Only on a current track: a stale one has no picture to give.
             bool peeking = estimate == null && unit != null && Settings.FeedHoverPeek.Value &&
-                Settings.TargetFeed.Value && Time.unscaledTime - peekSince > 0.3f;
+                Settings.TargetFeed.Value && Time.unscaledTime - peekSince > 0.3f && TrackReadout.IsCurrent(unit);
             if (feedView != null) feedView.Peek = peeking ? unit : null;
             bool picture = peeking && feedView != null && feedView.PeekTexture != null;
 
