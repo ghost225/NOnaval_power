@@ -1,6 +1,6 @@
 # Naval Power — task forces and air wings
 
-Status: steps 1–2 built (launch queue; wings with formation flying, wing orders, naming). Step 2 awaiting its first in-game test. The previous plan (Sea Power shell, airfield
+Status: steps 1–2 built and in test (launch queue; wings). Step 3 (task force model and station keeping) in progress. The previous plan (Sea Power shell, airfield
 command, compass) is complete and lives in git history. The task-force
 interface follows Sea Power's formation tools (researched 2026-09-25; see §3).
 
@@ -48,10 +48,43 @@ want it. Presets, after Sea Power's list, trimmed to what makes sense here:
 | Screen | an arc ahead and on the bows | escorting a carrier or convoy |
 | Box / diamond | around the guide | all-round air defence |
 
+**Starting stations by hull type.** A new task force lays its ships out by
+role before any dragging: carriers and assault ships in a fan astern of the
+guide, patrol boats and corvettes on a forward screen, destroyers and frigates
+in a ring. Spacing scales with the guide's size -- 2.5× its radius, never under
+250 m -- rather than a fixed distance.
+
+**Screen toward the threat.** The screen's arc is centred on the bearing to the
+nearest *known* enemy surface contact, falling back to the guide's course when
+there is none.
+
 **Station keeping.** Every couple of seconds each escort gets a destination
 well ahead of its station (never *on* it — arriving triggers the native
 multi-minute hold we already work around) and a speed of the guide's speed plus
 a correction for how far behind or ahead it is, capped at its own maximum.
+**A smoothed guide.** Stations hang off a smoothed copy of the guide's
+position and course, not the raw ones. Under fire the smoothing slows almost to
+a stop, so a guide jinking to dodge doesn't drag the whole screen through its
+evasion. Time-based, not per frame.
+
+**Destinations re-issued sparingly.** Each re-issue makes the native AI re-plan
+its path, so a destination is resent only when the aim point has moved more than
+max(2× radius, 200 m) *and* at least a few seconds have passed. The aim point is
+always ≥400 m ahead of the station so the native arrival hold never fires.
+
+**Guide paces the force.** While any escort is well off station (max(6× radius,
+1,200 m)) the guide's speed is capped, easing back toward 40%, until it closes
+-- the same idea as a wing lead waiting for stragglers.
+
+**Collision avoidance is ours to add.** The native ship AI repels only ships
+within 1 km that outweigh half its own mass. Escorts get a closest-point-of-
+approach check against every nearby hull and give way when one is on a
+collision course.
+
+**Group moves.** An order given to an escort within a second or two of one to
+the guide, and close to it, is read as moving with the force rather than
+detaching.
+
 **Relative by default.** Stations turn with the guide's *course*, smoothed,
 not its instantaneous heading, so a small course wobble doesn't send the screen
 swinging. A *Fixed to north* option holds them on true bearings instead. Sea
@@ -119,6 +152,19 @@ flight to add it to another. Losing the lead promotes the next member.
 
 ---
 
+## 2b. Aircraft, from the ImprovedAI review
+
+- **Can it beam in time?** Before choosing to beam a radar missile, estimate
+  whether the aircraft can reach beam aspect before impact (G-limited turn rate
+  against time to impact). If not, turn and run toward friendly lines instead.
+- **Jammers as a last-ditch defence.** Jammer flights hold their pods for radar
+  missiles under ~4 s from impact rather than burning power continuously.
+- **Disengage on the firepower ratio.** A flight (or ship, under ROE) breaks
+  contact when what is shooting at it outweighs what it can hit back with, by
+  the game's own threat scores.
+- **No overkill.** Ship salvos and flight strikes skip targets whose attack
+  count (`missileAttacks`) already meets what they need.
+
 ## 3. Interface
 
 Built into the existing shell, not beside it.
@@ -171,6 +217,15 @@ folded into our own windows.
    rule, strike spread.**
 
 Each step ships and tests on its own.
+
+## Sources
+
+Ideas from an ImprovedAI review (2026-09-25; unknown author, no licence --
+ideas only, no code) and NOAutopilot (MIT). Not taken from ImprovedAI: it
+deletes missiles from the warning list once an interceptor flies, adds
+stabilising torque to ships, smooths per frame, and swallows every exception.
+It also drives every AI ship into its own formations, so it is incompatible
+with Naval Power.
 
 ## Risks
 
