@@ -74,7 +74,8 @@ namespace NavalPower
             Report();
 
             if (aircraft.autopilot is AutopilotPlane && flight.Mode != FlightMode.Formation)
-                controlInputs.throttle = Wings.HasFollowers(flight) ? LeadThrottle : 1f;
+                controlInputs.throttle = Time.timeSinceLevelLoad < flight.ThrottleCutUntil ? 0f
+                    : Wings.HasFollowers(flight) ? LeadThrottle : 1f;
 
             switch (flight.Mode)
             {

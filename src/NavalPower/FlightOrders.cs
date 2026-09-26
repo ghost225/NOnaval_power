@@ -57,6 +57,9 @@ namespace NavalPower
         public bool ThreatIsInfrared;       // flares matter, and it must be let in much closer
         public float ThreatRange = float.PositiveInfinity;
         public float NextFlare;
+        public float NextPreFlare;
+        public int FlaresThisShot;
+        public float ThrottleCutUntil;      // idle to cool the engines while the flares go
         public bool Interrupted;            // native pilot has it while it fights or evades
         public float ThreatClearedAt;
 
@@ -1059,6 +1062,7 @@ namespace NavalPower
                 flight.Threat = threat;
                 flight.ThreatIsInfrared = infrared;
                 flight.ThreatRange = nearestShot;
+                IrDefence.Defend(flight, aircraft, threat == FlightThreat.Missile, infrared, nearestShot);
 
                 // Decoy on the way out. Once the native pilot has the aircraft
                 // it runs its own countermeasures, so this only covers the
@@ -1077,7 +1081,12 @@ namespace NavalPower
         // Does the flight's ROE let the native pilot take it right now?
         private static bool ShouldYield(Flight flight)
         {
-            if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage) return true;
+            // Once the combat pilot has the attack, it keeps it. On the run in,
+            // a radar shot is evaded, but a heat-seeker is flared off without
+            // leaving the run -- breaking away throws the attack away.
+            if (flight.Mode == FlightMode.Strike)
+                return flight.RunInDone || (flight.Threat == FlightThreat.Missile && !flight.ThreatIsInfrared);
+            if (flight.Mode == FlightMode.Engage) return true;
             if (flight.Mode == FlightMode.Cargo) return false;       // the transport state has it
             // Jamming holds station; only an actual shot takes it off the job.
             if (flight.Mode == FlightMode.Jam) return flight.Threat == FlightThreat.Missile;

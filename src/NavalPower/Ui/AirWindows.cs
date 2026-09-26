@@ -65,7 +65,7 @@ namespace NavalPower
                     Flight shown = flight;
                     bool selected = CommandState.SelectedFlight == flight;
                     Button row = s.Row("    " + flight.Name + "  ·  " + (flight.Status ?? ShortTask(flight)) +
-                        "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary,
+                        "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight),
                         () => OpenFlight(shown));
                     row.GetComponentInChildren<Text>().color =
                         NeedsYou(flight) ? Theme.Bad
@@ -133,6 +133,15 @@ namespace NavalPower
             s.Row("Back to air operations", () => s.Show(AirPage));
         }
 
+        // Flares left, coloured when they are running out.
+        private static string FlareTag(Flight flight)
+        {
+            if (flight.Aircraft?.countermeasureManager == null) return "";
+            float left = IrDefence.FlareFraction(flight.Aircraft);
+            string tag = "  ·  flares " + (left * 100f).ToString("0") + "%";
+            return left <= 0f ? UiKit.Tint(tag, Theme.Bad) : left <= Settings.FlareReserve.Value ? UiKit.Tint(tag, Theme.Warn) : tag;
+        }
+
         // Low on fuel, under fire, or out of what it was sent to use: a strike
         // flight with no bombs left needs bringing home even with a full load
         // of air-to-air.
@@ -194,6 +203,9 @@ namespace NavalPower
                 flight.StoresSummary + "   ·   from " + flight.HomeName,
                 flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
             s.Info(flight.Stores);
+            float flares = IrDefence.FlareFraction(flight.Aircraft);
+            s.Info("Countermeasures  ·  " + IrDefence.Readout(flight.Aircraft),
+                flares <= 0f ? Theme.Bad : flares <= Settings.FlareReserve.Value ? Theme.Warn : Theme.TextMuted);
             if (flight.Wing != null) WingRows(s, flight);
             s.Info(CommandState.AwaitingCargoZone == flight
                     ? UiKit.Tint("WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +

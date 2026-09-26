@@ -29,6 +29,9 @@ namespace NavalPower
         internal static ConfigEntry<float> EgressAltitude;
         internal static ConfigEntry<float> RadarHandover;
         internal static ConfigEntry<float> InfraredHandover;
+        internal static ConfigEntry<bool> PreFlare;
+        internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange;
+        internal static ConfigEntry<int> IrBurstFlares;
         internal static ConfigEntry<float> FlareInterval;
 
         internal static ConfigEntry<int> DamageControlConcentration;
@@ -159,6 +162,18 @@ namespace NavalPower
                     "work and the endgame is short.",
                     new AcceptableValueRange<float>(200f, 20000f)));
 
+            IrBurstRange = config.Bind("Flights", "Heat-seeker flare range", 3000f,
+                "On an attack run, a heat-seeking shot inside this range is met with a burst of flares and a " +
+                "moment at idle throttle, without leaving the run.");
+            IrBurstFlares = config.Bind("Flights", "Flares per heat-seeker", 4,
+                "Flares released against each heat-seeking shot on an attack run.");
+            PreFlare = config.Bind("Flights", "Pre-flare near IR launchers", true,
+                "On an attack run inside the reach of an IR launcher the faction knows about, release a flare " +
+                "every few seconds, so a shot fired without warning meets flares already in the air.");
+            PreFlareInterval = config.Bind("Flights", "Pre-flare interval", 2f,
+                "Seconds between pre-emptive flares near known IR launchers.");
+            FlareReserve = config.Bind("Flights", "Flare reserve", 0.3f,
+                "Pre-flaring stops when the flares left fall to this fraction, keeping them for actual shots.");
             FlareInterval = config.Bind("Flights", "Flare interval", 1.5f,
                 new ConfigDescription("Seconds between flare releases while egressing with a heat-seeker " +
                     "inbound. The native pilot runs its own countermeasures once it has the aircraft.",
