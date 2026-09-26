@@ -43,7 +43,7 @@ namespace NavalPower
             if (flight.Mode != FlightMode.Strike || aircraft.countermeasureManager == null) return;
             if (PilotSeat.Flying == flight) return;
             float now = Time.timeSinceLevelLoad;
-            float flares = aircraft.countermeasureManager.GetFlareAmmoProportion();
+            float flares = FlareFraction(aircraft);
 
             if (missile && infrared)
             {
@@ -113,20 +113,60 @@ namespace NavalPower
             if (aircraft?.countermeasureManager == null || Stations == null) return "";
             if (!(Stations.GetValue(aircraft.countermeasureManager) is IList list) || list.Count == 0) return "no countermeasures";
             var parts = new List<string>();
-            foreach (object station in list)
+            for (int i = 0; i < list.Count; i++)
             {
-                if (station == null) continue;
-                Traverse t = Traverse.Create(station);
+                if (list[i] == null) continue;
+                Traverse t = Traverse.Create(list[i]);
                 string name = t.Field("displayName").GetValue<string>();
-                int ammo = t.Field("ammo").GetValue<int>(), max = t.Field("maxAmmo").GetValue<int>();
+                int ammo = t.Field("ammo").GetValue<int>();
+                int max = Full(aircraft, i, ammo, t.Field("maxAmmo").GetValue<int>());
                 parts.Add((string.IsNullOrEmpty(name) ? "CM" : name) + " " + ammo + (max > 0 ? "/" + max : ""));
             }
             return string.Join("  ·  ", parts.ToArray());
         }
 
-        // Fraction of flares left, for colouring a readout.
-        internal static float FlareFraction(Aircraft aircraft) =>
-            aircraft?.countermeasureManager != null ? aircraft.countermeasureManager.GetFlareAmmoProportion() : 0f;
+        // The game fills in a countermeasure's maximum only on a rearm, so an
+        // aircraft fresh off the deck reports a maximum of nothing -- and its
+        // own flare proportion reads zero with every flare still aboard. The
+        // load it was first seen with is taken as full instead.
+        private static readonly Dictionary<Aircraft, Dictionary<int, int>> fullLoad =
+            new Dictionary<Aircraft, Dictionary<int, int>>();
+
+        private static int Full(Aircraft aircraft, int station, int ammo, int reported)
+        {
+            if (!fullLoad.TryGetValue(aircraft, out Dictionary<int, int> stations))
+            {
+                if (fullLoad.Count > 64)
+                {
+                    var gone = new List<Aircraft>();
+                    foreach (Aircraft key in fullLoad.Keys) if (key == null || key.disabled) gone.Add(key);
+                    foreach (Aircraft key in gone) fullLoad.Remove(key);
+                }
+                fullLoad[aircraft] = stations = new Dictionary<int, int>();
+            }
+            stations.TryGetValue(station, out int seen);
+            int full = Mathf.Max(seen, ammo, reported);
+            stations[station] = full;
+            return full;
+        }
+
+        // Fraction of flares left: the station that answers heat-seekers, or
+        // the first one if none says so.
+        internal static float FlareFraction(Aircraft aircraft)
+        {
+            if (aircraft?.countermeasureManager == null || Stations == null) return 0f;
+            if (!(Stations.GetValue(aircraft.countermeasureManager) is IList list) || list.Count == 0) return 0f;
+            int index = 0;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var types = list[i] != null ? Traverse.Create(list[i]).Field("threatTypes").GetValue<List<string>>() : null;
+                if (types != null && types.Contains("IR")) { index = i; break; }
+            }
+            Traverse t = Traverse.Create(list[index]);
+            int ammo = t.Field("ammo").GetValue<int>();
+            int max = Full(aircraft, index, ammo, t.Field("maxAmmo").GetValue<int>());
+            return max > 0 ? Mathf.Clamp01((float)ammo / max) : 0f;
+        }
     }
 
     // The combat pilot's own heat-seeker evasion holds idle throttle and

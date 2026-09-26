@@ -1105,7 +1105,7 @@ namespace NavalPower
                 if (threat == FlightThreat.Missile && infrared && flight.Mode == FlightMode.Egress &&
                     Time.timeSinceLevelLoad >= flight.NextFlare &&
                     aircraft.countermeasureManager != null &&
-                    aircraft.countermeasureManager.GetFlareAmmoProportion() > 0f)
+                    IrDefence.FlareFraction(aircraft) > 0f)
                 {
                     flight.NextFlare = Time.timeSinceLevelLoad + Settings.FlareInterval.Value;
                     aircraft.countermeasureManager.PopFlares();
