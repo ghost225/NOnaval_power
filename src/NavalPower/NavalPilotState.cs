@@ -88,6 +88,9 @@ namespace NavalPower
                 // difference is that a strike has a designated target pinned
                 // onto it. Missing this case left nothing driving the aircraft.
                 case FlightMode.Strike:
+                    if (flight.RunInDone || !(aircraft.autopilot is AutopilotPlane)) HandBackToCombat(pilot);
+                    else FlyRunIn(pilot);
+                    break;
                 case FlightMode.Engage: HandBackToCombat(pilot); break;
                 case FlightMode.ReturnToBase: HandBackToLanding(pilot); break;
                 // A mode with no arm here writes no control inputs at all, and
@@ -397,6 +400,71 @@ namespace NavalPower
         // Never command a flight lower than this above the ground, whatever is
         // selected: the autopilot needs room to arrest a descent.
         private static float MinimumClearance => Settings.MinimumClearance.Value;
+
+        // Set up the attack: down to a height the weapon can be released from,
+        // toward the target, and hand over once inside release range.
+        //
+        // Too high to line up in the range left, or simply too close, it first
+        // opens out -- toward friendly lines, the side its home is on, rather
+        // than on past the target -- to a set-up point far enough off to
+        // descend and turn in, and runs in from there. The set-up is a stage
+        // that completes, so it cannot flip between opening out and turning in.
+        private void FlyRunIn(Pilot pilot)
+        {
+            Unit target = flight.Target;
+            FactionHQ hq = aircraft.NetworkHQ;
+            WeaponStation station = FlightOrders.NamedStation(aircraft, flight.PreferredWeapon) ??
+                (target != null ? FlightOrders.BestStationFor(aircraft, target) : null);
+            if (target == null || target.disabled || hq == null || !hq.TryGetKnownPosition(target, out GlobalPosition known) ||
+                !FlightOrders.RunInFor(station?.WeaponInfo, out float height, out float release))
+            {
+                CompleteRunIn(pilot, "no run-in needed");
+                return;
+            }
+
+            GlobalPosition here = aircraft.GlobalPosition();
+            float range = Horizontal(known, here);
+            bool low = aircraft.radarAlt <= height + Mathf.Max(250f, height * 0.25f);
+            if (Time.timeSinceLevelLoad - flight.RunInStarted > 240f) { CompleteRunIn(pilot, "run-in timed out"); return; }
+
+            if (!flight.SettingUp && (range < release * 0.5f || (!low && range < release)))
+            {
+                flight.SettingUp = true;
+                Plugin.Log.LogInfo("[flight] " + flight.Name + " · opening out to set up the run");
+            }
+
+            GlobalPosition aim = known;
+            if (flight.SettingUp)
+            {
+                Vector3 friendly = flight.HomePosition - known;
+                friendly.y = 0f;
+                if (friendly.sqrMagnitude < 1f) friendly = here - known;
+                friendly.y = 0f;
+                if (friendly.sqrMagnitude < 1f) friendly = -aircraft.transform.forward;
+                GlobalPosition setUp = known + friendly.normalized * release * 1.3f;
+                if (Horizontal(setUp, here) < 1500f || (low && range >= release * 1.15f))
+                {
+                    flight.SettingUp = false;
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · turning in for the run");
+                }
+                else aim = setUp;
+            }
+            else if (low && range < release) { CompleteRunIn(pilot, "in position"); return; }
+
+            float ordered = flight.Altitude;
+            flight.Altitude = height;
+            Steer(aim);
+            flight.Altitude = ordered;
+        }
+
+        private void CompleteRunIn(Pilot pilot, string why)
+        {
+            flight.RunInDone = true;
+            flight.StrikeStarted = Time.timeSinceLevelLoad;     // patience runs from the attack, not the transit
+            Plugin.Log.LogInfo("[flight] " + flight.Name + " · run-in complete · " + why + " · alt " +
+                aircraft.radarAlt.ToString("0") + " m");
+            HandBackToCombat(pilot);
+        }
 
         private void HandBackToCombat(Pilot pilot)
         {

@@ -37,6 +37,11 @@ namespace NavalPower
         public string PreferredWeapon;      // WeaponInfo.name, or null for whatever suits best
         public bool WarnedAboutTrack;
         public float StrikeStarted;
+        // Whether the run-in is flown: set up at a height and range the chosen
+        // weapon can be released from, before the combat pilot takes over.
+        public bool RunInDone;
+        public float RunInStarted;
+        public bool SettingUp;              // opening out toward friendly lines to come round for the run
         public int StrikeStartAmmo = -1;
         public FlightMode PreviousMode = FlightMode.Orbit;
         public FlightRoe Roe = FlightRoe.Tight;
@@ -415,7 +420,7 @@ namespace NavalPower
                 // the symptom is the same whatever the reason: passes without
                 // rounds leaving. Give it time to arrive and acquire first,
                 // then try something else, then give up honestly.
-                if (flight.Mode == FlightMode.Strike && flight.StrikeStartAmmo >= 0 &&
+                if (flight.Mode == FlightMode.Strike && flight.RunInDone && flight.StrikeStartAmmo >= 0 &&
                     Time.timeSinceLevelLoad - flight.StrikeStarted > Settings.StrikePatience.Value &&
                     TotalAmmo(flight.Aircraft) >= flight.StrikeStartAmmo)
                 {
@@ -541,6 +546,19 @@ namespace NavalPower
                             (flight.Airdrop ? "airdropping" : "delivering") + " cargo");
                     }
                     flight.Adopted = true;
+                    continue;
+                }
+
+                // A fixed-wing strike is set up by us first -- the run-in, in
+                // our own state -- and handed to the combat pilot from there.
+                if (flight.Mode == FlightMode.Strike && !flight.RunInDone && !IsRotary(pilot) &&
+                    NavalPilotState.CanBeFlown(flight.Aircraft))
+                {
+                    if (StillLeaving(pilot)) continue;
+                    if (!(pilot.currentState is NavalPilotState)) NavalPilotState.Install(pilot, flight);
+                    flight.Adopted = true;
+                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · setting up to strike " +
+                        (flight.Target?.definition?.unitName ?? "target"));
                     continue;
                 }
 
@@ -686,6 +704,9 @@ namespace NavalPower
             flight.WarnedAboutTrack = false;
             flight.StrikeStarted = Time.timeSinceLevelLoad;
             flight.StrikeStartAmmo = TotalAmmo(flight.Aircraft);
+            flight.RunInDone = false;
+            flight.SettingUp = false;
+            flight.RunInStarted = Time.timeSinceLevelLoad;
             if (flight.Mode != FlightMode.Strike && flight.Mode != FlightMode.Egress) flight.PreviousMode = flight.Mode;
             flight.Target = target;
             flight.AmmoAtAttack = TotalAmmo(flight.Aircraft);
@@ -902,6 +923,38 @@ namespace NavalPower
             if (!info.bomb && !info.glideBomb) return true;
             FactionHQ hq = aircraft != null ? aircraft.NetworkHQ : null;
             return hq != null && hq.IsTargetPositionAccurate(target, 50f);
+        }
+
+        // The height and range to hand a strike to the combat pilot from, for
+        // this weapon; false when the combat pilot is better left to set up
+        // the attack itself.
+        //
+        // The combat pilot takes its target height from wherever the aircraft
+        // is when it takes over and moves it about ten metres a second, and
+        // while the target is more than 20 degrees off the nose it follows the
+        // terrain at that height. Handed an aircraft at 6,000 m, it dives at the
+        // target, is pulled back up, overflies, and circles -- never getting
+        // the nose inside the weapon's alignment limit. From the right height
+        // the target is already nearly in front of it, and it fires.
+        internal static bool RunInFor(WeaponInfo info, out float height, out float range)
+        {
+            height = 0f;
+            range = 0f;
+            if (info == null) return false;
+            float reach = info.targetRequirements.maxRange;
+            if (info.gun)
+            {
+                height = 600f;
+                range = Mathf.Max(reach * 2f, 3000f);
+                return true;
+            }
+            if (!(info.missile || info.laserGuided) || reach <= 0f) return false;   // bombs set up their own
+            // Low enough that at release range the target sits within half the
+            // weapon's alignment limit below the nose.
+            float align = Mathf.Clamp(info.targetRequirements.minAlignment, 5f, 60f);
+            range = reach * 0.85f;
+            height = Mathf.Clamp(range * Mathf.Tan(align * 0.5f * Mathf.Deg2Rad), 300f, 5000f);
+            return true;
         }
 
         internal static WeaponStation BestStationFor(Aircraft aircraft, Unit target)
