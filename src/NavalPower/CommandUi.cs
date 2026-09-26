@@ -146,6 +146,10 @@ namespace NavalPower
                 foreach (Flight flight in flights)
                 {
                     if (flight.Aircraft == null) continue;
+                    // A wing reads as one label, on its lead; wingmen in
+                    // formation go unlabelled, the way a flight of players would.
+                    if (flight.Mode == FlightMode.Formation && Wings.IsWingman(flight)) continue;
+                    int wingSize = Wings.IsLead(flight) ? Wings.Members(flight.Wing).Count : 1;
                     Vector3 at = MapGeometry.ToScreen(map, flight.Aircraft.GlobalPosition());
                     // Only where the map is actually showing: panned off its
                     // visible area, a label would float over the world.
@@ -161,7 +165,7 @@ namespace NavalPower
                     }
                     Text label = flightLabels[used++];
                     label.gameObject.SetActive(true);
-                    label.text = flight.Name;
+                    label.text = wingSize > 1 ? flight.Wing + " (" + wingSize + ")" : flight.Name;
                     label.color = CommandState.SelectedFlight == flight
                         ? Color.Lerp(FlightIcons.For(flight), Color.white, 0.4f) : FlightIcons.For(flight);
                     label.rectTransform.position = at + new Vector3(14f, 0f, 0f);

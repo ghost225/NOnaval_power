@@ -61,6 +61,19 @@ namespace NavalPower
 
         internal static List<Entry> For(Airbase field) => queue.FindAll(e => e.Field == field);
 
+        internal static void RenameWing(string wing, string name)
+        {
+            foreach (Entry entry in queue)
+            {
+                if (entry.Wing != wing) continue;
+                entry.Wing = name;
+                int dash = entry.Callsign.LastIndexOf('-');
+                entry.Callsign = name + (dash >= 0 ? entry.Callsign.Substring(dash) : "");
+            }
+        }
+
+        internal static int QueuedInWing(string wing) => wing == null ? 0 : queue.FindAll(e => e.Wing == wing).Count;
+
         internal static IEnumerable<string> LabelsInUse()
         {
             foreach (Entry entry in queue) yield return entry.Callsign;

@@ -250,19 +250,19 @@ namespace NavalPower
             s.Row("Orders…", () => { OpenFlight(flight); s.Close(); });
             s.Row("Hold here", () =>
             {
-                FlightOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
+                WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
                 CommandState.Say(flight.Name + " · holding overhead");
                 s.Close();
             });
             s.Row("Weapons free  ·  hand to the AI", () =>
             {
-                FlightOrders.Engage(flight);
+                WingOrders.Engage(flight);
                 CommandState.Say(flight.Name + " · weapons free");
                 s.Close();
             });
             s.Row("Return to base", () =>
             {
-                FlightOrders.ReturnToBase(flight);
+                WingOrders.ReturnToBase(flight);
                 CommandState.Say(flight.Name + " · recovering");
                 s.Close();
             });
@@ -401,7 +401,7 @@ namespace NavalPower
             if (capable.Count > 1)
                 s.Row("ALL CAPABLE  ·  " + capable.Count + " flights", () =>
                 {
-                    foreach (Flight flight in capable) FlightOrders.Strike(flight, target);
+                    foreach (Flight flight in capable) WingOrders.Strike(flight, target);
                     CommandState.Say(capable.Count + " flights striking " + name);
                     s.Close();
                 });
@@ -429,7 +429,7 @@ namespace NavalPower
             s.Title(flight.Name.ToUpperInvariant() + "  ·  strike " + name);
             s.Row("Best available  ·  let the flight choose", () =>
             {
-                FlightOrders.Strike(flight, target);
+                WingOrders.Strike(flight, target);
                 CommandState.Say(flight.Name + " striking " + name);
                 s.Close();
             });
@@ -442,7 +442,7 @@ namespace NavalPower
                     (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match") +
                     (releasable ? "" : "  ·  must close for a track"), () =>
                 {
-                    FlightOrders.Strike(flight, target, info.name);
+                    WingOrders.Strike(flight, target, info.name);
                     CommandState.Say(flight.Name + " striking " + name + " with " + info.weaponName);
                     s.Close();
                 });
@@ -459,7 +459,7 @@ namespace NavalPower
                 Flight shown = flight;
                 s.Row(flight.Name + "  ·  " + flight.TypeName, () =>
                 {
-                    FlightOrders.Jam(shown, target);
+                    WingOrders.Jam(shown, target);
                     CommandState.Say(shown.Name + " jamming " + NameOf(target));
                     s.Close();
                 });
@@ -478,7 +478,7 @@ namespace NavalPower
                 Flight shown = flight;
                 s.Row(flight.Name + "  ·  " + flight.TypeName + "  ·  " + flight.FuelPercent.ToString("0") + "%", () =>
                 {
-                    FlightOrders.SetArea(shown, where, radius > 0f ? Mathf.Max(radius, shown.OrbitRadius) : shown.OrbitRadius);
+                    WingOrders.SetArea(shown, where, radius > 0f ? Mathf.Max(radius, shown.OrbitRadius) : shown.OrbitRadius);
                     CommandState.Say(shown.Name + " · " + doing);
                     s.Close();
                 });
@@ -496,7 +496,7 @@ namespace NavalPower
                 Flight shown = flight;
                 s.Row(flight.Name + "  ·  " + flight.TypeName, () =>
                 {
-                    FlightOrders.Deliver(shown, where, airdrop);
+                    WingOrders.Deliver(shown, where, airdrop);
                     CommandState.Say(shown.Name + " · " + (airdrop ? "airdropping" : "landing cargo") + " at the marked point");
                     s.Close();
                 });

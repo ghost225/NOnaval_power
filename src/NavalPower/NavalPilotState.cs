@@ -43,7 +43,17 @@ namespace NavalPower
 
         private AircraftParameters parameters;
 
-        public override void LeaveState() { }
+        // The native combat and landing states never touch the throttle -- an
+        // AI jet cruises flat out -- so whatever formation keeping left it at
+        // would be inherited. Leave it where they expect it.
+        public override void LeaveState()
+        {
+            if (controlInputs != null && aircraft != null && aircraft.autopilot is AutopilotPlane) controlInputs.throttle = 1f;
+        }
+
+        // A lead with wingmen in formation holds a little power back, so they
+        // have speed in hand to close up with.
+        private const float LeadThrottle = 0.85f;
 
         public override void UpdateState(Pilot pilot) { }
 
@@ -63,8 +73,12 @@ namespace NavalPower
 
             Report();
 
+            if (aircraft.autopilot is AutopilotPlane && flight.Mode != FlightMode.Formation)
+                controlInputs.throttle = Wings.HasFollowers(flight) ? LeadThrottle : 1f;
+
             switch (flight.Mode)
             {
+                case FlightMode.Formation: FlyFormation(); break;
                 case FlightMode.Route: FlyRoute(); break;
                 case FlightMode.Orbit: FlyOrbit(flight.OrbitCentre); break;
                 case FlightMode.Station: FlyStation(); break;
@@ -240,7 +254,56 @@ namespace NavalPower
         // to an empty virtual on the base class, which issues no control inputs
         // at all -- a fixed-wing given the helicopter call simply coasts on
         // stale inputs until it stalls and goes in. Dispatch on the real type.
-        private void Steer(GlobalPosition target)
+        // A wingman's slot, in the lead's frame, flown with a throttle loop on
+        // the along-track gap. The jet autopilot does not match a target's
+        // speed -- its velocity input only biases the climb -- so speed is held
+        // with power; the helicopter autopilot does take a velocity to match.
+        private void FlyFormation()
+        {
+            Flight lead = Wings.LeadOf(flight);
+            Aircraft leader = lead?.Aircraft;
+            if (lead == flight || leader == null || leader.disabled)
+            {
+                // No one to fly on: hold here until given something to do.
+                flight.OrbitCentre = aircraft.GlobalPosition();
+                flight.Mode = FlightMode.Orbit;
+                return;
+            }
+
+            Vector3 velocity = leader.rb != null ? leader.rb.velocity : leader.transform.forward * 100f;
+            Vector3 forward = new Vector3(velocity.x, 0f, velocity.z);
+            if (forward.sqrMagnitude < 25f) forward = new Vector3(leader.transform.forward.x, 0f, leader.transform.forward.z);
+            forward.Normalize();
+            Vector3 right = new Vector3(forward.z, 0f, -forward.x);
+
+            bool rotary = !(aircraft.autopilot is AutopilotPlane);
+            Vector3 offset = Wings.SlotOffset(flight, rotary);
+            GlobalPosition slot = leader.GlobalPosition() + right * offset.x + forward * offset.z;
+            flight.Altitude = lead.Altitude;
+
+            Vector3 gap = slot - aircraft.GlobalPosition();
+            gap.y = 0f;
+            float along = Vector3.Dot(gap, forward);          // positive: behind the slot
+            float distance = gap.magnitude;
+
+            if (rotary)
+            {
+                Steer(slot, velocity);
+                return;
+            }
+
+            // Aim down the lead's track from the slot rather than at the slot
+            // itself, so the aircraft settles alongside instead of overshooting
+            // a point and circling back to it; further out, lead it more.
+            GlobalPosition aim = slot + forward * Mathf.Clamp(distance * 0.5f + 1500f, 1500f, 6000f);
+            float speedGap = Vector3.Dot(velocity, forward) - Vector3.Dot(aircraft.rb != null ? aircraft.rb.velocity : Vector3.zero, forward);
+            float power = distance > 4000f && along > 0f ? 1f
+                : Mathf.Clamp(LeadThrottle + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
+            controlInputs.throttle = power;
+            Steer(aim, velocity);
+        }
+
+        private void Steer(GlobalPosition target, Vector3 velocity = default)
         {
             Autopilot autopilot = aircraft.autopilot;
             if (autopilot == null) return;
@@ -258,7 +321,7 @@ namespace NavalPower
                 destination = point;
                 autopilot.AutoAim(point, aimVelocity: true, ignoreCollisions: false, runwayAlign: false,
                     effort: 1f, bankAllowed: 70f, followTerrain: followTerrain,
-                    altitudeHold: aboveGround, targetVelocity: Vector3.zero);
+                    altitudeHold: aboveGround, targetVelocity: velocity);
                 return;
             }
 
@@ -299,7 +362,7 @@ namespace NavalPower
                 : target;
 
             destination = aim;
-            autopilot.AutoAim(aim, commanded, Vector3.zero, Vector3.zero, followTerrain: true);
+            autopilot.AutoAim(aim, commanded, Vector3.zero, velocity, followTerrain: true);
         }
 
         // Only these autopilots actually implement an AutoAim; anything else

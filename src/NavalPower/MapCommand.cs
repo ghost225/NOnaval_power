@@ -368,6 +368,7 @@ namespace NavalPower
             // missions must not also stop damage control from running.
             Guard.Run("Flight orders", FlightOrders.Tick);
             Guard.Run("Launch queue", LaunchQueue.Tick);
+            Guard.Run("Wings", Wings.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
             Guard.Run("Damage control", DamageControl.WorkAll);
             Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Active));
@@ -544,7 +545,7 @@ namespace NavalPower
                     CommandState.Say(tasking.Name + " carries nothing that can attack " + contact);
                     return;
                 }
-                FlightOrders.Strike(tasking, pointed);
+                WingOrders.Strike(tasking, pointed);
                 CommandState.Say(tasking.Name + " striking " + contact);
                 return;
             }
@@ -580,7 +581,7 @@ namespace NavalPower
                 // laid down; a plain click sends it and hands the map back to
                 // the ship, so orders never silently keep going to the aircraft.
                 case RightClickAction.AppendWaypoint when tasking != null:
-                    FlightOrders.SetRoute(tasking, map.GetCursorCoordinates(), true);
+                    WingOrders.SetRoute(tasking, map.GetCursorCoordinates(), true);
                     CommandState.Say(tasking.Name + " · leg appended · shift-click to add more");
                     break;
                 // A zone that was asked for, or a new one for a delivery
@@ -590,14 +591,14 @@ namespace NavalPower
                     bool airdrop = CommandState.AwaitingCargoZone == tasking
                         ? CommandState.AwaitingAirdrop : tasking.Airdrop;
                     CommandState.AwaitingCargoZone = null;
-                    FlightOrders.Deliver(tasking, map.GetCursorCoordinates(), airdrop);
+                    WingOrders.Deliver(tasking, map.GetCursorCoordinates(), airdrop);
                     CommandState.Say(tasking.Name + " · " +
                         (airdrop ? "airdropping at" : "landing at") + " the marked zone");
                     break;
                 case RightClickAction.ReplaceWaypoint when tasking != null:
                     // A plain click sends the flight to work an area, which is
                     // the common order; shift lays down an explicit route.
-                    FlightOrders.SetArea(tasking, map.GetCursorCoordinates(), tasking.OrbitRadius);
+                    WingOrders.SetArea(tasking, map.GetCursorCoordinates(), tasking.OrbitRadius);
                     CommandState.Say(tasking.Name + " · task area set · " +
                         UnitConverter.DistanceReading(tasking.OrbitRadius) + " radius");
                     if (!pinned) CommandState.SelectedFlight = null;

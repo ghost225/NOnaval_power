@@ -79,7 +79,7 @@ namespace NavalPower
             if (airborne.Count > 0)
                 s.Row("All flights recover", () =>
                 {
-                    foreach (Flight flight in FlightOrders.All()) FlightOrders.ReturnToBase(flight);
+                    foreach (Flight flight in FlightOrders.All()) WingOrders.ReturnToBase(flight);
                     CommandState.Say(airborne.Count + " flight(s) recovering");
                 });
 
@@ -152,6 +152,7 @@ namespace NavalPower
                 case FlightMode.Cargo: return "cargo";
                 case FlightMode.Egress: return "egress";
                 case FlightMode.Engage: return "weapons free";
+                case FlightMode.Formation: return "formation";
                 default: return "recovering";
             }
         }
@@ -193,6 +194,7 @@ namespace NavalPower
                 flight.StoresSummary + "   ·   from " + flight.HomeName,
                 flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
             s.Info(flight.Stores);
+            if (flight.Wing != null) WingRows(s, flight);
             s.Info(CommandState.AwaitingCargoZone == flight
                     ? UiKit.Tint("WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +
                                  " ZONE  ·  right-click the map", Theme.Accent)
@@ -215,17 +217,17 @@ namespace NavalPower
 
             s.Row("Hold here  ·  task area on the aircraft", () =>
             {
-                FlightOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
+                WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
                 CommandState.Say(flight.Name + " · holding overhead");
             });
             s.Row("Station on " + flight.HomeName + "  ·  offboard sensor", () =>
             {
-                FlightOrders.Station(flight);
+                WingOrders.Station(flight);
                 CommandState.Say(flight.Name + " · keeping company");
             });
             s.Row("Clear the route", () =>
             {
-                FlightOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
+                WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
                 CommandState.Say(flight.Name + " · route cleared");
             });
             s.Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), () => s.Show(x => AltitudePage(x, flight)));
@@ -233,24 +235,28 @@ namespace NavalPower
             s.Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), () => s.Show(x => FlightRoePage(x, flight)));
             s.Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), () =>
             {
-                FlightOrders.SetConfined(flight, !flight.ConfineToArea);
+                WingOrders.SetConfined(flight, !flight.ConfineToArea);
                 CommandState.Say(flight.Name + (flight.ConfineToArea
                     ? " · will fight only inside its task area"
                     : " · released to engage anywhere in reach"));
             });
             Button free = s.Row("WEAPONS FREE  ·  hand to the AI", () =>
             {
-                FlightOrders.Engage(flight);
+                WingOrders.Engage(flight);
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
             });
             if (flight.Mode == FlightMode.Engage) free.image.color = Theme.AccentFill;
             Button home = s.Row("Return to base", () =>
             {
-                FlightOrders.ReturnToBase(flight);
+                WingOrders.ReturnToBase(flight);
                 CommandState.Say(flight.Name + " · recovering");
             });
             if (flight.Mode == FlightMode.ReturnToBase) home.image.color = Theme.AccentFill;
-            s.Row("Callsign  ·  " + flight.Name + "  ·  rename", () => s.Show(x => RenamePage(x, flight)));
+            if (flight.Wing != null)
+                s.Row("Wing name  ·  " + flight.Wing + "  ·  rename, and every member with it",
+                    () => s.Show(x => WingNamePage(x, flight)));
+            else
+                s.Row("Callsign  ·  " + flight.Name + "  ·  rename", () => s.Show(x => RenamePage(x, flight)));
             if (feedView != null)
             {
                 bool pinned = feedView.IsPinned(flight.Aircraft);
@@ -261,11 +267,64 @@ namespace NavalPower
                 });
                 if (pinned) feed.image.color = Theme.AccentFill;
             }
+            if (flight.Wing != null)
+                s.Row("Detach " + flight.Name + " from " + flight.Wing, () =>
+                {
+                    Wings.Detach(flight);
+                    CommandState.Say(flight.Name + " · detached · now its own flight");
+                });
+            else if (JoinableWings(flight).Count > 0)
+                s.Row("Join a wing…", () => s.Show(x => JoinWingPage(x, flight)));
             s.Row("TAKE THE CONTROLS  ·  fly it yourself", () =>
             {
                 if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
             });
             s.Row("All flights…", () => Open("air", AirPage));
+        }
+
+        // The wing it flies with: every member, who leads, and who is still to
+        // come off the deck. Orders given here go to the whole wing.
+        private void WingRows(Surface s, Flight flight)
+        {
+            List<Flight> members = Wings.Members(flight.Wing);
+            int waiting = LaunchQueue.QueuedInWing(flight.Wing) + FlightOrders.PendingInWing(flight.Wing);
+            s.Info(UiKit.Tint("WING " + flight.Wing.ToUpperInvariant(), Theme.Accent) + "  ·  " + members.Count + " airborne" +
+                (waiting > 0 ? "  ·  " + waiting + " still to launch, joining on the lead" : "") +
+                "  ·  orders go to the whole wing", Theme.TextMuted);
+            Flight lead = Wings.LeadOf(flight);
+            foreach (Flight member in members)
+            {
+                Flight shown = member;
+                Button row = s.Row("    " + member.Name + "  ·  " + (member == lead ? "lead · " + ShortTask(member) : ShortTask(member)) +
+                    "  ·  " + member.FuelPercent.ToString("0") + "%  ·  " + member.StoresSummary, () => OpenFlight(shown));
+                row.image.color = member == flight ? Theme.AccentFill : Theme.Dim(FlightIcons.For(member), 0.18f);
+            }
+        }
+
+        private static List<string> JoinableWings(Flight flight)
+        {
+            var result = new List<string>();
+            foreach (string wing in Wings.Names())
+                if (wing != flight.Wing && Wings.Members(wing).Count < LaunchQueue.MaxWing) result.Add(wing);
+            return result;
+        }
+
+        private void JoinWingPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  join a wing");
+            foreach (string wing in JoinableWings(flight))
+            {
+                string chosen = wing;
+                List<Flight> members = Wings.Members(wing);
+                s.Row(wing + "  ·  " + members.Count + " aircraft  ·  " + members[0].TypeName, () =>
+                {
+                    Wings.Join(flight, chosen);
+                    CommandState.Say(flight.Name + " · joining " + chosen);
+                    s.Show(x => FlightPage(x, flight));
+                });
+            }
+            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
         }
 
         // A flight whose aircraft is gone has nothing left to order.
@@ -293,6 +352,22 @@ namespace NavalPower
             s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
         }
 
+        private void WingNamePage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight) || flight.Wing == null) { s.Show(x => FlightPage(x, flight)); return; }
+            string wing = flight.Wing;
+            s.Title(wing.ToUpperInvariant() + "  ·  wing name");
+            s.Field(wing, value =>
+            {
+                if (Wings.Rename(wing, value, out string reason))
+                    CommandState.Say(wing + " is now " + flight.Wing + " · members renamed");
+                else if (reason != null) CommandState.Say(reason);
+                s.Show(x => FlightPage(x, flight));
+            });
+            s.Info("Members take it with their number: " + wing + "-1, " + wing + "-2…", Theme.TextMuted);
+            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
+        }
+
         private void FlightRoePage(Surface s, Flight flight)
         {
             if (!Alive(s, flight)) return;
@@ -309,7 +384,7 @@ namespace NavalPower
                 var roe = (FlightRoe)i;
                 Button row = s.Row(FlightOrders.Describe(roe) + "  ·  " + detail[i], () =>
                 {
-                    FlightOrders.SetRoe(flight, roe);
+                    WingOrders.SetRoe(flight, roe);
                     CommandState.Say(flight.Name + " · " + FlightOrders.Describe(roe));
                     s.Show(x => FlightPage(x, flight));
                 });
@@ -341,7 +416,7 @@ namespace NavalPower
             {
                 if (flight.Home != null)
                 {
-                    FlightOrders.Deliver(flight, flight.HomePosition, flight.Airdrop);
+                    WingOrders.Deliver(flight, flight.HomePosition, flight.Airdrop);
                     CommandState.Say(flight.Name + " · returning cargo to " + flight.HomeName);
                 }
                 s.Show(x => FlightPage(x, flight));
@@ -389,7 +464,7 @@ namespace NavalPower
                 float chosen = height;
                 Button row = s.Row(UnitConverter.AltitudeReading(height) + (height < 400f ? "  ·  terrain following" : ""), () =>
                 {
-                    FlightOrders.SetAltitude(flight, chosen);
+                    WingOrders.SetAltitude(flight, chosen);
                     s.Show(x => FlightPage(x, flight));
                 });
                 if (Mathf.Abs(flight.Altitude - height) < 1f) row.image.color = Theme.AccentFill;
@@ -408,7 +483,7 @@ namespace NavalPower
                 float chosen = radius;
                 Button row = s.Row(UnitConverter.DistanceReading(radius), () =>
                 {
-                    FlightOrders.SetOrbitRadius(flight, chosen);
+                    WingOrders.SetOrbitRadius(flight, chosen);
                     s.Show(x => FlightPage(x, flight));
                 });
                 if (Mathf.Abs(flight.OrbitRadius - radius) < 1f) row.image.color = Theme.AccentFill;
@@ -503,8 +578,9 @@ namespace NavalPower
                 : "Aircraft  ·  a single aircraft", Theme.TextMuted);
             Button[] counts = s.Group(new[] { "1", "2", "3", "4" }, i => plan.Count = i + 1);
             counts[Mathf.Clamp(plan.Count, 1, LaunchQueue.MaxWing) - 1].image.color = Theme.AccentFill;
-            s.Row("Callsign  ·  " + (plan.Callsign ?? "none") +
-                (plan.Count > 1 ? "  ·  members " + plan.Callsign + "-1 to -" + plan.Count : ""), () => s.Show(CallsignPage));
+            s.Row(plan.Count > 1
+                ? "Wing name  ·  " + (plan.Callsign ?? "none") + "  ·  members " + plan.Callsign + "-1 to -" + plan.Count
+                : "Callsign  ·  " + (plan.Callsign ?? "none"), () => s.Show(CallsignPage));
             s.Row("Livery  ·  " + plan.LiveryName, () => s.Show(LiveryPage));
             // A launch leaves the window on the deck rather than closing it, so
             // a second can be sent straight after the first.
@@ -520,7 +596,7 @@ namespace NavalPower
         private void CallsignPage(Surface s)
         {
             if (plan == null) { s.Show(DeckPage); return; }
-            s.Title(plan.Definition.unitName.ToUpperInvariant() + "  ·  callsign");
+            s.Title(plan.Definition.unitName.ToUpperInvariant() + (plan.Count > 1 ? "  ·  wing name" : "  ·  callsign"));
             s.Field(plan.Callsign, value =>
             {
                 value = (value ?? "").Trim();

@@ -208,6 +208,8 @@ namespace NavalPower
             Flying = null;
 
             if (recoverToShip) FlightOrders.RecoverToShip(flight);
+            // A wingman goes back to its slot; anyone else to its task area.
+            else if (Wings.IsWingman(flight)) flight.Mode = FlightMode.Formation;
             else FlightOrders.SetArea(flight, flight.OrbitCentre, flight.OrbitRadius);
 
             // Out of the seat before the seat is taken apart: leaving the

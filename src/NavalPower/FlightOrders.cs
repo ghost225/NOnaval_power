@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    public enum FlightMode { Route, Orbit, Station, Strike, Jam, Cargo, Egress, Engage, ReturnToBase }
+    public enum FlightMode { Route, Orbit, Station, Strike, Jam, Cargo, Egress, Engage, ReturnToBase, Formation }
 
     public enum FlightRoe
     {
@@ -182,6 +182,9 @@ namespace NavalPower
                 case FlightMode.Jam: return Target != null && !Target.disabled
                     ? "Jamming · " + (Target.definition?.unitName ?? Target.name) : "Jamming · target gone";
                 case FlightMode.Engage: return "Weapons free · AI engaging";
+                case FlightMode.Formation:
+                    Flight lead = Wings.LeadOf(this);
+                    return lead != this ? "Formation on " + lead.Name : "Formation · no lead";
                 default: return "Returning to base";
             }
         }
@@ -278,9 +281,29 @@ namespace NavalPower
                 flights.Add(flight);
                 CreditKills(aircraft);
                 Rename(flight, callsign ?? Callsigns.Suggest(aircraft.definition));
+                Wings.Joined(flight);
                 return flight;
             }
             return null;
+        }
+
+        internal static void RenameWing(string wing, string name)
+        {
+            foreach (Pending request in pending)
+            {
+                if (request.Wing != wing) continue;
+                request.Wing = name;
+                int dash = request.Callsign != null ? request.Callsign.LastIndexOf('-') : -1;
+                request.Callsign = name + (dash >= 0 ? request.Callsign.Substring(dash) : "");
+            }
+        }
+
+        // Members of a wing asked of a deck but not yet off it.
+        internal static int PendingInWing(string wing)
+        {
+            int count = 0;
+            foreach (Pending request in pending) if (request.Wing == wing) count++;
+            return count;
         }
 
         // Launches requested but not yet seen on deck.
@@ -367,6 +390,7 @@ namespace NavalPower
                 flights.Add(flight);
                 CreditKills(found);
                 Rename(flight, request.Callsign ?? Callsigns.Suggest(found.definition));
+                Wings.Joined(flight);
                 Plugin.Log.LogInfo("[flight] adopted " + flight.Name + " from " + Airfields.NameOf(request.Field));
             }
 
@@ -966,8 +990,9 @@ namespace NavalPower
                     if (flight.Roe != FlightRoe.Free) continue;
                     // Weapons free inside the task area: something we can reach
                     // and hurt, that is also somewhere we were sent to fight.
-                    if (HasArea(flight) &&
-                        FastMath.Distance(unit.GlobalPosition(), AreaCentre(flight)) > flight.OrbitRadius) continue;
+                    Flight area = flight.Mode == FlightMode.Formation ? Wings.LeadOf(flight) : flight;
+                    if (HasArea(area) &&
+                        FastMath.Distance(unit.GlobalPosition(), AreaCentre(area)) > area.OrbitRadius) continue;
                     WeaponStation station = BestStationFor(aircraft, unit);
                     if (station == null) continue;
                     float range = FastMath.Distance(aircraft.GlobalPosition(), unit.GlobalPosition());
