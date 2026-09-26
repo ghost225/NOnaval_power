@@ -6,8 +6,9 @@ namespace NavalPower
     // Every ship gets a name, the way every flight gets a callsign: a fleet of
     // four "Destroyer"s is four things you cannot tell apart or talk about.
     //
-    // Names come from a registry per side -- Anglo and European for Boscali,
-    // Greek and Arabic for Primeva -- behind a service prefix, BMDF or PALN.
+    // Names come from a registry per side -- Anglo and European for Boscali;
+    // for Primeva, Greek and Near-Eastern myth after the faction's own
+    // vehicles -- behind a service prefix, BMDF or PALN.
     // Unarmed hulls are merchants and sail as MV. A ship's pick is keyed on the
     // mission and the ship's own unique name, so reloading the same mission
     // names it the same again, and a rename is remembered for that mission.
@@ -28,15 +29,19 @@ namespace NavalPower
             "Minerva", "Juno", "Arethusa", "Galatea", "Penelope", "Sirius", "Orion", "Achates", "Onslow"
         };
 
+        // After the faction's own vehicles -- Ifrit, Ibis, Alkyon, Hyperion,
+        // Medusa: Greek myth and nature in Greek spelling (Alkyon, not
+        // Halcyon), blended with Arabic and Egyptian myth, leaning to creatures
+        // and birds. Titans and gods, beasts, birds, and the weather.
         private static readonly string[] Primeva =
         {
-            "Athena", "Ajax", "Achilles", "Hector", "Leonidas", "Themistocles", "Pericles", "Miltiades",
-            "Poseidon", "Triton", "Nereus", "Kronos", "Helios", "Ares", "Apollo", "Artemis", "Hermes",
-            "Kerberos", "Pegasus", "Chimera", "Hydra", "Aegis", "Salamis", "Marathon", "Thermopylae",
-            "Saif", "Najm", "Sakr", "Buraq", "Al-Zahra", "Hilal", "Qamar", "Tariq", "Faris", "Nasr",
-            "Zafar", "Shams", "Barq", "Raad", "Asifa", "Layth", "Al-Qadir", "Suhail", "Thurayya",
-            "Al-Bahr", "Muhannad", "Khanjar", "Jawhara", "Sultana", "Badr", "Hamza", "Khalid", "Saladin",
-            "Rhodes", "Corinth", "Sparta", "Knossos", "Delos", "Samarkand", "Sidon", "Tyre", "Carthage"
+            "Kronos", "Koios", "Krios", "Iapetos", "Theia", "Themis", "Tethys", "Okeanos", "Helios",
+            "Selene", "Eos", "Astraios", "Pallas", "Perses", "Atlas", "Prometheus", "Nyx", "Erebos",
+            "Typhon", "Ladon", "Skylla", "Charybdis", "Talos", "Gorgon", "Harpyia", "Kerberos", "Kentauros",
+            "Pegasos", "Triton", "Nereus", "Proteus", "Marid", "Anqa", "Rukh", "Simurgh", "Buraq", "Jinn",
+            "Aetos", "Kyknos", "Pelargos", "Glaux", "Hierax", "Korax", "Saqr", "Hudhud", "Bennu", "Shahin",
+            "Barq", "Raad", "Asifa", "Shihab", "Najm", "Suhail", "Thurayya", "Qamar", "Hilal", "Zephyros",
+            "Boreas", "Notos", "Euros", "Aigis", "Keraunos", "Astrape", "Thyella"
         };
 
         private static readonly string[] BoscaliMerchant =
@@ -48,9 +53,17 @@ namespace NavalPower
 
         private static readonly string[] PrimevaMerchant =
         {
-            "Aegean Spirit", "Sahara Star", "Nour", "Kalypso", "Marmara", "Levant Trader", "Red Sea Pride",
-            "Delta Venture", "Bosphorus", "Andros", "Al-Fajr", "Zahrat", "Oasis Star", "Ionian Grace",
-            "Nile Spirit", "Qasr"
+            "Aigaion", "Nour", "Kalypso", "Thalassa", "Galini", "Al-Fajr", "Zahra", "Amphitrite", "Ionia",
+            "Nefeli", "Yasmin", "Ourania", "Layla", "Kymothoe", "Marjan", "Halcyone"
+        };
+
+        // Names the game or a mod already gives a vehicle or class: a ship
+        // called Ifrit beside an Ifrit fighter is just confusing.
+        private static readonly HashSet<string> Reserved = new HashSet<string>
+        {
+            "Ifrit", "Ibis", "Alkyon", "Hyperion", "Medusa", "Annex", "Dynamo", "Shard", "Argus", "Chicane",
+            "Darkreach", "Compass", "Revoker", "Vortex", "Tarantula", "Cricket", "Anvil", "Resolute",
+            "Chimera", "Horus", "Boltstrike", "Linebreaker", "Spearhead"
         };
 
         private sealed class Entry
@@ -152,7 +165,7 @@ namespace NavalPower
             for (int i = 0; i < pool.Length; i++)
             {
                 string candidate = pool[(start + i) % pool.Length];
-                if (!taken.Contains(candidate)) return candidate;
+                if (!taken.Contains(candidate) && !Reserved.Contains(candidate)) return candidate;
             }
             // More ships than names: the second of the name.
             for (int n = 2; ; n++)
