@@ -52,7 +52,7 @@ namespace NavalPower
                 foreach (Flight flight in group.Value) if (NeedsYou(flight)) trouble++;
 
                 Button header = s.Row((folded ? "▸  " : "▾  ") + home.ToUpperInvariant() + "   ·   " +
-                    group.Value.Count + " flight(s)" +
+                    group.Value.Count + " aircraft" +
                     (trouble > 0 ? "   ·   " + UiKit.Tint(trouble + " need attention", Theme.Bad) : ""), () =>
                 {
                     if (!collapsed.Remove(home)) collapsed.Add(home);
@@ -60,20 +60,24 @@ namespace NavalPower
                 header.image.color = Theme.Dim(Theme.Accent, 0.12f);
                 if (folded) continue;
 
+                // Wings first, each folding to one line, then single aircraft:
+                // home, then wing, then each aircraft in it.
+                var wings = new SortedDictionary<string, List<Flight>>();
+                var singles = new List<Flight>();
                 foreach (Flight flight in group.Value)
                 {
-                    Flight shown = flight;
-                    bool selected = CommandState.SelectedFlight == flight;
-                    Button row = s.Row("    " + flight.Name + "  ·  " + (flight.Status ?? ShortTask(flight)) +
-                        "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight),
-                        () => OpenFlight(shown));
-                    row.GetComponentInChildren<Text>().color =
-                        NeedsYou(flight) ? Theme.Bad
-                        : flight.Interrupted ? Theme.Warn
-                        : flight.Mode == FlightMode.ReturnToBase ? Theme.TextMuted
-                        : Theme.Text;
-                    row.image.color = selected ? Theme.AccentFill : Theme.Dim(FlightIcons.For(flight), 0.18f);
+                    if (flight.Wing == null) { singles.Add(flight); continue; }
+                    if (!wings.TryGetValue(flight.Wing, out List<Flight> members)) wings[flight.Wing] = members = new List<Flight>();
+                    members.Add(flight);
                 }
+                foreach (KeyValuePair<string, List<Flight>> wing in wings)
+                {
+                    wing.Value.Sort((a, b) => string.CompareOrdinal(a.Label ?? "", b.Label ?? ""));
+                    WingHeader(s, wing.Key, wing.Value);
+                    if (collapsed.Contains("wing:" + wing.Key)) continue;
+                    foreach (Flight member in wing.Value) FlightRow(s, member, "            ");
+                }
+                foreach (Flight flight in singles) FlightRow(s, flight, "      ");
             }
 
             if (airborne.Count > 0)
@@ -131,6 +135,48 @@ namespace NavalPower
             }
             s.Info("Shift-click an airbase on the map to take command of it directly.", Theme.TextMuted);
             s.Row("Back to air operations", () => s.Show(AirPage));
+        }
+
+        // A wing on one line: its size and type, what its lead is doing, the
+        // lowest fuel in it, and whether any of it needs you. Folds away.
+        private void WingHeader(Surface s, string wing, List<Flight> members)
+        {
+            string key = "wing:" + wing;
+            bool folded = collapsed.Contains(key);
+            Flight lead = Wings.LeadOf(members[0]);
+            float fuel = 100f;
+            int trouble = 0;
+            foreach (Flight member in members)
+            {
+                fuel = Mathf.Min(fuel, member.FuelPercent);
+                if (NeedsYou(member)) trouble++;
+            }
+            int waiting = LaunchQueue.QueuedInWing(wing) + FlightOrders.PendingInWing(wing);
+            Button header = s.Row("   " + (folded ? "▸  " : "▾  ") + wing + "  ·  " + members.Count + "× " + lead.TypeName +
+                "  ·  " + (lead.Status ?? ShortTask(lead)) + "  ·  " + fuel.ToString("0") + "% fuel" +
+                (waiting > 0 ? "  ·  " + waiting + " to launch" : "") +
+                (trouble > 0 ? "  ·  " + UiKit.Tint(trouble + " need attention", Theme.Bad) : ""), () =>
+                {
+                    if (!collapsed.Remove(key)) collapsed.Add(key);
+                });
+            header.image.color = Wings.Members(wing).Contains(CommandState.SelectedFlight)
+                ? Theme.Dim(Theme.Accent, 0.3f) : Theme.Dim(FlightIcons.For(lead), 0.26f);
+        }
+
+        private void FlightRow(Surface s, Flight flight, string indent)
+        {
+            Flight shown = flight;
+            bool selected = CommandState.SelectedFlight == flight;
+            string role = flight.Wing != null && Wings.IsLead(flight) ? "lead · " : "";
+            Button row = s.Row(indent + flight.Name + "  ·  " + role + (flight.Status ?? ShortTask(flight)) +
+                "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight),
+                () => OpenFlight(shown));
+            row.GetComponentInChildren<Text>().color =
+                NeedsYou(flight) ? Theme.Bad
+                : flight.Interrupted ? Theme.Warn
+                : flight.Mode == FlightMode.ReturnToBase ? Theme.TextMuted
+                : Theme.Text;
+            row.image.color = selected ? Theme.AccentFill : Theme.Dim(FlightIcons.For(flight), 0.18f);
         }
 
         // Flares left, coloured when they are running out.
