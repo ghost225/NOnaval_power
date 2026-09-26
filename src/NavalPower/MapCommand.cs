@@ -371,6 +371,7 @@ namespace NavalPower
             Guard.Run("Wings", Wings.Tick);
             Guard.Run("Ship names", ShipNames.Tick);
             Guard.Run("Task forces", TaskForces.Tick);
+            Guard.Run("Bearing launch", BearingLaunch.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
             Guard.Run("Damage control", DamageControl.WorkAll);
             Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Active));
@@ -576,6 +577,19 @@ namespace NavalPower
                     Ui?.OpenContext(Input.mousePosition, pointed, append);
                     break;
                 case RightClickAction.MissingTarget:
+                    // A weapon that finds its own target goes down the bearing
+                    // of the point clicked; anything else needs a contact.
+                    WeaponStation seeking = null;
+                    if (onMap && CommandState.Ship != null)
+                        foreach (WeaponStation station in WeaponOrders.StationsFor(CommandState.Ship, CommandState.SelectedKey))
+                            if (station.Ammo > 0 && BearingLaunch.SelfAcquiring(station.WeaponInfo)) { seeking = station; break; }
+                    if (seeking != null)
+                    {
+                        float bearing = BearingLaunch.BearingTo(CommandState.Ship, map.GetCursorCoordinates());
+                        BearingLaunch.Order(CommandState.Ship, seeking, bearing, CommandState.Quantity, out string launched);
+                        CommandState.Say(launched);
+                        break;
+                    }
                     CommandState.Say((CommandState.SelectedWeapon()?.Name ?? "This weapon") +
                         " needs a target. Right-click a compatible contact.");
                     break;

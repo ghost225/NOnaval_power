@@ -551,6 +551,7 @@ namespace NavalPower
                     s.Close();
                 });
             }
+            BearingRows(s, point, "this bearing");
             if (FlightOrders.All().Count > 0)
                 s.Row("Send a flight to work this area…",
                     () => s.Show(x => FlightsToPage(x, "SEND A FLIGHT", point, 0f, "task area set")));
@@ -586,10 +587,59 @@ namespace NavalPower
                     s.Close();
                 });
             }
+            BearingRows(s, contact.Position, "the emitter's bearing");
             if (FlightOrders.All().Count > 0)
                 s.Row("Send a flight to investigate…", () => s.Show(x => FlightsToPage(x,
                     "INVESTIGATE ESM " + contact.Id, contact.Position,
                     Mathf.Max(contact.RadialUncertaintyMetres, 3000f), "investigating ESM " + contact.Id)));
+        }
+
+        // ---- shots down a bearing ------------------------------------------------------
+
+        // Anti-radiation missiles aboard the ship, fired down the bearing of a
+        // point; and a page to send the same shot from any flight carrying one.
+        private void BearingRows(Surface s, GlobalPosition point, string what)
+        {
+            Ship ship = CommandState.Ship;
+            if (ship != null)
+                foreach (WeaponStation station in BearingLaunch.StationsOn(ship))
+                {
+                    WeaponStation chosen = station;
+                    float bearing = BearingLaunch.BearingTo(ship, point);
+                    s.Row("Launch " + station.WeaponInfo.weaponName + " down " + what + "  ·  " + bearing.ToString("000") +
+                        "°  ·  ×" + Mathf.Min(CommandState.Quantity, station.Ammo), () =>
+                        {
+                            BearingLaunch.Order(ship, chosen, bearing, CommandState.Quantity, out string reason);
+                            CommandState.Say(reason);
+                            s.Close();
+                        });
+                }
+            bool anyFlight = false;
+            foreach (Flight flight in FlightOrders.All())
+                if (BearingLaunch.StationsOn(flight.Aircraft).Count > 0) { anyFlight = true; break; }
+            if (anyFlight)
+                s.Row("Anti-radiation shot from a flight…", () => s.Show(x => FlightBearingPage(x, point)));
+        }
+
+        private void FlightBearingPage(Surface s, GlobalPosition point)
+        {
+            s.Title("ANTI-RADIATION SHOT  ·  " + BearingRange(point));
+            s.Info("Fired down the bearing from the aircraft; it homes on the first radar it hears.", Theme.TextMuted);
+            foreach (Flight flight in FlightOrders.All())
+                foreach (WeaponStation station in BearingLaunch.StationsOn(flight.Aircraft))
+                {
+                    Flight shown = flight;
+                    WeaponStation chosen = station;
+                    float bearing = BearingLaunch.BearingTo(flight.Aircraft, point);
+                    s.Row(flight.Name + "  ·  " + station.WeaponInfo.weaponName + " ×" + station.Ammo + "  ·  " +
+                        bearing.ToString("000") + "°", () =>
+                        {
+                            BearingLaunch.Order(shown.Aircraft, chosen, bearing, 1, out string reason);
+                            CommandState.Say(shown.Name + " · " + reason);
+                            s.Close();
+                        });
+                }
+            Back(s);
         }
 
         // ---- shared rows ------------------------------------------------------------------
