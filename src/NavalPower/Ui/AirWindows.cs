@@ -467,6 +467,16 @@ namespace NavalPower
                     });
                 if (!spare || !affordable) entry.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
+            List<LaunchQueue.Entry> queued = LaunchQueue.For(field);
+            if (queued.Count > 0)
+            {
+                s.Info("WAITING FOR A HANGAR  ·  " + queued.Count, Theme.Accent);
+                foreach (LaunchQueue.Entry entry in queued)
+                    s.Info("    " + entry.Callsign + "  ·  " + entry.Plan.Definition.unitName, Theme.TextMuted);
+                Button cancel = s.Row("Cancel the queued launches", () =>
+                    CommandState.Say(LaunchQueue.Cancel(field) + " queued launch(es) cancelled"));
+                cancel.image.color = Theme.Dim(Theme.Bad, 0.4f);
+            }
             s.Row("Back to air operations", () => s.Show(AirPage));
         }
 
@@ -486,14 +496,21 @@ namespace NavalPower
                 if (station.Selected == null) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
             s.Row("Fuel  ·  " + (plan.Fuel * 100f).ToString("0") + "%", () => s.Show(FuelPage));
-            s.Row("Callsign  ·  " + (plan.Callsign ?? "none"), () => s.Show(CallsignPage));
+            // How many go up with this loadout. More than one is a wing, and
+            // they launch one after another as hangars come free.
+            s.Info(plan.Count > 1
+                ? "Aircraft  ·  a wing of " + plan.Count + ", launched as hangars free up"
+                : "Aircraft  ·  a single aircraft", Theme.TextMuted);
+            Button[] counts = s.Group(new[] { "1", "2", "3", "4" }, i => plan.Count = i + 1);
+            counts[Mathf.Clamp(plan.Count, 1, LaunchQueue.MaxWing) - 1].image.color = Theme.AccentFill;
+            s.Row("Callsign  ·  " + (plan.Callsign ?? "none") +
+                (plan.Count > 1 ? "  ·  members " + plan.Callsign + "-1 to -" + plan.Count : ""), () => s.Show(CallsignPage));
             s.Row("Livery  ·  " + plan.LiveryName, () => s.Show(LiveryPage));
             // A launch leaves the window on the deck rather than closing it, so
             // a second can be sent straight after the first.
-            Button launch = s.Row("LAUNCH", () =>
+            Button launch = s.Row(plan.Count > 1 ? "LAUNCH " + plan.Count + " × " + plan.Definition.unitName : "LAUNCH", () =>
             {
-                CarrierOps.Launch(CommandState.Airfield, plan, out string reason);
-                CommandState.Say(reason);
+                CommandState.Say(LaunchQueue.Enqueue(CommandState.Airfield, plan));
                 s.Show(DeckPage);
             });
             launch.image.color = Theme.Dim(Theme.Good, 0.35f);

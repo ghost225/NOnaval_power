@@ -1,6 +1,6 @@
 # Naval Power — task forces and air wings
 
-Status: step 1 in progress. The previous plan (Sea Power shell, airfield
+Status: step 1 done (launch queue, wings of up to four launched together); step 2 in progress. The previous plan (Sea Power shell, airfield
 command, compass) is complete and lives in git history. The task-force
 interface follows Sea Power's formation tools (researched 2026-09-25; see §3).
 

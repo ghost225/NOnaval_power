@@ -58,6 +58,9 @@ namespace NavalPower
         // Its callsign when it has one -- which every flight launched through us
         // does -- and the airframe otherwise.
         public string Label;
+        // The wing it launched with, by the wing's callsign ("Viper 1"); null
+        // for a single aircraft.
+        public string Wing;
         public string Name => !string.IsNullOrEmpty(Label) ? Label : TypeName;
         public string TypeName => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
 
@@ -196,6 +199,7 @@ namespace NavalPower
             internal AircraftDefinition Definition;
             internal NuclearOption.SavedMission.Loadout Loadout;   // identity of this launch
             internal string Callsign;
+            internal string Wing;
             internal float ExpiresAt;
         }
         private static readonly List<Pending> pending = new List<Pending>();
@@ -215,10 +219,11 @@ namespace NavalPower
         }
 
         internal static void ExpectLaunch(Airbase field, AircraftDefinition definition,
-            NuclearOption.SavedMission.Loadout loadout, string callsign)
+            NuclearOption.SavedMission.Loadout loadout, string callsign, string wing = null)
         {
             pending.Add(new Pending
             {
+                Wing = wing,
                 Field = field,
                 Definition = definition,
                 Loadout = loadout,
@@ -234,6 +239,7 @@ namespace NavalPower
                 if (!string.IsNullOrEmpty(flight.Label)) yield return flight.Label;
             foreach (Pending request in pending)
                 if (!string.IsNullOrEmpty(request.Callsign)) yield return request.Callsign;
+            foreach (string queued in LaunchQueue.LabelsInUse()) yield return queued;
         }
 
         public static void Rename(Flight flight, string label)
@@ -256,12 +262,14 @@ namespace NavalPower
                 if (!ReferenceEquals(pending[i].Loadout, loadout)) continue;
                 Airbase home = pending[i].Field;
                 string callsign = pending[i].Callsign;
+                string wing = pending[i].Wing;
                 pending.RemoveAt(i);
                 if (home == null) return null;
                 var flight = new Flight
                 {
                     Aircraft = aircraft,
                     Home = home,
+                    Wing = wing,
                     Mode = FlightMode.Orbit,
                     OrbitCentre = Airfields.PositionOf(home),
                     Altitude = Settings.DefaultAltitude.Value,
@@ -350,6 +358,7 @@ namespace NavalPower
                 {
                     Aircraft = found,
                     Home = request.Field,
+                    Wing = request.Wing,
                     Mode = FlightMode.Orbit,
                     OrbitCentre = Airfields.PositionOf(request.Field),
                     Altitude = Settings.DefaultAltitude.Value,

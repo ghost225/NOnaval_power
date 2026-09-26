@@ -359,6 +359,7 @@ namespace NavalPower
             // Independent subsystems, independently retired. A fault in cargo
             // missions must not also stop damage control from running.
             Guard.Run("Flight orders", FlightOrders.Tick);
+            Guard.Run("Launch queue", LaunchQueue.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
             Guard.Run("Damage control", DamageControl.WorkAll);
             Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Active));

@@ -24,7 +24,13 @@ namespace NavalPower
         {
             string word = WordFor(definition);
             var taken = new HashSet<string>();
-            foreach (string label in FlightOrders.LabelsInUse()) taken.Add(label);
+            foreach (string label in FlightOrders.LabelsInUse())
+            {
+                taken.Add(label);
+                // "Viper 1-3" belongs to wing "Viper 1", which holds that number.
+                int dash = label.LastIndexOf('-');
+                if (dash > 0) taken.Add(label.Substring(0, dash));
+            }
             for (int n = 1; n < 100; n++)
             {
                 string candidate = word + " " + n;

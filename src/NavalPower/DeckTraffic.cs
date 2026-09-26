@@ -80,6 +80,16 @@ namespace NavalPower
                     Ours = true
                 });
 
+            // Queued behind a busy hangar: not yet asked of the deck at all.
+            foreach (LaunchQueue.Entry entry in LaunchQueue.For(deck))
+                rows.Add(new DeckMovement
+                {
+                    Phase = TrafficPhase.Queued,
+                    Name = entry.Callsign + " · " + entry.Plan.Definition.unitName,
+                    Detail = "waiting for a hangar",
+                    Ours = true
+                });
+
             foreach (Unit unit in UnitRegistry.allUnits)
             {
                 if (!(unit is Aircraft aircraft) || aircraft.disabled) continue;

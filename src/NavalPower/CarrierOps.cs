@@ -40,10 +40,29 @@ namespace NavalPower
         public float Fuel = 1f;
 
         public string Callsign;
+        // How many to launch with this loadout; more than one is a wing.
+        public int Count = 1;
         // The skin, from the same list the game's own spawn screen offers:
         // faction liveries plus app-data and workshop skins.
         public LiveryKey Livery = new LiveryKey(0);
         public string LiveryName = "Default";
+
+        // A copy the launch queue can hold: editing the loadout page after
+        // pressing LAUNCH must not change aircraft still waiting for a hangar.
+        public LoadoutPlan Snapshot()
+        {
+            var copy = (LoadoutPlan)MemberwiseClone();
+            copy.Stations = new List<LoadoutStation>();
+            foreach (LoadoutStation station in Stations)
+                copy.Stations.Add(new LoadoutStation
+                {
+                    Index = station.Index,
+                    Name = station.Name,
+                    Options = station.Options,
+                    Selected = station.Selected
+                });
+            return copy;
+        }
 
         public Loadout Build()
         {
@@ -107,6 +126,8 @@ namespace NavalPower
             new Dictionary<AircraftDefinition, Dictionary<int, string>>();
         private static readonly Dictionary<AircraftDefinition, (LiveryKey key, string name)> rememberedLivery =
             new Dictionary<AircraftDefinition, (LiveryKey, string)>();
+        private static readonly Dictionary<AircraftDefinition, int> rememberedCount =
+            new Dictionary<AircraftDefinition, int>();
 
         internal static void Remember(LoadoutPlan plan)
         {
@@ -116,6 +137,7 @@ namespace NavalPower
                 record[station.Index] = station.Selected != null ? station.Selected.name : null;
             remembered[plan.Definition] = record;
             rememberedLivery[plan.Definition] = (plan.Livery, plan.LiveryName);
+            rememberedCount[plan.Definition] = plan.Count;
         }
 
         // Exactly what the native spawn screen lists for this airframe and
@@ -141,6 +163,7 @@ namespace NavalPower
                 plan.Livery = livery.key;
                 plan.LiveryName = livery.name;
             }
+            if (definition != null && rememberedCount.TryGetValue(definition, out int count)) plan.Count = count;
             if (definition == null || definition.unitPrefab == null) return plan;
             var prefab = definition.unitPrefab.GetComponent<Aircraft>();
             HardpointSet[] sets = prefab != null && prefab.weaponManager != null ? prefab.weaponManager.hardpointSets : null;
@@ -183,7 +206,9 @@ namespace NavalPower
             return true;
         }
 
-        public static bool Launch(Airbase deck, LoadoutPlan plan, out string reason)
+        // One aircraft, now, from a hangar that is free. Called by the launch
+        // queue, which waits for the hangar; a wing is several of these.
+        public static bool Launch(Airbase deck, LoadoutPlan plan, string callsign, string wing, out string reason)
         {
             if (deck == null || deck.disabled) { reason = "No flight deck or field."; return false; }
             Ship ship = Airfields.ShipOf(deck);
@@ -256,8 +281,8 @@ namespace NavalPower
             }
 
             Remember(plan);
-            FlightOrders.ExpectLaunch(deck, plan.Definition, loadout, plan.Callsign);
-            reason = "Launching " + (string.IsNullOrEmpty(plan.Callsign) ? "" : plan.Callsign + " · ") +
+            FlightOrders.ExpectLaunch(deck, plan.Definition, loadout, callsign, wing);
+            reason = "Launching " + (string.IsNullOrEmpty(callsign) ? "" : callsign + " · ") +
                 plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
                 (payer != null ? " · " + price.ToString("0") + " from your allocation"
                     : purchased ? " · purchased" : " · from reserve");
