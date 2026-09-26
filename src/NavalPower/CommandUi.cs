@@ -115,6 +115,7 @@ namespace NavalPower
             if (flying) { hover.gameObject.SetActive(false); return; }
 
             WatchFeeds();
+            CycleTaskForce();
             if (Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + 0.2f;
@@ -219,7 +220,7 @@ namespace NavalPower
 
             string[,] defs =
             {
-                { "nav", "NAV" }, { "wpn", "WPN" }, { "sns", "SNS" }, { "roe", "ROE" }, { "dmg", "DMG" },
+                { "nav", "NAV" }, { "wpn", "WPN" }, { "sns", "SNS" }, { "roe", "ROE" }, { "dmg", "DMG" }, { "tf", "TF" },
                 { "air", "AIR" }, { "cam", "CAM" }, { "rpl", "RPL" }, { "map", "MAP" }, { "exit", "EXIT" }
             };
             int count = defs.GetLength(0);
@@ -242,7 +243,7 @@ namespace NavalPower
         // The tools a ship has that an airfield does not: it cannot steer,
         // fire, radiate, flood or take on stores.
         private static bool ShipOnly(string key) =>
-            key == "nav" || key == "wpn" || key == "sns" || key == "roe" || key == "dmg" || key == "rpl";
+            key == "nav" || key == "wpn" || key == "sns" || key == "roe" || key == "dmg" || key == "rpl" || key == "tf";
 
         // Right-aligned, closing up over whatever this post does not have.
         private void LayoutTools(bool ship)
@@ -323,7 +324,7 @@ namespace NavalPower
             if (ship == null) { RefreshFieldStrip(); return; }
 
             stripName.text = ShipNames.Of(ship) +
-                (ShipNames.IsNamed(ship) ? "  " + UiKit.Tint(ShipNames.TypeOf(ship), Theme.TextMuted) : "");
+                (ShipNames.IsNamed(ship) ? "  " + UiKit.Tint(ShipNames.TypeOf(ship), Theme.TextMuted) : "") + ForceTag(ship);
 
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             float heading = (ship.transform.eulerAngles.y + 360f) % 360f;
@@ -431,6 +432,7 @@ namespace NavalPower
             switch (key)
             {
                 case "air": width = 580f; break;
+                case "tf": width = 560f; break;
                 case "cam": case "pin1": case "pin2": case "pin3": width = FeedWindowWidth; break;
                 case "dmg": width = 540f; break;
                 case "sns": width = 500f; break;
@@ -505,6 +507,7 @@ namespace NavalPower
                 case "dmg": return DamagePage;
                 case "rpl": return ReplenishmentPage;
                 case "air": return AirPage;
+                case "tf": return TaskForcePage;
                 case "deck": return DeckPage;
                 case "cam": return LiveFeedPage;
                 default: return s => s.Title(key);

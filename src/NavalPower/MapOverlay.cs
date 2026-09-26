@@ -58,7 +58,23 @@ namespace NavalPower
 
             Vector2 center = Project(CommandState.PostPosition);
             if (ship != null) DrawShip(vh, ship, center);
+            if (ship != null) DrawTaskForce(vh, ship);
             DrawFlights(vh);
+        }
+
+        // Each escort's station, and a line to it while closing.
+        private void DrawTaskForce(VertexHelper vh, Ship ship)
+        {
+            TaskForce force = TaskForces.Of(ship);
+            if (force == null) return;
+            foreach (Escort escort in force.Escorts)
+            {
+                if (escort.Ship == null || escort.Detached) continue;
+                Color colour = escort.GivingWay ? Theme.Dim(Theme.Warn, 0.9f) : Theme.Dim(Theme.Accent, 0.55f);
+                Circle(vh, escort.Station, Mathf.Max(escort.Ship.maxRadius * 2f, 150f), colour);
+                if (escort.OffStation > Mathf.Max(3f * escort.Ship.maxRadius, 400f))
+                    Line(vh, Project(escort.Ship.GlobalPosition()), Project(escort.Station), Theme.Dim(colour, 0.6f), 1.2f);
+            }
         }
 
         private void DrawShip(VertexHelper vh, Ship ship, Vector2 center)

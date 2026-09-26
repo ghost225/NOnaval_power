@@ -1,6 +1,6 @@
 # Naval Power — task forces and air wings
 
-Status: steps 1–2 built and in test (launch queue; wings). Step 3 (task force model and station keeping) in progress. The previous plan (Sea Power shell, airfield
+Status: steps 1–2 built and in test (launch queue; wings). Steps 3 and 5 (task force model, station keeping, window and controls) built, awaiting first test; step 4 (column wake-following) and the polar formation editor to come. The previous plan (Sea Power shell, airfield
 command, compass) is complete and lives in git history. The task-force
 interface follows Sea Power's formation tools (researched 2026-09-25; see §3).
 

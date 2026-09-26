@@ -370,6 +370,7 @@ namespace NavalPower
             Guard.Run("Launch queue", LaunchQueue.Tick);
             Guard.Run("Wings", Wings.Tick);
             Guard.Run("Ship names", ShipNames.Tick);
+            Guard.Run("Task forces", TaskForces.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
             Guard.Run("Damage control", DamageControl.WorkAll);
             Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Active));

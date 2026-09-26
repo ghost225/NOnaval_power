@@ -164,6 +164,7 @@ namespace NavalPower
             });
             if (CommandState.Airfield != null)
                 s.Row("Launch an aircraft…", () => { Open("air", DeckPage); s.Close(); });
+            FormationRows(s, ship);
             RenameRow(s, ship);
             FeedRow(s, ship);
             Button cease = s.Row("CEASE FIRE", () =>
@@ -240,6 +241,7 @@ namespace NavalPower
                 SceneSingleton<CameraStateManager>.i?.SetFollowingUnit(ship);
             });
             CoverRow(s, ship);
+            FormationRows(s, ship);
             RenameRow(s, ship);
             FeedRow(s, ship);
         }
@@ -569,6 +571,38 @@ namespace NavalPower
         }
 
         // ---- shared rows ------------------------------------------------------------------
+
+        // Sea Power's Formation section: form, join, return, leave, edit.
+        private void FormationRows(Surface s, Ship ship)
+        {
+            Ship mine = CommandState.Ship;
+            TaskForce myForce = TaskForces.Of(mine);
+            TaskForce theirs = TaskForces.Of(ship);
+            Escort escort = TaskForces.EscortOf(ship);
+            if (ship == mine)
+            {
+                s.Row(myForce != null ? "Task force " + myForce.Name + "…" : "Form a task force…",
+                    () => { Open("tf", TaskForcePage); s.Close(); });
+                if (escort != null && escort.Detached)
+                    s.Row("Return to formation", () => { TaskForces.Rejoin(ship); CommandState.Say(ShipNames.Of(ship) + " · returning to formation"); s.Close(); });
+                return;
+            }
+            if (theirs != null && theirs == myForce)
+            {
+                if (escort != null && escort.Detached)
+                    s.Row("Return to formation", () => { TaskForces.Rejoin(ship); CommandState.Say(ShipNames.Of(ship) + " · returning to formation"); s.Close(); });
+                s.Row("Remove from " + theirs.Name, () => { TaskForces.Remove(ship); CommandState.Say(ShipNames.Of(ship) + " · left " + theirs.Name); s.Close(); });
+                return;
+            }
+            if (mine == null) return;
+            s.Row(myForce != null ? "Add to task force " + myForce.Name : "Form a task force with it", () =>
+            {
+                TaskForce force = myForce ?? TaskForces.Create(mine);
+                if (TaskForces.Add(force, ship, out string reason)) CommandState.Say(ShipNames.Of(ship) + " · joining " + force.Name);
+                else CommandState.Say(reason);
+                s.Close();
+            });
+        }
 
         private void RenameRow(Surface s, Ship ship)
         {

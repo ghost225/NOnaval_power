@@ -36,6 +36,7 @@ namespace NavalPower
 
         public static bool ReplaceWaypoint(Ship ship, GlobalPosition waypoint, out string reason)
         {
+            TaskForces.NoteOrder(ship);
             if (!CommandableShip.Finite(waypoint)) { reason = "That waypoint is invalid."; return false; }
             var state = State(ship, out reason);
             if (state == null) return false;
@@ -46,6 +47,7 @@ namespace NavalPower
 
         public static bool AppendWaypoint(Ship ship, GlobalPosition waypoint, out string reason)
         {
+            TaskForces.NoteOrder(ship);
             if (!CommandableShip.Finite(waypoint)) { reason = "That waypoint is invalid."; return false; }
             var state = State(ship, out reason);
             if (state == null) return false;
@@ -57,6 +59,7 @@ namespace NavalPower
 
         public static bool ClearWaypoints(Ship ship, out string reason)
         {
+            TaskForces.NoteOrder(ship);
             var state = State(ship, out reason);
             if (state == null) return false;
             state.ClearRoute();
@@ -66,6 +69,7 @@ namespace NavalPower
 
         public static bool SetOrderedSpeedKnots(Ship ship, float knots, out string reason)
         {
+            TaskForces.NoteOrder(ship);
             if (!CommandableShip.Finite(knots)) { reason = "That speed is invalid."; return false; }
             var state = State(ship, out reason);
             if (state == null) return false;
@@ -77,6 +81,7 @@ namespace NavalPower
 
         public static bool ReleaseSpeed(Ship ship, out string reason)
         {
+            TaskForces.NoteOrder(ship);
             var state = State(ship, out reason);
             if (state == null) return false;
             state.ReleaseSpeed();
@@ -117,6 +122,9 @@ namespace NavalPower
         private float speedIntegral, lastGovernorUpdate, nextAuthorityCheck, nextTrace;
 
         internal Player Issuer;
+        // A ceiling laid over the ordered speed without replacing it: a task
+        // force's guide slowing for its escorts goes back to the order after.
+        internal float SpeedCapKnots = float.PositiveInfinity;
         internal bool HasSpeedOrder { get; private set; }
         internal float OrderedSpeedKnots { get; private set; }
         internal int WaypointCount => route.Count;
@@ -338,15 +346,19 @@ namespace NavalPower
         {
             if (ship == null || ship.disabled || !ship.IsServer || !ship.LocalSim) return;
             if (OwnsNavigation) PinCommanded();
-            if (!HasSpeedOrder || ship.rb == null) return;
+            bool capped = !float.IsPositiveInfinity(SpeedCapKnots);
+            if ((!HasSpeedOrder && !capped) || ship.rb == null) return;
             if (ownsRoute && route.Count == 0) return;
 
             ShipInputs inputs = ship.GetInputs();
             if (inputs == null) return;
 
             float forward = Vector3.Dot(ship.rb.velocity, ship.transform.forward);
-            float desired = OrderedSpeedKnots * CommandableShip.MetresPerSecondPerKnot;
-            float maximum = CommandableShip.MaximumSpeedKnots(ship) * CommandableShip.MetresPerSecondPerKnot;
+            float maximumKnots = CommandableShip.MaximumSpeedKnots(ship);
+            float orderedKnots = HasSpeedOrder ? OrderedSpeedKnots : maximumKnots;
+            if (capped && orderedKnots > SpeedCapKnots) orderedKnots = SpeedCapKnots;
+            float desired = orderedKnots * CommandableShip.MetresPerSecondPerKnot;
+            float maximum = maximumKnots * CommandableShip.MetresPerSecondPerKnot;
             float fraction = desired / Mathf.Max(1f, maximum);
             float error = desired - forward;
             // Astern orders need full authority; ahead orders must not exceed

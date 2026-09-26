@@ -29,6 +29,7 @@ namespace NavalPower
         internal static ConfigEntry<float> EgressAltitude;
         internal static ConfigEntry<float> RadarHandover;
         internal static ConfigEntry<float> InfraredHandover;
+        internal static ConfigEntry<KeyboardShortcut> NextInForce, PreviousInForce;
         internal static ConfigEntry<float> BombingHeight;
         internal static ConfigEntry<float> CruiseThrottle;
         internal static ConfigEntry<bool> PreFlare;
@@ -60,6 +61,10 @@ namespace NavalPower
 
         internal static void Bind(ConfigFile config)
         {
+            NextInForce = config.Bind("Command", "Next ship in task force", new KeyboardShortcut(KeyCode.RightBracket),
+                "Take command of the next ship in the task force.");
+            PreviousInForce = config.Bind("Command", "Previous ship in task force", new KeyboardShortcut(KeyCode.LeftBracket),
+                "Take command of the previous ship in the task force.");
             ResumeCommand = config.Bind("Command", "Resume command", new KeyboardShortcut(KeyCode.F10),
                 "Re-enter command on the ship the camera is following. Command also resumes on its own " +
                 "after a pause menu when Auto resume is on.");
