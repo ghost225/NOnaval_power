@@ -6,9 +6,9 @@ namespace NavalPower
     // Every ship gets a name, the way every flight gets a callsign: a fleet of
     // four "Destroyer"s is four things you cannot tell apart or talk about.
     //
-    // Names come from a registry per side -- Anglo and European for Boscali;
-    // for Primeva, Greek and Near-Eastern myth after the faction's own
-    // vehicles -- behind a service prefix, BMDF or PALN.
+    // Names come from a registry per side, each after the faction's own
+    // vehicle names -- plain engineering English for Boscali, Greek and
+    // Near-Eastern myth for Primeva -- behind a service prefix, BMDF or PALN.
     // Unarmed hulls are merchants and sail as MV. A ship's pick is keyed on the
     // mission and the ship's own unique name, so reloading the same mission
     // names it the same again, and a rename is remembered for that mission.
@@ -17,16 +17,20 @@ namespace NavalPower
     // or another mod has already named keeps that.
     internal static class ShipNames
     {
+        // After the faction's own vehicles -- Compass, Anvil, Dynamo, Shard,
+        // Revoker, Tarantula, Linebreaker, Spearhead: plain modern English,
+        // single words and compounds, engineering-flavoured. Structures,
+        // instruments and tools, weather and sea, insects, and blades.
         private static readonly string[] Boscali =
         {
-            "Valiant", "Intrepid", "Dauntless", "Vigilant", "Sovereign", "Albion", "Ardent", "Audacious",
-            "Brilliant", "Courageous", "Defiant", "Endeavour", "Formidable", "Glorious", "Illustrious",
-            "Invincible", "Implacable", "Indomitable", "Tenacious", "Unyielding", "Steadfast", "Relentless",
-            "Nelson", "Drake", "Rodney", "Ruyter", "Tromp", "Colbert", "Suffren", "Jervis", "Hawke",
-            "Aquitaine", "Lorraine", "Bretagne", "Normandie", "Flandre", "Holstein", "Bremen", "Lubeck",
-            "Zeeland", "Utrecht", "Cornwall", "Kent", "Northumberland", "Somerset", "Argyll", "Monmouth",
-            "Iron Duke", "Warspite", "Agincourt", "Trafalgar", "Camperdown", "Quiberon", "Lepanto",
-            "Minerva", "Juno", "Arethusa", "Galatea", "Penelope", "Sirius", "Orion", "Achates", "Onslow"
+            "Bulwark", "Keystone", "Bastion", "Rampart", "Ironside", "Breakwater", "Bulkhead", "Portcullis",
+            "Girder", "Keel", "Capstan", "Windlass", "Hawser", "Crucible", "Forge", "Piston",
+            "Lodestar", "Sextant", "Astrolabe", "Meridian", "Beacon", "Sentinel", "Farsight", "Theodolite",
+            "Gyre", "Plumbline", "Fathom", "Lanyard", "Flywheel", "Mainspring", "Dynamic", "Governor",
+            "Tempest", "Squall", "Thunderhead", "Riptide", "Undertow", "Stormwall", "Tidebreaker", "Wavecrest",
+            "Headland", "Gale", "Crosswind", "Stormhold", "Ironreach", "Longreach", "Highwater", "Northlight",
+            "Hornet", "Mantis", "Scarab", "Dragonfly", "Firefly", "Locust", "Cicada", "Stag Beetle",
+            "Halberd", "Cutlass", "Rapier", "Glaive", "Claymore", "Sabre", "Longbow", "Crossbow"
         };
 
         // After the faction's own vehicles -- Ifrit, Ibis, Alkyon, Hyperion,
@@ -63,7 +67,7 @@ namespace NavalPower
         {
             "Ifrit", "Ibis", "Alkyon", "Hyperion", "Medusa", "Annex", "Dynamo", "Shard", "Argus", "Chicane",
             "Darkreach", "Compass", "Revoker", "Vortex", "Tarantula", "Cricket", "Anvil", "Resolute",
-            "Chimera", "Horus", "Boltstrike", "Linebreaker", "Spearhead"
+            "Chimera", "Horus", "Boltstrike", "Linebreaker", "Spearhead", "StratoLance", "AeroSentry"
         };
 
         private sealed class Entry
