@@ -806,9 +806,12 @@ namespace NavalPower
             if (toHome.sqrMagnitude > 1f)
             {
                 toHome.Normalize();
-                // Only lean homeward when home is not back through the threat.
-                if (Vector3.Dot(toHome, away) > 0.1f)
-                    away = (away * 0.6f + toHome * 0.4f).normalized;
+                // Out toward friendly lines, pushed off whatever is close. Only
+                // when home lies straight back through the threats does getting
+                // away from them come first, angled toward home.
+                away = Vector3.Dot(toHome, away) > -0.5f
+                    ? (toHome * 0.65f + away * 0.35f).normalized
+                    : (away * 0.7f + toHome * 0.3f).normalized;
             }
 
             flight.EgressPoint = here + away * Settings.StandoffMetres.Value;
@@ -890,8 +893,12 @@ namespace NavalPower
         {
             if (flight == null) return;
             flight.Target = null;
-            flight.Mode = flight.PreviousMode == FlightMode.Strike ? FlightMode.Orbit : flight.PreviousMode;
-            if (flight.Mode == FlightMode.Orbit && flight.Aircraft != null)
+            // Back to what it was doing, where it was doing it: the task area
+            // it was sent to, not wherever the attack or the egress ended. Only
+            // a flight with no earlier task holds where it is.
+            bool noTask = flight.PreviousMode == FlightMode.Strike;
+            flight.Mode = noTask ? FlightMode.Orbit : flight.PreviousMode;
+            if (noTask && flight.Aircraft != null)
                 flight.OrbitCentre = flight.Aircraft.GlobalPosition();
             flight.Adopted = false;                 // reclaim on the next tick
         }
