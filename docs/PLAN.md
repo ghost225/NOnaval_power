@@ -1,7 +1,8 @@
 # Naval Power — task forces and air wings
 
-Status: planned, not started. The previous plan (Sea Power shell, airfield
-command, compass) is complete and lives in git history.
+Status: step 1 in progress. The previous plan (Sea Power shell, airfield
+command, compass) is complete and lives in git history. The task-force
+interface follows Sea Power's formation tools (researched 2026-09-25; see §3).
 
 Two features, one idea: several units that take orders as one. Ships join a
 **task force** that keeps formation on a guide ship; aircraft launch and fly as
@@ -36,7 +37,9 @@ and members, each with a **station** (bearing and range from the guide) and a
 state: *on station*, *closing*, *detached*. A ship is in at most one task force.
 Only ships you could command yourself can join.
 
-**Formations** (presets; stations are generated, then individually editable):
+**Stations are edited, not just picked.** Presets fill in a starting layout;
+the formation editor (§3) is where each ship's station is dragged to where you
+want it. Presets, after Sea Power's list, trimmed to what makes sense here:
 
 | Formation | Stations | Good for |
 |---|---|---|
@@ -49,8 +52,12 @@ Only ships you could command yourself can join.
 well ahead of its station (never *on* it — arriving triggers the native
 multi-minute hold we already work around) and a speed of the guide's speed plus
 a correction for how far behind or ahead it is, capped at its own maximum.
-Stations rotate with the guide's *course*, smoothed, not its instantaneous
-heading, so a small course wobble doesn't send the screen swinging. Column is
+**Relative by default.** Stations turn with the guide's *course*, smoothed,
+not its instantaneous heading, so a small course wobble doesn't send the screen
+swinging. A *Fixed to north* option holds them on true bearings instead. Sea
+Power defaults the other way, because in a 10 nm ring a 180° turn sends every
+escort up to 20 nm to its new station; our formations are a few kilometres
+across, where following the guide's turn is what you expect. Column is
 the exception: it follows the guide's wake (breadcrumbs), so a column turns in
 succession the way a real one does.
 
@@ -64,9 +71,17 @@ Task Force window, or **[ / ]** to cycle (rebindable). Switching command doesn't
 change the guide: you can go and fight an escort while the formation holds on
 the flagship. *Make guide* moves the formation onto the ship you're on.
 
-**Joining and leaving.** Right-click a friendly ship → *Add to task force*;
-or in the Task Force window, *Add ships…* lists commandable friendly ships
-nearby. *Remove* on a member's page. Losing the guide promotes the next ship.
+**Joining and leaving.** A *Formation* section on a ship's right-click menu,
+after Sea Power's: *Create task force* (on your own ship), *Join task force…*
+and *Leave* (on a friendly ship), *Return to formation* (on a detached escort),
+*Edit formation*. The Task Force window also has *Add ships…*, listing
+commandable friendly ships nearby. Losing the guide promotes the next ship.
+
+**Fixing Sea Power's weak spots.** Its players' complaints are that followers
+don't always take up the leader's new course, and that sensor and attack orders
+to the leader don't reach the rest. Here the guide's orders *are* the force's
+orders, force-wide ROE/EMCON/speed are one click, and formation speed follows
+the slowest ship automatically.
 
 ## 2. Air wings
 
@@ -108,15 +123,24 @@ flight to add it to another. Losing the lead promotes the next member.
 
 Built into the existing shell, not beside it.
 
-- **TF tool** on the strip (ships only). The **Task Force window**:
+Modelled on Sea Power's three pieces — a Formation section on the right-click
+menu, a Formation Manager list, and a Formation Editor — with the first two
+folded into our own windows.
+
+- **TF tool** on the strip (ships only). The **Task Force window** (Sea Power's
+  Formation Manager, with orders):
   - Title: `TASK FORCE ALPHA · 4 ships`.
-  - Formation picker (Column · Abreast · Screen · Box) and a spacing slider.
-  - A row per ship: `★ Hyperion · guide`, `Kestrel · screen 045° 3 km · on
-    station`, `Talon · closing 1.8 km`, `Vigil · detached`. The ship you command
-    is highlighted.
-  - Clicking a row switches command to that ship, in one click. Its page
-    (station, *Rejoin*, *Make guide*, *Remove*) sits behind a small › on the row.
-  - Force-wide rows: ROE, EMCON, speed, cease fire. *Add ships…*
+  - A row per ship: `♛ Hyperion · guide`, `Kestrel · 045° 3 km · on station`,
+    `Talon · closing 1.8 km`, `Vigil · detached`. The ship you command is
+    highlighted. Clicking a row switches command to it, in one click.
+  - Force-wide rows: ROE, EMCON, speed (capped at the slowest ship), cease
+    fire. *Edit formation…*, *Add ships…*, *Disband*.
+- **Formation editor** (Sea Power's, near enough): a polar plot — range rings,
+  bearing spokes, the guide at the centre with its heading arrow — and a dot per
+  ship, labelled, that you drag to its station. Ships sail to a new station as
+  soon as it's dropped. A slider sets the plot's range; above it, the
+  formation's name, guide, formation speed, a preset picker and *Fixed to
+  north*. Drawn with the same mesh code as the map overlay, in a window.
 - **Strip**: `Hyperion · TF ALPHA 1/4` beside the name, so which force and
   which ship are always visible; [ / ] cycle.
 - **Air Operations window**: a wing is one row — `Viper 1 · 4× F/A-26 · on
@@ -127,8 +151,9 @@ Built into the existing shell, not beside it.
 - **Map**: small station circles for each escort, a line from ship to station
   when it's closing, the formation's shape faint around the guide. A wing gets
   one label on its lead (`Viper 1 (4)`); members are tinted, unlabelled.
-- **Right-click a friendly ship**: *Add to task force* / *Take command*. Our
-  right-click menu currently only handles contacts, so this is new.
+- **Right-click menus** (reworked 2026-09-25, `ce206b2`): a friendly ship's
+  menu already has *Take command*; the Formation section is added to it and
+  to your own ship's.
 
 ---
 
@@ -140,7 +165,8 @@ Built into the existing shell, not beside it.
 3. **Task force model + station keeping** with one formation (Screen), tested
    on two ships.
 4. **Other formations, column wake-following, turns.**
-5. **Task Force window, quick switch, strip, map markers.**
+5. **Task Force window, formation editor, right-click Formation section,
+   quick switch, strip, map markers.**
 6. **Force-wide orders, detach/rejoin, guide promotion; wing split/join, bingo
    rule, strike spread.**
 
