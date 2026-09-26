@@ -103,6 +103,39 @@ namespace NavalPower
             return rotary ? offset * 0.4f : offset;
         }
 
+        // Where a wingman's slot is right now, and which way the lead is going.
+        internal static bool Slot(Flight flight, out GlobalPosition slot, out Vector3 forward, out Vector3 velocity)
+        {
+            slot = default; forward = Vector3.forward; velocity = Vector3.zero;
+            Flight lead = LeadOf(flight);
+            Aircraft leader = lead?.Aircraft;
+            if (lead == flight || leader == null || leader.disabled || flight.Aircraft == null) return false;
+            velocity = leader.rb != null ? leader.rb.velocity : leader.transform.forward * 100f;
+            forward = new Vector3(velocity.x, 0f, velocity.z);
+            if (forward.sqrMagnitude < 25f) forward = new Vector3(leader.transform.forward.x, 0f, leader.transform.forward.z);
+            forward.Normalize();
+            Vector3 right = new Vector3(forward.z, 0f, -forward.x);
+            Vector3 offset = SlotOffset(flight, !(flight.Aircraft.autopilot is AutopilotPlane));
+            slot = leader.GlobalPosition() + right * offset.x + forward * offset.z;
+            return true;
+        }
+
+        // How far the furthest-behind wingman is from its slot, along the lead's
+        // track, in metres: what the lead slows down for.
+        internal static float Straggle(Flight lead)
+        {
+            if (!IsLead(lead)) return 0f;
+            float worst = 0f;
+            foreach (Flight member in Members(lead.Wing))
+            {
+                if (member == lead || member.Mode != FlightMode.Formation) continue;
+                if (!Slot(member, out GlobalPosition slot, out Vector3 forward, out _)) continue;
+                Vector3 gap = slot - member.Aircraft.GlobalPosition();
+                worst = Mathf.Max(worst, Vector3.Dot(gap, forward));
+            }
+            return worst;
+        }
+
         internal static void Detach(Flight flight)
         {
             if (flight?.Wing == null) return;

@@ -51,9 +51,28 @@ namespace NavalPower
             if (controlInputs != null && aircraft != null && aircraft.autopilot is AutopilotPlane) controlInputs.throttle = 1f;
         }
 
-        // A lead with wingmen in formation holds a little power back, so they
-        // have speed in hand to close up with.
-        private const float LeadThrottle = 0.85f;
+        // Cruise below full power: fuel lasts, and a lead with wingmen holds a
+        // little more back so they have speed in hand to close up with. A lead
+        // whose wingmen have fallen well behind their slots throttles back
+        // further until they catch up -- never so far that it drops towards
+        // its own flying speed.
+        private float CruiseThrottle()
+        {
+            float cruise = Settings.CruiseThrottle.Value;
+            if (!Wings.HasFollowers(flight)) return cruise;
+            float lead = cruise - 0.05f;
+            float behind = Wings.Straggle(flight);
+            if (behind > 2000f) lead -= Mathf.Min(0.2f, (behind - 2000f) / 3000f * 0.2f);
+            float minimum = definitionTakeoffSpeed * 1.4f;
+            if (minimum > 0f && aircraft.speed < minimum) lead = Mathf.Max(lead, cruise);
+            return Mathf.Clamp(lead, 0.55f, 1f);
+        }
+
+        private float definitionTakeoffSpeed => aircraft.definition?.aircraftParameters != null
+            ? aircraft.definition.aircraftParameters.takeoffSpeed : 0f;
+
+        // The lead's cruise setting, for a wingman's throttle loop to centre on.
+        private static float LeadCruise => Settings.CruiseThrottle.Value - 0.05f;
 
         public override void UpdateState(Pilot pilot) { }
 
@@ -73,9 +92,12 @@ namespace NavalPower
 
             Report();
 
+            // Full power where speed matters -- the run-in and the escape --
+            // and cruise power everywhere else.
             if (aircraft.autopilot is AutopilotPlane && flight.Mode != FlightMode.Formation)
                 controlInputs.throttle = Time.timeSinceLevelLoad < flight.ThrottleCutUntil ? 0f
-                    : Wings.HasFollowers(flight) ? LeadThrottle : 1f;
+                    : flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Egress ? 1f
+                    : CruiseThrottle();
 
             switch (flight.Mode)
             {
@@ -265,24 +287,13 @@ namespace NavalPower
         private void FlyFormation()
         {
             Flight lead = Wings.LeadOf(flight);
-            Aircraft leader = lead?.Aircraft;
-            if (lead == flight || leader == null || leader.disabled)
+            if (!Wings.Slot(flight, out GlobalPosition slot, out Vector3 forward, out Vector3 velocity))
             {
                 // No one to fly on: hold here until given something to do.
                 flight.OrbitCentre = aircraft.GlobalPosition();
                 flight.Mode = FlightMode.Orbit;
                 return;
             }
-
-            Vector3 velocity = leader.rb != null ? leader.rb.velocity : leader.transform.forward * 100f;
-            Vector3 forward = new Vector3(velocity.x, 0f, velocity.z);
-            if (forward.sqrMagnitude < 25f) forward = new Vector3(leader.transform.forward.x, 0f, leader.transform.forward.z);
-            forward.Normalize();
-            Vector3 right = new Vector3(forward.z, 0f, -forward.x);
-
-            bool rotary = !(aircraft.autopilot is AutopilotPlane);
-            Vector3 offset = Wings.SlotOffset(flight, rotary);
-            GlobalPosition slot = leader.GlobalPosition() + right * offset.x + forward * offset.z;
             flight.Altitude = lead.Altitude;
 
             Vector3 gap = slot - aircraft.GlobalPosition();
@@ -290,7 +301,7 @@ namespace NavalPower
             float along = Vector3.Dot(gap, forward);          // positive: behind the slot
             float distance = gap.magnitude;
 
-            if (rotary)
+            if (!(aircraft.autopilot is AutopilotPlane))
             {
                 Steer(slot, velocity);
                 return;
@@ -301,8 +312,8 @@ namespace NavalPower
             // a point and circling back to it; further out, lead it more.
             GlobalPosition aim = slot + forward * Mathf.Clamp(distance * 0.5f + 1500f, 1500f, 6000f);
             float speedGap = Vector3.Dot(velocity, forward) - Vector3.Dot(aircraft.rb != null ? aircraft.rb.velocity : Vector3.zero, forward);
-            float power = distance > 4000f && along > 0f ? 1f
-                : Mathf.Clamp(LeadThrottle + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
+            float power = distance > 3000f && along > 0f ? 1f
+                : Mathf.Clamp(LeadCruise + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
             controlInputs.throttle = power;
             Steer(aim, velocity);
         }

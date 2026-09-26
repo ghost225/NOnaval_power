@@ -29,6 +29,7 @@ namespace NavalPower
         internal static ConfigEntry<float> EgressAltitude;
         internal static ConfigEntry<float> RadarHandover;
         internal static ConfigEntry<float> InfraredHandover;
+        internal static ConfigEntry<float> CruiseThrottle;
         internal static ConfigEntry<bool> PreFlare;
         internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange;
         internal static ConfigEntry<int> IrBurstFlares;
@@ -162,6 +163,10 @@ namespace NavalPower
                     "work and the endgame is short.",
                     new AcceptableValueRange<float>(200f, 20000f)));
 
+            CruiseThrottle = config.Bind("Flights", "Cruise throttle", 0.8f,
+                "Throttle for jets on area, route, station and jamming tasks. Strike run-ins and egress use full " +
+                "power. A wing's lead cruises 5% below this so its wingmen can close up, and slows further while " +
+                "they are well behind.");
             IrBurstRange = config.Bind("Flights", "Heat-seeker flare range", 3000f,
                 "On an attack run, a heat-seeking shot inside this range is met with a burst of flares and a " +
                 "moment at idle throttle, without leaving the run.");
