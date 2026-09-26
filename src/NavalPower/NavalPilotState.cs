@@ -428,7 +428,7 @@ namespace NavalPower
             WeaponStation station = FlightOrders.NamedStation(aircraft, flight.PreferredWeapon) ??
                 (target != null ? FlightOrders.BestStationFor(aircraft, target) : null);
             if (target == null || target.disabled || hq == null || !hq.TryGetKnownPosition(target, out GlobalPosition known) ||
-                !FlightOrders.RunInFor(station?.WeaponInfo, out float height, out float release))
+                !FlightOrders.RunInFor(station?.WeaponInfo, out float height, out float release, out bool straight))
             {
                 CompleteRunIn(pilot, "no run-in needed");
                 return;
@@ -439,7 +439,15 @@ namespace NavalPower
             bool low = aircraft.radarAlt <= height + Mathf.Max(250f, height * 0.25f);
             if (Time.timeSinceLevelLoad - flight.RunInStarted > 240f) { CompleteRunIn(pilot, "run-in timed out"); return; }
 
-            if (!flight.SettingUp && (range < release * 0.5f || (!low && range < release)))
+            // For a straight run: how far the track is off the target's bearing.
+            Vector3 toTarget = known - here; toTarget.y = 0f;
+            Vector3 track = aircraft.rb != null ? aircraft.rb.velocity : aircraft.transform.forward;
+            track.y = 0f;
+            float offTrack = toTarget.sqrMagnitude > 1f && track.sqrMagnitude > 1f ? Vector3.Angle(track, toTarget) : 0f;
+            bool lined = !straight || offTrack <= 8f;
+
+            if (!flight.SettingUp && (range < release * 0.5f || (!low && range < release) ||
+                (straight && !lined && range < release * 0.8f)))
             {
                 flight.SettingUp = true;
                 Plugin.Log.LogInfo("[flight] " + flight.Name + " · opening out to set up the run");
@@ -453,15 +461,17 @@ namespace NavalPower
                 if (friendly.sqrMagnitude < 1f) friendly = here - known;
                 friendly.y = 0f;
                 if (friendly.sqrMagnitude < 1f) friendly = -aircraft.transform.forward;
-                GlobalPosition setUp = known + friendly.normalized * release * 1.3f;
-                if (Horizontal(setUp, here) < 1500f || (low && range >= release * 1.15f))
+                // A straight run needs room to settle on the line before handover.
+                float outward = straight ? 1.8f : 1.3f;
+                GlobalPosition setUp = known + friendly.normalized * release * outward;
+                if (Horizontal(setUp, here) < 1500f || (low && range >= release * (outward - 0.15f)))
                 {
                     flight.SettingUp = false;
                     Plugin.Log.LogInfo("[flight] " + flight.Name + " · turning in for the run");
                 }
                 else aim = setUp;
             }
-            else if (low && range < release) { CompleteRunIn(pilot, "in position"); return; }
+            else if (low && lined && range < release) { CompleteRunIn(pilot, straight ? "lined up" : "in position"); return; }
 
             float ordered = flight.Altitude;
             flight.Altitude = height;

@@ -29,6 +29,7 @@ namespace NavalPower
         internal static ConfigEntry<float> EgressAltitude;
         internal static ConfigEntry<float> RadarHandover;
         internal static ConfigEntry<float> InfraredHandover;
+        internal static ConfigEntry<float> BombingHeight;
         internal static ConfigEntry<float> CruiseThrottle;
         internal static ConfigEntry<bool> PreFlare;
         internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange;
@@ -163,6 +164,8 @@ namespace NavalPower
                     "work and the endgame is short.",
                     new AcceptableValueRange<float>(200f, 20000f)));
 
+            BombingHeight = config.Bind("Flights", "Bombing height", 1500f,
+                "Height above ground a level-bombing run is flown at. Lower is more accurate and more exposed.");
             CruiseThrottle = config.Bind("Flights", "Cruise throttle", 0.8f,
                 "Throttle for jets on area, route, station and jamming tasks. Strike run-ins and egress use full " +
                 "power. A wing's lead cruises 5% below this so its wingmen can close up, and slows further while " +

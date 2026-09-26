@@ -88,8 +88,15 @@ namespace NavalPower
                 // Nothing aboard can usefully attack it. Break off rather than
                 // fly runs that will never release, or quietly hit something
                 // else the search happened to prefer.
-                Plugin.Log.LogInfo("[flight] " + flight.Name + " · cannot engage " +
-                    (target.definition?.unitName ?? "target") + ", breaking off");
+                // The game's scorer stands a weapon down once the target has
+                // all the attacks it needs -- a truck needs one -- which is not
+                // the same as being unable to hurt it.
+                string name = ShipNames.Of(target);
+                bool covered = FlightOrders.CapableOf(target).Contains(flight);
+                Plugin.Log.LogInfo("[flight] " + flight.Name + (covered
+                    ? " · " + name + " already has the attacks it needs, rejoining"
+                    : " · cannot engage " + name + ", breaking off"));
+                if (covered) CommandState.Say(flight.Name + " · " + name + " is covered, rejoining");
                 FlightOrders.BreakOff(flight);
                 return;
             }

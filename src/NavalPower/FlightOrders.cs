@@ -212,6 +212,7 @@ namespace NavalPower
             internal string Callsign;
             internal string Wing;
             internal float ExpiresAt;
+            internal float RequestedAt;
         }
         private static readonly List<Pending> pending = new List<Pending>();
 
@@ -239,6 +240,7 @@ namespace NavalPower
                 Definition = definition,
                 Loadout = loadout,
                 Callsign = callsign,
+                RequestedAt = Time.unscaledTime,
                 ExpiresAt = Time.unscaledTime + 90f
             });
         }
@@ -276,6 +278,19 @@ namespace NavalPower
                 string wing = pending[i].Wing;
                 pending.RemoveAt(i);
                 if (home == null) return null;
+                // Already adopted by the proximity fallback, under another
+                // launch's name: this is the authoritative match, so it takes
+                // this launch's callsign and wing instead of becoming a second
+                // flight flying the same aircraft.
+                Flight existing = Of(aircraft);
+                if (existing != null)
+                {
+                    existing.Wing = wing;
+                    Rename(existing, callsign ?? existing.Label);
+                    Wings.Joined(existing);
+                    Plugin.Log.LogInfo("[deck] " + existing.Name + " · corrected from a proximity match");
+                    return existing;
+                }
                 var flight = new Flight
                 {
                     Aircraft = aircraft,
@@ -379,7 +394,11 @@ namespace NavalPower
                 Pending request = pending[i];
                 if (request.Field == null || Time.unscaledTime > request.ExpiresAt) { pending.RemoveAt(i); continue; }
                 // The spawn hook normally claims the aircraft outright; this
-                // only covers a build where that hook failed to bind.
+                // only covers a build where that hook failed to bind. Give the
+                // hook time first: matching by proximity straight away grabbed
+                // an aircraft the hook was about to claim for another launch,
+                // and scrambled a wing's callsigns and leads.
+                if (Time.unscaledTime - request.RequestedAt < 20f) continue;
                 Aircraft found = FindNew(request);
                 if (found == null) continue;
                 Plugin.Log.LogWarning("[deck] launch matched by proximity, not by loadout · " +
@@ -939,10 +958,19 @@ namespace NavalPower
         // target, is pulled back up, overflies, and circles -- never getting
         // the nose inside the weapon's alignment limit. From the right height
         // the target is already nearly in front of it, and it fires.
-        internal static bool RunInFor(WeaponInfo info, out float height, out float range)
+        //
+        // Level bombs need a straight run as well as a sane height: the combat
+        // pilot times the release on a drag-free fall and only drops with its
+        // track within 10 degrees of the target, breaking off for another lap
+        // if it gets close still turning. From 6,000 m the fall is long and it
+        // lines up late -- over the target, then a release that misses. So a
+        // level bomb is taken down to bombing height and handed over only once
+        // lined up, from far enough out to settle.
+        internal static bool RunInFor(WeaponInfo info, out float height, out float range, out bool straight)
         {
             height = 0f;
             range = 0f;
+            straight = false;
             if (info == null) return false;
             float reach = info.targetRequirements.maxRange;
             if (info.gun)
@@ -951,7 +979,14 @@ namespace NavalPower
                 range = Mathf.Max(reach * 2f, 3000f);
                 return true;
             }
-            if (!(info.missile || info.laserGuided) || reach <= 0f) return false;   // bombs set up their own
+            if (info.bomb && !info.glideBomb && !info.laserGuided)
+            {
+                height = Settings.BombingHeight.Value;
+                range = 7000f;
+                straight = true;
+                return true;
+            }
+            if (!(info.missile || info.laserGuided) || reach <= 0f) return false;   // glide bombs set up their own
             // Low enough that at release range the target sits within half the
             // weapon's alignment limit below the nose.
             float align = Mathf.Clamp(info.targetRequirements.minAlignment, 5f, 60f);
