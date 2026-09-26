@@ -113,6 +113,7 @@ namespace NavalPower
         {
             reason = null;
             if (force == null || ship == null) return false;
+            if (!forces.Contains(force)) { reason = "That task force no longer exists."; return false; }
             if (!CommandableShip.CanCommand(ship, out reason)) return false;
             TaskForce existing = Of(ship);
             if (existing == force) { reason = ShipNames.Of(ship) + " is already in " + force.Name + "."; return false; }
@@ -138,7 +139,9 @@ namespace NavalPower
                 force.Escorts.RemoveAll(e => e.Ship == ship);
                 Release(ship);
             }
-            if (force.Count < 2) Disband(force);
+            // A force lives as long as it has a guide: formed first and filled
+            // afterwards, or down to its last ship, it is still there to add to.
+            if (force.Guide == null) Disband(force);
             else Layout(force);
         }
 
@@ -261,7 +264,7 @@ namespace NavalPower
         internal static float Gap(TaskForce force)
         {
             float radius = force.Guide != null ? force.Guide.maxRadius : 60f;
-            return Mathf.Max(3f * radius, 600f) * force.Spacing;
+            return Mathf.Max(2f * radius, 400f) * force.Spacing;
         }
 
         // Lays out every escort's station for the force's formation.
@@ -302,18 +305,36 @@ namespace NavalPower
 
             // Screen: the main body astern, a ring round the guide, pickets ahead.
             for (int i = 0; i < main.Count; i++)
-                Place(main[i], 180f + (i % 2 == 0 ? 1 : -1) * 15f * ((i + 1) / 2), gap * 1.5f * (i / 2 + 1));
+                Place(main[i], 180f + (i % 2 == 0 ? 1 : -1) * 15f * ((i + 1) / 2), gap * 1.6f * (i / 2 + 1));
             float[] ringBearings = { 45f, 315f, 135f, 225f, 90f, 270f, 0f, 180f };
             for (int i = 0; i < ring.Count; i++)
-                Place(ring[i], ringBearings[i % ringBearings.Length], gap * 2f * (1f + 0.6f * (i / ringBearings.Length)));
-            float arc = Mathf.Max(10f * (force.Guide != null ? force.Guide.maxRadius : 60f), 2000f) * force.Spacing;
+                Place(ring[i], ringBearings[i % ringBearings.Length], gap * 2.4f * (1f + 0.5f * (i / ringBearings.Length)));
+            float arc = Mathf.Max(5f * (force.Guide != null ? force.Guide.maxRadius : 60f), 1500f) * force.Spacing;
             for (int i = 0; i < screen.Count; i++)
             {
                 int rank = i / 5, slot = i % 5;
                 float offset = (slot - 2) * 17.5f + (rank % 2 == 1 ? 8.75f : 0f);
-                Place(screen[i], offset, arc + 800f * rank);
+                Place(screen[i], offset, arc + 600f * rank);
                 screen[i].ThreatArc = true;
             }
+            Report(force, main, ring, screen);
+        }
+
+        // What every escort was given, and why: a station that looks wrong in
+        // game can be read here against the guide's size and the escort's role.
+        private static void Report(TaskForce force, List<Escort> main, List<Escort> ring, List<Escort> screen)
+        {
+            var line = new System.Text.StringBuilder("[tf] " + force.Name + " · " + force.Formation + " · guide " +
+                ShipNames.Of(force.Guide) + " radius " + (force.Guide != null ? force.Guide.maxRadius.ToString("0") : "?") +
+                " m · gap " + Gap(force).ToString("0") + " m");
+            foreach (Escort escort in force.Escorts)
+            {
+                string role = main.Contains(escort) ? "main" : ring.Contains(escort) ? "ring" : screen.Contains(escort) ? "picket" : force.Formation.ToString().ToLowerInvariant();
+                line.Append("\n    ").Append(ShipNames.Of(escort.Ship)).Append(" [").Append(ShipNames.TypeOf(escort.Ship))
+                    .Append("] ").Append(role).Append(" · ").Append(escort.Bearing.ToString("000")).Append("° ")
+                    .Append(escort.Range.ToString("0")).Append(" m");
+            }
+            Plugin.Log.LogInfo(line.ToString());
         }
 
         private static void Place(Escort escort, float bearing, float range)
@@ -335,7 +356,8 @@ namespace NavalPower
             {
                 force.Escorts.RemoveAll(e => e.Ship == null || e.Ship.disabled);
                 if (force.Guide == null || force.Guide.disabled) { force.Guide = null; PromoteGuide(force); }
-                if (force.Guide == null || force.Count < 2) { Disband(force); continue; }
+                if (force.Guide == null) { Disband(force); continue; }
+                if (force.Escorts.Count == 0) continue;
                 Smooth(force, dt);
                 float worst = 0f;
                 foreach (Escort escort in force.Escorts)
@@ -345,6 +367,24 @@ namespace NavalPower
                     worst = Mathf.Max(worst, escort.OffStation);
                 }
                 Pace(force, worst);
+                Trace(force);
+            }
+        }
+
+        private static float nextTrace;
+
+        private static void Trace(TaskForce force)
+        {
+            if (Time.timeSinceLevelLoad < nextTrace) return;
+            nextTrace = Time.timeSinceLevelLoad + 10f;
+            foreach (Escort escort in force.Escorts)
+            {
+                if (escort.Ship == null) continue;
+                Plugin.Log.LogInfo("[tf] " + force.Name + " · " + ShipNames.Of(escort.Ship) + " · " + Describe(force, escort) +
+                    " · station " + escort.Range.ToString("0") + " m at " + escort.Bearing.ToString("000") + "° · off by " +
+                    escort.OffStation.ToString("0") + " m · aim " +
+                    FastMath.Distance(escort.LastAim, escort.Ship.GlobalPosition()).ToString("0") + " m ahead · ordered " +
+                    escort.LastSpeed.ToString("0.0") + " kt" + (force.UnderFire ? " · guide under fire" : ""));
             }
         }
 
