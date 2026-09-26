@@ -114,19 +114,27 @@ namespace NavalPower
                 return "game state is " + GameManager.gameState;
             var gameplay = SceneSingleton<GameplayUI>.i;
             if (gameplay == null) return "no gameplay UI";
-            if (gameplay.menuCanvas != null && gameplay.menuCanvas.enabled) return "a menu is open";
             if (GameplayUI.GameIsPaused) return "the game is paused";
+            if (MenuOpen()) return "a menu is open";
             if (GameManager.GetLocalAircraft(out Aircraft own) && own != null && !own.disabled)
                 return "you still hold an aircraft (" + (own.definition?.unitName ?? own.name) + ")";
             if (SceneSingleton<CameraStateManager>.i == null) return "no camera manager";
             return null;
         }
 
+        // The menus themselves, by the flags the game sets while each is up:
+        // the pause and join menus, and the aircraft selection screen. Not the
+        // menu canvas -- the selection screen switches that on and never off
+        // again when you back out to the map, which left command refused with
+        // "a menu is open" until the next pause and resume.
+        private static bool MenuOpen() =>
+            CursorManager.GetFlag(CursorFlags.GameMenu) || CursorManager.GetFlag(CursorFlags.SelectionMenu);
+
         private static bool GameplayReady()
         {
             if (GameManager.gameState != GameState.SinglePlayer && GameManager.gameState != GameState.Multiplayer) return false;
             var gameplay = SceneSingleton<GameplayUI>.i;
-            if (gameplay == null || (gameplay.menuCanvas != null && gameplay.menuCanvas.enabled) || GameplayUI.GameIsPaused) return false;
+            if (gameplay == null || GameplayUI.GameIsPaused || MenuOpen()) return false;
             if (GameManager.GetLocalAircraft(out Aircraft aircraft) && aircraft != null && !aircraft.disabled) return false;
             return SceneSingleton<CameraStateManager>.i != null;
         }
