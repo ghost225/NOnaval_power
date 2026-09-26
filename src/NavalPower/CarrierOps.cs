@@ -282,6 +282,7 @@ namespace NavalPower
 
             Remember(plan);
             FlightOrders.ExpectLaunch(deck, plan.Definition, loadout, callsign, wing);
+            Plugin.Log.LogInfo("[deck] " + callsign + " · " + TakeoffCheck.Trace(TakeoffCheck.Estimate(plan, deck)));
             reason = "Launching " + (string.IsNullOrEmpty(callsign) ? "" : callsign + " · ") +
                 plan.Definition.unitName + " · " + (plan.Fuel * 100f).ToString("0") + "% fuel · " + plan.Summary() +
                 (payer != null ? " · " + price.ToString("0") + " from your allocation"

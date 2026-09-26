@@ -596,12 +596,17 @@ namespace NavalPower
             s.Row("Livery  ·  " + plan.LiveryName, () => s.Show(LiveryPage));
             // A launch leaves the window on the deck rather than closing it, so
             // a second can be sent straight after the first.
-            Button launch = s.Row(plan.Count > 1 ? "LAUNCH " + plan.Count + " × " + plan.Definition.unitName : "LAUNCH", () =>
+            // Whether this load gets off this deck, before anything is spent.
+            TakeoffEstimate takeoff = TakeoffCheck.Estimate(plan, CommandState.Airfield);
+            if (!string.IsNullOrEmpty(takeoff.Line)) s.Info(takeoff.Line, TakeoffCheck.ColourOf(takeoff.Verdict));
+            bool heavy = takeoff.Verdict == TakeoffVerdict.TooHeavy || takeoff.Verdict == TakeoffVerdict.OverMax;
+            Button launch = s.Row((plan.Count > 1 ? "LAUNCH " + plan.Count + " × " + plan.Definition.unitName : "LAUNCH") +
+                (heavy ? "  ·  anyway" : ""), () =>
             {
                 CommandState.Say(LaunchQueue.Enqueue(CommandState.Airfield, plan));
                 s.Show(DeckPage);
             });
-            launch.image.color = Theme.Dim(Theme.Good, 0.35f);
+            launch.image.color = heavy ? Theme.Dim(Theme.Bad, 0.45f) : Theme.Dim(Theme.Good, 0.35f);
             s.Row("Back to airframes", () => s.Show(DeckPage));
         }
 
