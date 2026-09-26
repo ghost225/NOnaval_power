@@ -283,6 +283,8 @@ namespace NavalPower
                 WingOrders.Station(flight);
                 CommandState.Say(flight.Name + " · keeping company");
             });
+            if (TaskForces.All.Count > 0)
+                s.Row("Cover a task force…", () => s.Show(x => CoverForcePage(x, flight)));
             s.Row("Clear the route", () =>
             {
                 WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
@@ -407,6 +409,26 @@ namespace NavalPower
                 s.Show(x => FlightPage(x, flight));
             });
             s.Info("It shows on the map, in the hover card and in the kill feed, as a player's name does");
+            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
+        }
+
+        // Keep company with a task force: station on its guide, following it.
+        private void CoverForcePage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  cover a task force");
+            foreach (TaskForce force in TaskForces.All)
+            {
+                if (force.Guide == null) continue;
+                TaskForce chosen = force;
+                s.Row(force.Name + "  ·  guide " + ShipNames.Of(force.Guide) + "  " +
+                    UiKit.Tint(ShipNames.TypeOf(force.Guide), Theme.TextMuted) + "  ·  " + force.Count + " ships", () =>
+                    {
+                        WingOrders.Station(flight, chosen.Guide);
+                        CommandState.Say(flight.Name + " · covering " + chosen.Name);
+                        s.Show(x => FlightPage(x, flight));
+                    });
+            }
             s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
         }
 

@@ -32,6 +32,10 @@ namespace NavalPower
         public bool ConfineToArea = true;       // fight only inside the area
         public float Altitude = 900f;
         public Vector3 StationOffset;
+        // The ship it keeps company with on station: its own deck by default,
+        // or another -- a task force's guide it has been sent to cover.
+        public Ship StationShip;
+        public Ship StationAnchor => StationShip != null && !StationShip.disabled ? StationShip : Parent;
         public bool Adopted;
         public Unit Target;                 // designated for a strike
         public string PreferredWeapon;      // WeaponInfo.name, or null for whatever suits best
@@ -182,7 +186,7 @@ namespace NavalPower
                 case FlightMode.Route: return Route.Count > 0 ? "Route · " + Route.Count + " leg(s)" : "Route complete";
                 case FlightMode.Orbit: return "Station area · " + UnitConverter.DistanceReading(OrbitRadius) +
                     (ConfineToArea ? "" : " · unrestricted");
-                case FlightMode.Station: return "Station on " + HomeName;
+                case FlightMode.Station: return "Station on " + (StationShip != null ? ShipNames.Of(StationShip) : HomeName);
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
                 case FlightMode.Egress: return "Egressing · weapons away";
@@ -703,12 +707,14 @@ namespace NavalPower
             (flight.Mode == FlightMode.Orbit || flight.Mode == FlightMode.Station);
 
         internal static GlobalPosition AreaCentre(Flight flight) =>
-            flight.Mode == FlightMode.Station && flight.Home != null
-                ? flight.HomePosition : flight.OrbitCentre;
+            flight.Mode == FlightMode.Station && flight.StationAnchor != null
+                ? flight.StationAnchor.GlobalPosition()
+                : flight.Mode == FlightMode.Station && flight.Home != null ? flight.HomePosition : flight.OrbitCentre;
 
-        public static void Station(Flight flight)
+        public static void Station(Flight flight, Ship on = null)
         {
-            if (flight == null || flight.Home == null) return;
+            if (flight == null || (flight.Home == null && on == null)) return;
+            flight.StationShip = on;
             flight.Route.Clear();
             // Abeam and slightly ahead: clear of the ship, still close aboard.
             flight.StationOffset = new Vector3(2200f, 0f, 1200f);

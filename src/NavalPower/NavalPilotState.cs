@@ -262,14 +262,15 @@ namespace NavalPower
 
         private void FlyStation()
         {
-            if (flight.Home == null || flight.Home.disabled) { FlyOrbit(aircraft.GlobalPosition()); return; }
+            Ship ship = flight.StationAnchor;
+            if (ship == null && (flight.Home == null || flight.Home.disabled)) { FlyOrbit(aircraft.GlobalPosition()); return; }
             // A land field does not move: work an area over it.
-            if (flight.Parent == null) { FlyOrbit(flight.HomePosition); return; }
+            if (ship == null) { FlyOrbit(flight.HomePosition); return; }
             // The anchor moves with the ship, so the flight keeps company
             // instead of orbiting the spot the ship used to be.
-            Vector3 forward = flight.Parent.transform.forward; forward.y = 0f; forward.Normalize();
+            Vector3 forward = ship.transform.forward; forward.y = 0f; forward.Normalize();
             Vector3 right = new Vector3(forward.z, 0f, -forward.x);
-            GlobalPosition anchor = flight.Parent.GlobalPosition()
+            GlobalPosition anchor = ship.GlobalPosition()
                 + right * flight.StationOffset.x + forward * flight.StationOffset.z;
             FlyOrbit(anchor);
         }

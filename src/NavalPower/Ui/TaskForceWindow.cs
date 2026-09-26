@@ -20,7 +20,9 @@ namespace NavalPower
 
             s.Title("TASK FORCE " + force.Name.ToUpperInvariant() + "  ·  " + force.Count + " ships");
             Button[] shapes = s.Group(FormationNames, i => TaskForces.SetFormation(force, (Formation)i));
-            shapes[(int)force.Formation].image.color = Theme.AccentFill;
+            if (force.Formation != Formation.Custom) shapes[(int)force.Formation].image.color = Theme.AccentFill;
+            s.Row("Edit formation…" + (force.Formation == Formation.Custom ? "  ·  custom stations" : ""),
+                () => Open("tfedit", FormationEditorPage));
             s.Info("Spacing ×" + force.Spacing.ToString("0.0") + "  ·  basic gap " +
                 UnitConverter.DistanceReading(TaskForces.Gap(force)) +
                 (force.Formation == Formation.Screen ? "  ·  pickets face the nearest known threat" : ""), Theme.TextMuted);
@@ -29,9 +31,25 @@ namespace NavalPower
                 () => force.FixedNorth = !force.FixedNorth);
             if (force.FixedNorth) north.image.color = Theme.AccentFill;
 
+            // Speed for the whole force, against what its slowest ship allows.
+            float formation = TaskForces.FormationSpeed(force, out Ship slowest);
+            NavigationSnapshot guideNav = NavigationOrders.GetSnapshot(force.Guide);
+            s.Info("Formation speed  ·  up to " + Speed(formation) + (slowest != null && force.Escorts.Count > 0
+                ? " (" + ShipNames.Of(slowest) + ")" : "") +
+                (guideNav != null ? "  ·  ordered " + Speed(Mathf.Min(guideNav.OrderedSpeedKnots, formation)) : ""), Theme.TextMuted);
+            float[] fractions = { 0f, 1f / 3f, 2f / 3f, 1f };
+            Button[] speeds = s.Group(new[] { "Stop", "1/3", "2/3", "Full" }, i =>
+            {
+                TaskForces.SetSpeed(force, fractions[i]);
+                CommandState.Say(force.Name + " · " + Speed(formation * fractions[i]));
+            });
+            for (int i = 0; i < fractions.Length; i++)
+                if (guideNav != null && formation > 0.1f && Mathf.Abs(Mathf.Min(guideNav.OrderedSpeedKnots, formation) - formation * fractions[i]) < 0.6f)
+                    speeds[i].image.color = Theme.AccentFill;
+
             // The guide, then each escort: click to take command of it.
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(force.Guide);
-            ShipRow(s, force.Guide, "GUIDE  ·  " + ShipNames.Of(force.Guide) + "  ·  " +
+            ShipRow(s, force.Guide, "GUIDE  ·  " + ShipNames.Of(force.Guide) + Class(force.Guide) + "  ·  " +
                 (nav != null ? Speed(nav.ActualSpeedKnots) : "") + (force.UnderFire ? "  ·  under fire" : ""), Theme.Text);
             int detached = 0;
             foreach (Escort escort in force.Escorts)
@@ -39,7 +57,7 @@ namespace NavalPower
                 if (escort.Detached) detached++;
                 string where = (escort.ThreatArc ? "picket " : "") + escort.Bearing.ToString("000") + "°  " +
                     UnitConverter.DistanceReading(escort.Range);
-                ShipRow(s, escort.Ship, "      " + ShipNames.Of(escort.Ship) + "  ·  " + where + "  ·  " +
+                ShipRow(s, escort.Ship, "      " + ShipNames.Of(escort.Ship) + Class(escort.Ship) + "  ·  " + where + "  ·  " +
                     TaskForces.Describe(force, escort),
                     escort.Detached ? Theme.Warn : escort.GivingWay ? Theme.Warn : Theme.Text);
             }
@@ -77,6 +95,7 @@ namespace NavalPower
             cease.image.color = Theme.Dim(Theme.Bad, 0.5f);
 
             s.Row("Add ships…", () => s.Show(x => AddShipsPage(x, force)));
+            if (TaskForces.All.Count > 1) s.Row("All task forces…", () => s.Show(AllForcesPage));
             s.Row("Leave the task force  ·  " + ShipNames.Of(ship), () =>
             {
                 TaskForces.Remove(ship);
@@ -88,6 +107,30 @@ namespace NavalPower
                 CommandState.Say(force.Name + " disbanded");
             });
             s.Info("[ and ] step through the force's ships", Theme.TextFaint);
+        }
+
+        // A ship's class beside its name, quieter than the name.
+        private static string Class(Ship ship) =>
+            ship != null && ShipNames.IsNamed(ship) ? "  " + UiKit.Tint(ShipNames.TypeOf(ship), Theme.TextMuted) : "";
+
+        // Every force, Sea Power's formation manager: one click to its guide.
+        private void AllForcesPage(Surface s)
+        {
+            s.Title("TASK FORCES  ·  " + TaskForces.All.Count);
+            if (TaskForces.All.Count == 0) s.Info("No task forces.", Theme.TextMuted);
+            foreach (TaskForce force in TaskForces.All)
+            {
+                if (force.Guide == null) continue;
+                Ship guide = force.Guide;
+                NavigationSnapshot nav = NavigationOrders.GetSnapshot(guide);
+                Button row = s.Row(force.Name + "  ·  " + force.Count + " ships  ·  guide " + ShipNames.Of(guide) + Class(guide) +
+                    (nav != null ? "  ·  " + Speed(nav.ActualSpeedKnots) : "") + (force.UnderFire ? "  ·  under fire" : ""), () =>
+                    {
+                        if (guide != CommandState.Ship) SceneSingleton<CameraStateManager>.i?.SetFollowingUnit(guide);
+                    });
+                if (TaskForces.Of(CommandState.Ship) == force) row.image.color = Theme.AccentFill;
+            }
+            s.Row("Back", () => s.Show(TaskForcePage));
         }
 
         private void ShipRow(Surface s, Ship ship, string label, Color colour)
@@ -105,6 +148,7 @@ namespace NavalPower
         {
             s.Title("TASK FORCE");
             s.Info(ShipNames.Of(ship) + " sails alone.", Theme.TextMuted);
+            if (TaskForces.All.Count > 0) s.Row("All task forces…", () => s.Show(AllForcesPage));
             s.Row("Form a task force on " + ShipNames.Of(ship) + "…", () =>
             {
                 TaskForce created = TaskForces.Create(ship);
@@ -114,7 +158,7 @@ namespace NavalPower
             {
                 if (force.Guide == null || force.Guide.NetworkHQ != ship.NetworkHQ) continue;
                 TaskForce chosen = force;
-                s.Row("Join " + force.Name + "  ·  guide " + ShipNames.Of(force.Guide) + "  ·  " +
+                s.Row("Join " + force.Name + "  ·  guide " + ShipNames.Of(force.Guide) + Class(force.Guide) + "  ·  " +
                     UnitConverter.DistanceReading(FastMath.Distance(ship.GlobalPosition(), force.Guide.GlobalPosition())), () =>
                     {
                         if (TaskForces.Add(chosen, ship, out string reason)) CommandState.Say(ShipNames.Of(ship) + " · joining " + chosen.Name);
@@ -141,7 +185,7 @@ namespace NavalPower
             {
                 Ship chosen = other;
                 TaskForce current = TaskForces.Of(other);
-                s.Row(ShipNames.Of(other) + "  ·  " + ShipNames.TypeOf(other) + "  ·  " +
+                s.Row(ShipNames.Of(other) + Class(other) + "  ·  " +
                     UnitConverter.DistanceReading(FastMath.Distance(other.GlobalPosition(), force.Guide.GlobalPosition())) +
                     (current != null ? "  ·  in " + current.Name : ""), () =>
                     {

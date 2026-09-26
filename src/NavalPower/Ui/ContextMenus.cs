@@ -291,8 +291,30 @@ namespace NavalPower
         private void CoverRow(Surface s, Unit unit)
         {
             if (FlightOrders.All().Count == 0) return;
+            if (unit is Ship ship)
+            {
+                s.Row("Cover it with a flight…", () => s.Show(x => CoverShipPage(x, ship)));
+                return;
+            }
             s.Row("Cover it with a flight…", () => s.Show(x => FlightsToPage(x,
                 "COVER " + NameOf(unit).ToUpperInvariant(), unit.GlobalPosition(), 0f, "covering " + NameOf(unit))));
+        }
+
+        // A ship moves: the flight keeps company on station, not over the spot.
+        private void CoverShipPage(Surface s, Ship ship)
+        {
+            s.Title("COVER " + NameOf(ship).ToUpperInvariant());
+            foreach (Flight flight in FlightOrders.All())
+            {
+                Flight shown = flight;
+                s.Row(flight.Name + "  ·  " + flight.TypeName + "  ·  " + flight.FuelPercent.ToString("0") + "%", () =>
+                {
+                    WingOrders.Station(shown, ship);
+                    CommandState.Say(shown.Name + " · covering " + NameOf(ship));
+                    s.Close();
+                });
+            }
+            Back(s);
         }
 
         // ---- hostiles --------------------------------------------------------------
@@ -583,6 +605,8 @@ namespace NavalPower
             {
                 s.Row(myForce != null ? "Task force " + myForce.Name + "…" : "Form a task force…",
                     () => { Open("tf", TaskForcePage); s.Close(); });
+                if (myForce != null)
+                    s.Row("Edit formation…", () => { Open("tfedit", FormationEditorPage); s.Close(); });
                 if (escort != null && escort.Detached)
                     s.Row("Return to formation", () => { TaskForces.Rejoin(ship); CommandState.Say(ShipNames.Of(ship) + " · returning to formation"); s.Close(); });
                 return;

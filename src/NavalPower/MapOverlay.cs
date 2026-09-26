@@ -251,9 +251,10 @@ namespace NavalPower
                         Diamond(vh, zone, 8f, color);
                     }
                 }
-                else if (selected.Mode == FlightMode.Station && selected.Home != null)
+                else if (selected.Mode == FlightMode.Station && (selected.StationAnchor != null || selected.Home != null))
                 {
-                    Line(vh, at, Project(selected.HomePosition), Theme.Dim(color, 0.5f), 1.4f);
+                    Line(vh, at, Project(selected.StationAnchor != null ? selected.StationAnchor.GlobalPosition() : selected.HomePosition),
+                        Theme.Dim(color, 0.5f), 1.4f);
                 }
             }
 

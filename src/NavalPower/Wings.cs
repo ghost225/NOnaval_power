@@ -283,7 +283,7 @@ namespace NavalPower
         public static void SetArea(Flight flight, GlobalPosition centre, float radius) =>
             FlightOrders.SetArea(Led(flight), centre, radius);
 
-        public static void Station(Flight flight) => FlightOrders.Station(Led(flight));
+        public static void Station(Flight flight, Ship on = null) => FlightOrders.Station(Led(flight), on);
 
         public static void Jam(Flight flight, Unit target) => FlightOrders.Jam(Led(flight), target);
 

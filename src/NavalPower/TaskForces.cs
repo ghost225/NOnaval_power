@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace NavalPower
 {
-    internal enum Formation { Screen, Column, Abreast, Box }
+    internal enum Formation { Screen, Column, Abreast, Box, Custom }
 
     // Ships that sail as one: escorts keeping station on a guide.
     //
@@ -33,6 +33,9 @@ namespace NavalPower
         internal Vector3 Course = Vector3.forward;
         internal float LastSmooth = -1f;
         internal bool UnderFire;
+        // The guide's track, newest last: a column follows it, so its ships
+        // turn in succession where the guide turned.
+        internal readonly List<GlobalPosition> Wake = new List<GlobalPosition>();
 
         internal IEnumerable<Ship> Ships()
         {
@@ -175,6 +178,18 @@ namespace NavalPower
             Layout(force);
         }
 
+        // A station dragged in the formation editor: the formation becomes a
+        // custom one, and the escort sails for it straight away.
+        internal static void MoveStation(TaskForce force, Escort escort, float bearing, float metres)
+        {
+            if (force == null || escort == null) return;
+            force.Formation = Formation.Custom;
+            escort.ThreatArc = false;
+            escort.Bearing = bearing;
+            escort.Range = metres;
+            escort.NextIssue = 0f;
+        }
+
         internal static void SetSpacing(TaskForce force, float spacing)
         {
             if (force == null) return;
@@ -270,6 +285,7 @@ namespace NavalPower
         // Lays out every escort's station for the force's formation.
         internal static void Layout(TaskForce force)
         {
+            if (force.Formation == Formation.Custom) return;     // stations as dragged
             float gap = Gap(force);
             var main = new List<Escort>();
             var ring = new List<Escort>();
@@ -359,6 +375,7 @@ namespace NavalPower
                 if (force.Guide == null) { Disband(force); continue; }
                 if (force.Escorts.Count == 0) continue;
                 Smooth(force, dt);
+                RecordWake(force);
                 float worst = 0f;
                 foreach (Escort escort in force.Escorts)
                 {
@@ -442,8 +459,46 @@ namespace NavalPower
             return bearing;
         }
 
+        private static void RecordWake(TaskForce force)
+        {
+            GlobalPosition here = force.Guide.GlobalPosition();
+            if (force.Wake.Count == 0 || FastMath.Distance(here, force.Wake[force.Wake.Count - 1]) > 40f) force.Wake.Add(here);
+            if (force.Wake.Count > 500) force.Wake.RemoveRange(0, force.Wake.Count - 500);
+        }
+
+        private static bool FollowsWake(TaskForce force) => force.Formation == Formation.Column && !force.FixedNorth;
+
+        // The point on the guide's track a given distance astern of it, and the
+        // way the track runs there. False while the track is not yet that long.
+        internal static bool WakePoint(TaskForce force, float behind, out GlobalPosition point, out Vector3 direction)
+        {
+            point = force.Guide.GlobalPosition();
+            direction = force.Course;
+            if (behind <= 0f) return true;
+            GlobalPosition newer = point;
+            float left = behind;
+            for (int i = force.Wake.Count - 1; i >= 0; i--)
+            {
+                GlobalPosition older = force.Wake[i];
+                Vector3 segment = newer - older;
+                segment.y = 0f;
+                float length = segment.magnitude;
+                if (length < 0.01f) { newer = older; continue; }
+                if (length >= left)
+                {
+                    point = newer - segment / length * left;
+                    direction = segment / length;
+                    return true;
+                }
+                left -= length;
+                newer = older;
+            }
+            return false;
+        }
+
         internal static GlobalPosition StationOf(TaskForce force, Escort escort)
         {
+            if (FollowsWake(force) && WakePoint(force, escort.Range, out GlobalPosition trail, out _)) return trail;
             float reference = escort.ThreatArc ? ThreatBearing(force)
                 : force.FixedNorth ? 0f : Mathf.Atan2(force.Course.x, force.Course.z) * Mathf.Rad2Deg;
             float radians = (reference + escort.Bearing) * Mathf.Deg2Rad;
@@ -455,12 +510,17 @@ namespace NavalPower
             Ship ship = escort.Ship;
             Ship guide = force.Guide;
             GlobalPosition station = StationOf(force, escort);
+            // In a column following the wake, "ahead" is along the track at the
+            // station, not the guide's present course.
+            Vector3 course = force.Course;
+            bool wake = FollowsWake(force) && WakePoint(force, escort.Range, out _, out course);
+            if (!wake) course = force.Course;
             escort.Station = station;
             GlobalPosition here = ship.GlobalPosition();
             Vector3 gap = station - here;
             gap.y = 0f;
             escort.OffStation = gap.magnitude;
-            float along = Vector3.Dot(gap, force.Course);   // positive: behind its station
+            float along = Vector3.Dot(gap, course);   // positive: behind its station
 
             // Speed: the guide's, plus the along-track gap; flat out when well
             // adrift, never so slow it loses steerage.
@@ -473,8 +533,11 @@ namespace NavalPower
             // Aim well ahead of the station along the course -- never at it, or
             // the native arrival hold stops the ship there.
             float lead = Mathf.Max(6f * ship.maxRadius, 600f);
-            GlobalPosition aim = station + force.Course * lead;
-            if (escort.OffStation > lead * 2f) aim = station + force.Course * (lead * 0.5f);
+            GlobalPosition aim = station + course * lead;
+            if (escort.OffStation > lead * 2f) aim = station + course * (lead * 0.5f);
+            // A column steers for a point further up the guide's own track.
+            if (wake && escort.OffStation <= lead * 2f && WakePoint(force, Mathf.Max(escort.Range - lead, 0f), out GlobalPosition up, out _))
+                aim = up;
 
             escort.GivingWay = GiveWay(force, escort, ref aim, ref knots);
 
@@ -532,17 +595,46 @@ namespace NavalPower
             return false;
         }
 
-        // The guide slows for escorts well off station -- but not while it is
-        // being shot at, when getting clear matters more than keeping station.
+        // The fastest the force can go and still keep station: nine tenths of
+        // its slowest ship's top speed, so every escort has speed in hand.
+        internal static float FormationSpeed(TaskForce force, out Ship slowest)
+        {
+            slowest = force.Guide;
+            float lowest = force.Guide != null ? CommandableShip.MaximumSpeedKnots(force.Guide) : 0f;
+            foreach (Escort escort in force.Escorts)
+            {
+                if (escort.Ship == null || escort.Detached) continue;
+                float top = CommandableShip.MaximumSpeedKnots(escort.Ship);
+                if (top < lowest) { lowest = top; slowest = escort.Ship; }
+            }
+            return force.Escorts.Count > 0 ? lowest * 0.9f : lowest;
+        }
+
+        // The force's speed is the guide's, capped at the formation speed; the
+        // order itself is set on the guide.
+        internal static void SetSpeed(TaskForce force, float fraction)
+        {
+            if (force?.Guide == null) return;
+            float knots = FormationSpeed(force, out _) * Mathf.Clamp01(fraction);
+            issuing = true;
+            try { NavigationOrders.SetOrderedSpeedKnots(force.Guide, knots, out _); }
+            finally { issuing = false; }
+            guideOrderedAt = Time.timeSinceLevelLoad;
+            guideOrderedForce = force;
+        }
+
+        // The guide never outruns its slowest escort, and slows further for
+        // escorts well off station -- except under fire, when getting clear
+        // matters more than keeping station.
         private static void Pace(TaskForce force, float worst)
         {
             var route = force.Guide.GetComponent<ShipRoute>();
             if (route == null) return;
+            float cap = FormationSpeed(force, out _);
             float threshold = Mathf.Max(6f * force.Guide.maxRadius, 1200f);
-            if (force.UnderFire || worst <= threshold) { route.SpeedCapKnots = float.PositiveInfinity; return; }
-            float maximum = CommandableShip.MaximumSpeedKnots(force.Guide);
-            float fraction = Mathf.Lerp(1f, 0.4f, Mathf.Clamp01((worst - threshold) / 3000f));
-            route.SpeedCapKnots = maximum * fraction;
+            if (!force.UnderFire && worst > threshold)
+                cap *= Mathf.Lerp(1f, 0.4f, Mathf.Clamp01((worst - threshold) / 3000f));
+            route.SpeedCapKnots = force.UnderFire && force.Escorts.Count == 0 ? float.PositiveInfinity : cap;
         }
 
         internal static string Describe(TaskForce force, Escort escort)
