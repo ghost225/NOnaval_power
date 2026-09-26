@@ -17,7 +17,7 @@ namespace NavalPower
             Ship ship = CommandState.Ship;
             if (ship == null) return;
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
-            s.Title("NAVIGATION  ·  " + (ship.definition?.unitName ?? ship.name));
+            s.Title("NAVIGATION  ·  " + ShipNames.Of(ship));
             if (nav == null) { s.Info("No navigation for this ship."); return; }
 
             int legs = nav.Waypoints != null ? nav.Waypoints.Length : 0;

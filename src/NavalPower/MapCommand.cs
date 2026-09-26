@@ -173,7 +173,7 @@ namespace NavalPower
 
         private void Explain(Ship ship, string why)
         {
-            string line = (ship.definition?.unitName ?? ship.name) + " · not taking command · " + why;
+            string line = ShipNames.Of(ship) + " · not taking command · " + why;
             if (line == lastExplained && Time.unscaledTime < nextExplain) return;
             lastExplained = line;
             nextExplain = Time.unscaledTime + 5f;
@@ -369,6 +369,7 @@ namespace NavalPower
             Guard.Run("Flight orders", FlightOrders.Tick);
             Guard.Run("Launch queue", LaunchQueue.Tick);
             Guard.Run("Wings", Wings.Tick);
+            Guard.Run("Ship names", ShipNames.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
             Guard.Run("Damage control", DamageControl.WorkAll);
             Guard.Run("Flight icons", () => FlightIcons.Refresh(CommandState.Active));

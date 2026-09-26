@@ -118,7 +118,7 @@ namespace NavalPower
             int slot = FreeSlot();
             if (slot < 0) { reason = "All " + MaxPinned + " pinned feeds are in use."; return false; }
 
-            var pane = new Pane { Unit = unit, Slot = slot, Name = unit.definition?.unitName ?? unit.name };
+            var pane = new Pane { Unit = unit, Slot = slot, Name = ShipNames.Of(unit) };
             Build(pane);
             pins.Add(pane);
             reason = "Watching " + pane.Name + ".";
@@ -322,7 +322,7 @@ namespace NavalPower
                     subject = hovered != null && hovered != ship && TrackReadout.IsCurrent(hovered) ? hovered : null;
                 }
             }
-            if (subject != previous && subject != null) subjectName = subject.definition?.unitName ?? subject.name;
+            if (subject != previous && subject != null) subjectName = ShipNames.Of(subject);
         }
 
         private void Frame()

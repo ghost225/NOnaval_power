@@ -79,7 +79,7 @@ namespace NavalPower
             return TrackReadout.IsCurrent(unit) ? Relation.Hostile : Relation.Stale;
         }
 
-        private static string NameOf(Unit unit) => unit.definition?.unitName ?? unit.name;
+        private static string NameOf(Unit unit) => ShipNames.Of(unit);
 
         // Where the faction believes it is: exact for our own, the track otherwise.
         private static GlobalPosition KnownPosition(Unit unit)
@@ -131,7 +131,7 @@ namespace NavalPower
             Ship ship = CommandState.Ship;
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             int legs = nav?.Waypoints != null ? nav.Waypoints.Length : 0;
-            s.Title(NameOf(ship).ToUpperInvariant() + "  ·  your ship");
+            s.Title(NameOf(ship).ToUpperInvariant() + "  ·  " + ShipNames.TypeOf(ship));
             if (nav != null)
                 s.Info(Speed(nav.ActualSpeedKnots) + "  ·  course " +
                     ((ship.transform.eulerAngles.y + 360f) % 360f).ToString("000") + "°" +
@@ -164,6 +164,7 @@ namespace NavalPower
             });
             if (CommandState.Airfield != null)
                 s.Row("Launch an aircraft…", () => { Open("air", DeckPage); s.Close(); });
+            RenameRow(s, ship);
             FeedRow(s, ship);
             Button cease = s.Row("CEASE FIRE", () =>
             {
@@ -232,13 +233,14 @@ namespace NavalPower
         private void FriendlyShipPage(Surface s, Ship ship)
         {
             s.Title(NameOf(ship).ToUpperInvariant() + "  ·  friendly");
-            s.Info(BearingRange(ship.GlobalPosition()), Theme.TextMuted);
+            s.Info(ShipNames.TypeOf(ship) + "  ·  " + BearingRange(ship.GlobalPosition()), Theme.TextMuted);
             s.Row("Take command of it", () =>
             {
                 s.Close();
                 SceneSingleton<CameraStateManager>.i?.SetFollowingUnit(ship);
             });
             CoverRow(s, ship);
+            RenameRow(s, ship);
             FeedRow(s, ship);
         }
 
@@ -567,6 +569,26 @@ namespace NavalPower
         }
 
         // ---- shared rows ------------------------------------------------------------------
+
+        private void RenameRow(Surface s, Ship ship)
+        {
+            if (!ShipNames.IsNamed(ship)) return;
+            s.Row("Rename…", () => s.Show(x => ShipRenamePage(x, ship)));
+        }
+
+        private void ShipRenamePage(Surface s, Ship ship)
+        {
+            s.Title(NameOf(ship).ToUpperInvariant() + "  ·  rename");
+            s.Field(NameOf(ship), value =>
+            {
+                string before = NameOf(ship);
+                if (ShipNames.Rename(ship, value, out string reason)) CommandState.Say(before + " is now " + NameOf(ship));
+                else if (reason != null) CommandState.Say(reason);
+                s.Close();
+            });
+            s.Info("The prefix stays. Remembered for this mission.", Theme.TextMuted);
+            Back(s);
+        }
 
         private void FeedRow(Surface s, Unit unit)
         {

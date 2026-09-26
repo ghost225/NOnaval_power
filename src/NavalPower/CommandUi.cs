@@ -322,7 +322,8 @@ namespace NavalPower
             LayoutTools(ship != null);
             if (ship == null) { RefreshFieldStrip(); return; }
 
-            stripName.text = ship.definition?.unitName ?? ship.name;
+            stripName.text = ShipNames.Of(ship) +
+                (ShipNames.IsNamed(ship) ? "  " + UiKit.Tint(ShipNames.TypeOf(ship), Theme.TextMuted) : "");
 
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(ship);
             float heading = (ship.transform.eulerAngles.y + 360f) % 360f;

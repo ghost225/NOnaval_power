@@ -39,7 +39,7 @@ namespace NavalPower
         internal static Airbase Airfield => Base != null ? Base : CarrierOps.Deck(Ship);
         internal static FactionHQ Hq => Ship != null ? Ship.NetworkHQ : Base != null ? Base.CurrentHQ : null;
         internal static string PostName =>
-            Ship != null ? (Ship.definition?.unitName ?? Ship.name) : Base != null ? Airfields.NameOf(Base) : "";
+            Ship != null ? ShipNames.Of(Ship) : Base != null ? Airfields.NameOf(Base) : "";
         internal static GlobalPosition PostPosition =>
             Ship != null ? Ship.GlobalPosition() : Base != null ? Airfields.PositionOf(Base) : default;
         internal static bool Armed => SelectedKey != null;

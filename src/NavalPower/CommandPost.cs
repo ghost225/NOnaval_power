@@ -23,7 +23,7 @@ namespace NavalPower
         {
             if (airbase == null) return "unknown";
             Ship ship = ShipOf(airbase);
-            if (ship != null) return ship.definition?.unitName ?? ship.name;
+            if (ship != null) return ShipNames.Of(ship);
             string name = airbase.SavedAirbase?.DisplayName;
             return string.IsNullOrEmpty(name) ? airbase.name : name;
         }

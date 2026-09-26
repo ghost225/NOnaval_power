@@ -43,7 +43,9 @@ namespace NavalPower
         {
             if (!CommandState.Active || contact == null) return "";
             FactionHQ hq = ship != null ? ship.NetworkHQ : CommandState.Hq;
-            string name = contact.definition?.unitName ?? contact.name;
+            string name = contact is Ship named && ShipNames.IsNamed(named)
+                ? ShipNames.Of(named) + "  ·  " + ShipNames.TypeOf(contact)
+                : contact.definition?.unitName ?? contact.name;
             bool friendly = hq != null && contact.NetworkHQ == hq;
 
             GlobalPosition position;
