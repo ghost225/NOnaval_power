@@ -37,7 +37,11 @@ namespace NavalPower
         // Called from the threat pass, four times a second.
         internal static void Defend(Flight flight, Aircraft aircraft, bool missile, bool infrared, float shotRange)
         {
+            // Our flights only, flown by their AI: never another faction's or an
+            // AI wingman the game owns, and never an aircraft you have the
+            // controls of yourself.
             if (flight.Mode != FlightMode.Strike || aircraft.countermeasureManager == null) return;
+            if (PilotSeat.Flying == flight) return;
             float now = Time.timeSinceLevelLoad;
             float flares = aircraft.countermeasureManager.GetFlareAmmoProportion();
 
