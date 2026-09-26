@@ -26,7 +26,7 @@ namespace NavalPower
             "Bulwark", "Keystone", "Bastion", "Rampart", "Ironside", "Breakwater", "Bulkhead", "Portcullis",
             "Girder", "Keel", "Capstan", "Windlass", "Hawser", "Crucible", "Forge", "Piston",
             "Lodestar", "Sextant", "Astrolabe", "Meridian", "Beacon", "Sentinel", "Farsight", "Theodolite",
-            "Gyre", "Plumbline", "Fathom", "Lanyard", "Flywheel", "Mainspring", "Dynamic", "Governor",
+            "Gyre", "Plumbline", "Fathom", "Lanyard", "Flywheel", "Mainspring", "Ballast", "Governor",
             "Tempest", "Squall", "Thunderhead", "Riptide", "Undertow", "Stormwall", "Tidebreaker", "Wavecrest",
             "Headland", "Gale", "Crosswind", "Stormhold", "Ironreach", "Longreach", "Highwater", "Northlight",
             "Hornet", "Mantis", "Scarab", "Dragonfly", "Firefly", "Locust", "Cicada", "Stag Beetle",
