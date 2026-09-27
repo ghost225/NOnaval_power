@@ -100,6 +100,17 @@ namespace NavalPower
                     : flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Egress ? 1f
                     : CruiseThrottle();
 
+            // A lead whose wing is still forming up circles where it is until
+            // they have joined, rather than leaving them behind.
+            bool joinable = flight.Mode == FlightMode.Orbit || flight.Mode == FlightMode.Route ||
+                flight.Mode == FlightMode.Station || flight.Mode == FlightMode.Jam;
+            if (joinable && Wings.JoinUp(flight, out GlobalPosition joinPoint))
+            {
+                if (aircraft.autopilot is AutopilotPlane) controlInputs.throttle = LeadCruise;
+                FlyOrbit(joinPoint, 2500f);
+                return;
+            }
+
             switch (flight.Mode)
             {
                 case FlightMode.Formation: FlyFormation(); break;
@@ -190,11 +201,11 @@ namespace NavalPower
         // the tilt PID saturates and the aircraft wallows rather than flies.
         private const float RotaryLead = 1500f;
 
-        private void FlyOrbit(GlobalPosition centre)
+        private void FlyOrbit(GlobalPosition centre, float radiusOverride = 0f)
         {
             Vector3 offset = aircraft.GlobalPosition() - centre;
             offset.y = 0f;
-            float radius = Mathf.Max(flight.OrbitRadius, 400f);
+            float radius = radiusOverride > 0f ? radiusOverride : Mathf.Max(flight.OrbitRadius, 400f);
             float distance = offset.magnitude;
             Vector3 outward = distance > 1f ? offset / distance : Flat(aircraft.transform.forward);
 
@@ -300,9 +311,12 @@ namespace NavalPower
 
             // Too close to anyone in the group: step up and out of the way
             // before anything else. Close formation makes this worth having.
-            if (Crowded(out Vector3 clear))
+            // Never while still slow off the deck: the aircraft are close there
+            // by necessity, and backing off the power then only sinks them.
+            bool flying = definitionTakeoffSpeed <= 0f || aircraft.speed > definitionTakeoffSpeed * 1.4f;
+            if (flying && Crowded(out Vector3 clear))
             {
-                controlInputs.throttle = aircraft.autopilot is AutopilotPlane ? LeadCruise - 0.1f : controlInputs.throttle;
+                if (aircraft.autopilot is AutopilotPlane) controlInputs.throttle = 1f;
                 Steer(aircraft.GlobalPosition() + (forward * 1500f + clear * 400f) + Vector3.up * 150f, velocity);
                 return;
             }
@@ -323,7 +337,7 @@ namespace NavalPower
             // a point and circling back to it; further out, lead it more.
             GlobalPosition aim = slot + forward * Mathf.Clamp(distance * 0.5f + 1500f, 1500f, 6000f);
             float speedGap = Vector3.Dot(velocity, forward) - Vector3.Dot(aircraft.rb != null ? aircraft.rb.velocity : Vector3.zero, forward);
-            float power = distance > 3000f && along > 0f ? 1f
+            float power = !flying || (distance > 3000f && along > 0f) ? 1f
                 : Mathf.Clamp(LeadCruise + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
             controlInputs.throttle = power;
             Steer(aim, velocity);

@@ -20,6 +20,9 @@ namespace NavalPower
             internal Flight Lead;
             internal float Spread;              // 0 close route formation, 1 combat spread
             internal float LastCombat = -999f;
+            internal bool JoiningUp;
+            internal GlobalPosition JoinPoint;
+            internal float JoinStarted, NextJoinAllowed;
         }
 
         private static readonly Dictionary<string, Record> wings = new Dictionary<string, Record>();
@@ -226,6 +229,53 @@ namespace NavalPower
                 worst = Mathf.Max(worst, Vector3.Dot(gap, forward));
             }
             return worst;
+        }
+
+        // Furthest any wingman is from its slot, straight-line: what the lead
+        // waits on while the wing forms up.
+        private static float WorstOffSlot(Flight lead)
+        {
+            float worst = 0f;
+            foreach (Flight member in Members(lead.Wing))
+            {
+                if (member == lead || member.Mode != FlightMode.Formation) continue;
+                if (!Slot(member, out GlobalPosition slot, out _, out _)) continue;
+                worst = Mathf.Max(worst, FastMath.Distance(slot, member.Aircraft.GlobalPosition()));
+            }
+            return worst;
+        }
+
+        // Whether the lead should hold where it is for its wing: while members
+        // are still to launch, or once a wingman is more than 6 km off its
+        // slot, until everyone is within 1.5 km -- never in a fight, and for
+        // five minutes at most. The lead circles the spot it was at when the
+        // hold began.
+        internal static bool JoinUp(Flight lead, out GlobalPosition point)
+        {
+            point = default;
+            if (!IsLead(lead) || !wings.TryGetValue(lead.Wing, out Record record)) return false;
+            float now = Time.timeSinceLevelLoad;
+            int waiting = LaunchQueue.QueuedInWing(lead.Wing) + FlightOrders.PendingInWing(lead.Wing);
+            float worst = WorstOffSlot(lead);
+            bool fighting = InCombat(Members(lead.Wing));
+            bool need = !fighting && (waiting > 0 || worst > (record.JoiningUp ? 1500f : 6000f));
+            if (need && !record.JoiningUp && now >= record.NextJoinAllowed)
+            {
+                record.JoiningUp = true;
+                record.JoinPoint = lead.Aircraft.GlobalPosition();
+                record.JoinStarted = now;
+                Plugin.Log.LogInfo("[wing] " + lead.Wing + " · holding for the wing to join · " +
+                    (waiting > 0 ? waiting + " still to launch" : "furthest " + UnitConverter.DistanceReading(worst) + " off"));
+            }
+            else if (record.JoiningUp && (!need || now - record.JoinStarted > 300f))
+            {
+                record.JoiningUp = false;
+                record.NextJoinAllowed = now + 60f;
+                Plugin.Log.LogInfo("[wing] " + lead.Wing + (need ? " · join-up timed out, proceeding" : " · joined, proceeding"));
+                if (!need) CommandState.Say(lead.Wing + " · formed up, proceeding");
+            }
+            point = record.JoinPoint;
+            return record.JoiningUp;
         }
 
         internal static void Detach(Flight flight)
