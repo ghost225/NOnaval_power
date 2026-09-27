@@ -207,7 +207,7 @@ namespace NavalPower
                 case FlightMode.Cargo: return "cargo";
                 case FlightMode.Egress: return "egress";
                 case FlightMode.Engage: return "weapons free";
-                case FlightMode.Formation: return "formation";
+                case FlightMode.Formation: return flight.Escorting != null && Wings.LeadOf(flight) == flight ? "escorting" : "formation";
                 default: return "recovering";
             }
         }
@@ -285,6 +285,17 @@ namespace NavalPower
             });
             if (TaskForces.All.Count > 0)
                 s.Row("Cover a task force…", () => s.Show(x => CoverForcePage(x, flight)));
+            Flight escortLead = Wings.LeadOf(flight);
+            if (escortLead?.Escorting != null)
+            {
+                Button stop = s.Row("Stop escorting " + (Wings.EscortedLead(flight)?.Wing ?? escortLead.Escorting.Name), () =>
+                {
+                    Wings.StopEscort(flight);
+                    CommandState.Say((escortLead.Wing ?? escortLead.Name) + " · escort released");
+                });
+                stop.image.color = Theme.AccentFill;
+            }
+            else s.Row("Escort a flight or wing…", () => s.Show(x => EscortPage(x, flight)));
             s.Row("Clear the route", () =>
             {
                 WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
@@ -409,6 +420,33 @@ namespace NavalPower
                 s.Show(x => FlightPage(x, flight));
             });
             s.Info("It shows on the map, in the hover card and in the kill feed, as a player's name does");
+            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
+        }
+
+        // Another group to escort: fly cover on it, retaliate on locks, and
+        // intercept missiles fired at it.
+        private void EscortPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            List<Flight> mine = Wings.Group(flight);
+            s.Title((Wings.LeadOf(flight).Wing ?? flight.Name).ToUpperInvariant() + "  ·  escort");
+            s.Info("Flies cover on it, attacks radars that lock it, and fires on missiles fired at it.", Theme.TextMuted);
+            var seen = new HashSet<string>();
+            foreach (Flight other in FlightOrders.All())
+            {
+                if (mine.Contains(other)) continue;
+                string key = other.Wing ?? other.Name;
+                if (!seen.Add(key)) continue;
+                Flight chosen = other;
+                int size = other.Wing != null ? Wings.Members(other.Wing).Count : 1;
+                s.Row(key + "  ·  " + size + "× " + other.TypeName + "  ·  " + ShortTask(Wings.LeadOf(other)), () =>
+                {
+                    Wings.Escort(flight, chosen);
+                    CommandState.Say((Wings.LeadOf(flight).Wing ?? flight.Name) + " · escorting " + key);
+                    s.Show(x => FlightPage(x, flight));
+                });
+            }
+            if (seen.Count == 0) s.Info("No other flight to escort.", Theme.TextMuted);
             s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
         }
 

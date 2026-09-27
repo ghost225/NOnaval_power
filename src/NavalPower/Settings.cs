@@ -30,6 +30,8 @@ namespace NavalPower
         internal static ConfigEntry<float> RadarHandover;
         internal static ConfigEntry<float> InfraredHandover;
         internal static ConfigEntry<KeyboardShortcut> NextInForce, PreviousInForce;
+        internal static ConfigEntry<float> CloseSpacing, CombatSpacing;
+        internal static ConfigEntry<bool> EscortRetaliate, EscortIntercept;
         internal static ConfigEntry<float> BombingHeight;
         internal static ConfigEntry<float> CruiseThrottle;
         internal static ConfigEntry<bool> PreFlare;
@@ -169,6 +171,17 @@ namespace NavalPower
                     "work and the endgame is short.",
                     new AcceptableValueRange<float>(200f, 20000f)));
 
+            CloseSpacing = config.Bind("Wings", "Transit spacing", 120f,
+                "Metres between wingmen in the close route formation flown in transit.");
+            CombatSpacing = config.Bind("Wings", "Combat spacing", 1600f,
+                "Metres between wingmen in combat spread, which the wing opens into when threatened, attacking " +
+                "or escaping, and holds for 20 s after it goes quiet.");
+            EscortRetaliate = config.Bind("Wings", "Escorts retaliate on locks", true,
+                "An escort attacks a radar that locks the aircraft it escorts: an anti-radiation shot down the " +
+                "lock's bearing, or a strike on a tracked emitter.");
+            EscortIntercept = config.Bind("Wings", "Escorts intercept missiles", true,
+                "An escort fires an air-to-air missile (heat-seeking first, then active radar) at a missile fired " +
+                "on the aircraft it escorts, when it can reach it in time.");
             BombingHeight = config.Bind("Flights", "Bombing height", 1500f,
                 "Height above ground a level-bombing run is flown at. Lower is more accurate and more exposed.");
             CruiseThrottle = config.Bind("Flights", "Cruise throttle", 0.8f,

@@ -131,9 +131,21 @@ up; a timeout sends them anyway if one never makes it off the deck. Airframes
 are paid for one at a time as each launches, so a wing you can't afford stops
 short rather than failing outright.
 
-**Formation.** Loose tactical spread, not parade: echelon, trail, or spread
-(finger-four for four), roughly 500–1,000 m apart. Wingmen aim at their slot
-point with the lead's velocity, which is what lets them hold it.
+**Formation.** Two shapes, blended over several seconds: a close route
+formation in transit (≈120 m abreast, the closest the autopilot holds safely;
+real fingertip is a few wingspans) and combat spread (≈1.6 km abreast) whenever
+the wing or its charge is threatened, attacking, escaping or locked, held for
+20 s after. A 55 m collision guard steps a wingman up and out. Jets hold their
+slot with a throttle loop (the jet autopilot does not match speed); helicopters
+use the autopilot's velocity matching.
+
+**Escorts (built 2026-09-26).** A flight or wing can escort another: its lead
+flies cover off the charge's lead (right shoulder, above), retaliates on the
+**lock** rather than the launch -- radar warnings name the emitter, and ground
+and ship radars report when they are targeting -- with an anti-radiation shot
+down the lock's bearing (no track needed) or a strike on a tracked emitter, and
+fires air-to-air missiles (heat-seeking first, then active radar) at missiles
+fired on its charge when they can get there first.
 
 **Orders.**
 - *Area, route, station, RTB* — lead flies it, wingmen follow.

@@ -73,6 +73,10 @@ namespace NavalPower
         // The wing it launched with, by the wing's callsign ("Viper 1"); null
         // for a single aircraft.
         public string Wing;
+        // The flight or wing this one escorts: it flies cover on that group's
+        // lead, retaliates against whatever locks it, and intercepts missiles
+        // fired at it. Set on an escort's lead.
+        public Flight Escorting;
         public string Name => !string.IsNullOrEmpty(Label) ? Label : TypeName;
         public string TypeName => Aircraft != null ? (Aircraft.definition?.unitName ?? Aircraft.name) : "lost";
 
@@ -196,7 +200,9 @@ namespace NavalPower
                 case FlightMode.Engage: return "Weapons free · AI engaging";
                 case FlightMode.Formation:
                     Flight lead = Wings.LeadOf(this);
-                    return lead != this ? "Formation on " + lead.Name : "Formation · no lead";
+                    if (lead != this) return "Formation on " + lead.Name;
+                    Flight escorted = Wings.EscortedLead(this);
+                    return escorted != null ? "Escorting " + (escorted.Wing ?? escorted.Name) : "Formation · no lead";
                 default: return "Returning to base";
             }
         }

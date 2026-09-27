@@ -18,6 +18,8 @@ namespace NavalPower
         {
             internal string Name;
             internal Flight Lead;
+            internal float Spread;              // 0 close route formation, 1 combat spread
+            internal float LastCombat = -999f;
         }
 
         private static readonly Dictionary<string, Record> wings = new Dictionary<string, Record>();
@@ -84,6 +86,13 @@ namespace NavalPower
         // Where a wingman sits, in the lead's frame: x to the right, z ahead.
         // A loose tactical spread rather than parade formation -- the autopilot
         // is not precise enough for close work, and nothing here needs it.
+        // Where a wingman sits, in the lead's frame: x to the right, z ahead.
+        //
+        // Two shapes, blended: a close route formation in transit -- about
+        // 120 m abreast, as near as the autopilot can hold safely and near
+        // enough to read as a wing -- and combat spread, about a mile abreast,
+        // once the wing is threatened, attacking or escaping. Real fingertip is
+        // a few wingspans; the game's autopilot is not that precise.
         internal static Vector3 SlotOffset(Flight flight, bool rotary)
         {
             int slot = 0;
@@ -93,29 +102,112 @@ namespace NavalPower
                 slot++;
                 if (member == flight) break;
             }
-            Vector3 offset;
+            float close = Settings.CloseSpacing.Value, spread = Settings.CombatSpacing.Value;
+            Vector3 near, wide;
             switch (slot)
             {
-                case 1: offset = new Vector3(600f, 0f, -450f); break;      // right, stepped back
-                case 2: offset = new Vector3(-600f, 0f, -450f); break;     // left
-                default: offset = new Vector3(1200f, 0f, -900f); break;    // second right, further back
+                case 1: near = new Vector3(1f, 0f, -0.5f) * close; wide = new Vector3(1f, 0f, -0.12f) * spread; break;
+                case 2: near = new Vector3(-1f, 0f, -0.5f) * close; wide = new Vector3(-1f, 0f, -0.12f) * spread; break;
+                default: near = new Vector3(2f, 0f, -1f) * close; wide = new Vector3(0.5f, 0f, -0.9f) * spread; break;
             }
-            return rotary ? offset * 0.4f : offset;
+            Vector3 offset = Vector3.Lerp(near, wide, SpreadOf(flight));
+            return rotary ? offset * 0.5f : offset;
+        }
+
+        // An escort's lead flies cover off the escorted lead's right shoulder
+        // and above it: close in transit, well out once there is a fight.
+        private static Vector3 EscortOffset(Flight flight, bool rotary)
+        {
+            Vector3 offset = Vector3.Lerp(new Vector3(700f, 0f, 150f), new Vector3(2500f, 0f, 500f), SpreadOf(flight));
+            return rotary ? offset * 0.5f : offset;
+        }
+
+        internal static float SpreadOf(Flight flight)
+        {
+            Flight lead = LeadOf(flight);
+            if (lead?.Wing != null && wings.TryGetValue(lead.Wing, out Record record)) return record.Spread;
+            return lead != null && lead.Escorting != null && InCombat(new List<Flight> { lead }) ? 1f : 0f;
+        }
+
+        // The group this flight escorts, by its current lead.
+        internal static Flight EscortedLead(Flight flight)
+        {
+            Flight target = LeadOf(flight)?.Escorting;
+            if (target == null) return null;
+            if (target.Wing != null)
+            {
+                List<Flight> members = Members(target.Wing);
+                return members.Count > 0 ? LeadOf(members[0]) : null;
+            }
+            return Alive(target) ? target : null;
+        }
+
+        internal static void Escort(Flight flight, Flight target)
+        {
+            Flight lead = LeadOf(flight);
+            if (lead == null || target == null) return;
+            if (Group(lead).Contains(target)) return;
+            lead.Escorting = target;
+            lead.Route.Clear();
+            lead.Mode = FlightMode.Formation;
+            lead.Adopted = false;
+            Plugin.Log.LogInfo("[escort] " + (lead.Wing ?? lead.Name) + " escorting " + (target.Wing ?? target.Name));
+        }
+
+        internal static void StopEscort(Flight flight)
+        {
+            Flight lead = LeadOf(flight);
+            if (lead?.Escorting == null) return;
+            lead.Escorting = null;
+            if (lead.Mode == FlightMode.Formation && lead.Aircraft != null)
+            {
+                lead.OrbitCentre = lead.Aircraft.GlobalPosition();
+                lead.Mode = FlightMode.Orbit;
+            }
+        }
+
+        // Anything that says the group is fighting: a threat to any member, an
+        // attack or escape under way, or a lock on it moments ago.
+        private static bool InCombat(List<Flight> group)
+        {
+            foreach (Flight member in group)
+            {
+                if (member.Threat != FlightThreat.None || member.Interrupted) return true;
+                if (member.Mode == FlightMode.Strike || member.Mode == FlightMode.Engage || member.Mode == FlightMode.Egress) return true;
+                if (member.Aircraft != null && EscortDefence.RecentlyLocked(member.Aircraft)) return true;
+            }
+            return false;
+        }
+
+        // Height for a slot: a wingman's lead's; an escort's, above its charge.
+        internal static float SlotAltitude(Flight flight)
+        {
+            if (IsWingman(flight)) return LeadOf(flight).Altitude;
+            Flight escorted = EscortedLead(flight);
+            return escorted != null ? escorted.Altitude + Mathf.Lerp(300f, 600f, SpreadOf(flight)) : flight.Altitude;
         }
 
         // Where a wingman's slot is right now, and which way the lead is going.
         internal static bool Slot(Flight flight, out GlobalPosition slot, out Vector3 forward, out Vector3 velocity)
         {
             slot = default; forward = Vector3.forward; velocity = Vector3.zero;
+            bool rotary = flight.Aircraft != null && !(flight.Aircraft.autopilot is AutopilotPlane);
             Flight lead = LeadOf(flight);
+            Vector3 offset;
+            if (lead != flight) offset = SlotOffset(flight, rotary);
+            else
+            {
+                lead = EscortedLead(flight);
+                if (lead == null) return false;
+                offset = EscortOffset(flight, rotary);
+            }
             Aircraft leader = lead?.Aircraft;
-            if (lead == flight || leader == null || leader.disabled || flight.Aircraft == null) return false;
+            if (leader == null || leader.disabled || flight.Aircraft == null) return false;
             velocity = leader.rb != null ? leader.rb.velocity : leader.transform.forward * 100f;
             forward = new Vector3(velocity.x, 0f, velocity.z);
             if (forward.sqrMagnitude < 25f) forward = new Vector3(leader.transform.forward.x, 0f, leader.transform.forward.z);
             forward.Normalize();
             Vector3 right = new Vector3(forward.z, 0f, -forward.x);
-            Vector3 offset = SlotOffset(flight, !(flight.Aircraft.autopilot is AutopilotPlane));
             slot = leader.GlobalPosition() + right * offset.x + forward * offset.z;
             return true;
         }
@@ -214,6 +306,15 @@ namespace NavalPower
                 if (members.Count == 0) { wings.Remove(record.Name); continue; }
                 if (!Alive(record.Lead) || record.Lead.Wing != record.Name) Promote(record.Name, record.Lead);
 
+                // Close up in transit, open out in a fight -- blended over
+                // several seconds, and held open a while after it goes quiet.
+                var fight = new List<Flight>(members);
+                Flight escorted = EscortedLead(members[0]);
+                if (escorted != null) fight.AddRange(Group(escorted));
+                if (InCombat(fight)) record.LastCombat = Time.timeSinceLevelLoad;
+                float want = Time.timeSinceLevelLoad - record.LastCombat < 20f ? 1f : 0f;
+                record.Spread = Mathf.MoveTowards(record.Spread, want, Time.deltaTime * 0.15f);
+
                 // The lead going home takes the wing with it, rather than
                 // leaving wingmen to follow it into the landing pattern.
                 Flight lead = LeadOf(members[0]);
@@ -245,6 +346,7 @@ namespace NavalPower
                 next.Target = previous.Target;
                 next.PreferredWeapon = previous.PreferredWeapon;
                 next.StationOffset = previous.StationOffset;
+                next.Escorting = previous.Escorting;
                 if (next.Mode == FlightMode.Orbit && next.Route.Count == 0 && previous.Mode == FlightMode.Formation)
                     next.OrbitCentre = next.Aircraft.GlobalPosition();
                 next.Adopted = false;
@@ -265,6 +367,7 @@ namespace NavalPower
         private static Flight Led(Flight flight)
         {
             Flight lead = Wings.LeadOf(flight);
+            if (lead != null) lead.Escorting = null;        // sent somewhere: no longer escorting
             if (lead?.Wing == null) return lead;
             foreach (Flight member in Wings.Members(lead.Wing))
             {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace NavalPower
@@ -295,7 +296,16 @@ namespace NavalPower
                 flight.Mode = FlightMode.Orbit;
                 return;
             }
-            flight.Altitude = lead.Altitude;
+            flight.Altitude = Wings.SlotAltitude(flight);
+
+            // Too close to anyone in the group: step up and out of the way
+            // before anything else. Close formation makes this worth having.
+            if (Crowded(out Vector3 clear))
+            {
+                controlInputs.throttle = aircraft.autopilot is AutopilotPlane ? LeadCruise - 0.1f : controlInputs.throttle;
+                Steer(aircraft.GlobalPosition() + (forward * 1500f + clear * 400f) + Vector3.up * 150f, velocity);
+                return;
+            }
 
             Vector3 gap = slot - aircraft.GlobalPosition();
             gap.y = 0f;
@@ -317,6 +327,24 @@ namespace NavalPower
                 : Mathf.Clamp(LeadCruise + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
             controlInputs.throttle = power;
             Steer(aim, velocity);
+        }
+
+        private bool Crowded(out Vector3 away)
+        {
+            away = Vector3.zero;
+            var group = new List<Flight>(Wings.Group(flight));
+            Flight escorted = Wings.EscortedLead(flight);
+            if (escorted != null) group.AddRange(Wings.Group(escorted));
+            foreach (Flight other in group)
+            {
+                if (other == flight || other.Aircraft == null || other.Aircraft.disabled) continue;
+                Vector3 offset = aircraft.GlobalPosition() - other.Aircraft.GlobalPosition();
+                if (offset.sqrMagnitude > 55f * 55f) continue;
+                offset.y = 0f;
+                away = offset.sqrMagnitude > 1f ? offset.normalized : aircraft.transform.right;
+                return true;
+            }
+            return false;
         }
 
         private void Steer(GlobalPosition target, Vector3 velocity = default)
