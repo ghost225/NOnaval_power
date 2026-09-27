@@ -144,7 +144,7 @@ namespace NavalPower
             string key = "wing:" + wing;
             bool folded = collapsed.Contains(key);
             Flight lead = Wings.LeadOf(members[0]);
-            float fuel = 100f;
+            float fuel = float.MaxValue;
             int trouble = 0;
             foreach (Flight member in members)
             {
@@ -688,7 +688,12 @@ namespace NavalPower
                 Button row = s.Row(station.Name + "   ·   " + station.SelectedName, () => s.Show(x => StationPage(x, shown)));
                 if (station.Selected == null) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
-            s.Row("Fuel  ·  " + (plan.Fuel * 100f).ToString("0") + "%", () => s.Show(FuelPage));
+            // Internal fuel is 100%; external tanks carry it above that.
+            float internalFuel = TakeoffCheck.InternalCapacity(plan.Definition);
+            float externalFuel = TakeoffCheck.ExternalFuel(plan);
+            s.Row("Fuel  ·  " + (plan.Fuel * 100f).ToString("0") + "%" + (externalFuel > 0f && internalFuel > 0f
+                ? "  ·  " + ((internalFuel + externalFuel) * plan.Fuel / internalFuel * 100f).ToString("0") + "% with external tanks"
+                : ""), () => s.Show(FuelPage));
             // How many go up with this loadout. More than one is a wing, and
             // they launch one after another as hangars come free.
             s.Info(plan.Count > 1

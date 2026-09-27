@@ -89,7 +89,11 @@ namespace NavalPower
 
         // 0-100. The constraint that actually governs carrier operations, and
         // until now it was invisible until the automatic recovery fired.
-        public float FuelPercent => Aircraft != null ? Mathf.Clamp01(Aircraft.GetFuelLevel()) * 100f : 0f;
+        //
+        // Against the airframe's internal tanks, so external tanks read above
+        // 100% while they hold fuel: a fully loaded aircraft with drop tanks
+        // shows its real endurance, not a flat 100%.
+        public float FuelPercent => Aircraft != null ? TakeoffCheck.FuelPercent(Aircraft) : 0f;
 
         // What it still has to fight with. A bare total is misleading: a strike
         // flight out of bombs but holding air-to-air rounds reads as armed
