@@ -415,8 +415,10 @@ namespace NavalPower
                 if (Time.unscaledTime - request.RequestedAt < 20f) continue;
                 Aircraft found = FindNew(request);
                 if (found == null) continue;
+                Pilot matched = FirstPilot(found);
                 Plugin.Log.LogWarning("[deck] launch matched by proximity, not by loadout · " +
-                    (request.Definition?.unitName ?? "aircraft"));
+                    (request.Definition?.unitName ?? "aircraft") + " · state " + (matched?.currentState?.GetType().Name ?? "none") +
+                    " · alt " + found.radarAlt.ToString("0") + " m · speed " + found.speed.ToString("0") + " m/s");
                 pending.RemoveAt(i);
                 var flight = new Flight
                 {

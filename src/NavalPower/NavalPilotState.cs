@@ -23,7 +23,9 @@ namespace NavalPower
             var state = new NavalPilotState { flight = flight, stateDisplayName = "Naval Power" };
             state.Initialize(pilot);
             pilot.SwitchStateNew(state);
-            Plugin.Log.LogInfo("[flight] " + flight.Name + " under command · " + flight.Describe());
+            Plugin.Log.LogInfo("[flight] " + flight.Name + " under command · " + flight.Describe() + " · from " +
+                (pilot.currentState?.GetType().Name ?? "none") + " · alt " + pilot.aircraft.radarAlt.ToString("0") +
+                " m · speed " + pilot.aircraft.speed.ToString("0") + " m/s");
         }
 
         public override void EnterState(Pilot pilot)
@@ -106,7 +108,9 @@ namespace NavalPower
                     PilotBaseState takeoff = FlightOrders.IsRotary(pilot) ? (PilotBaseState)pilot.AIHeloTakeoffState : pilot.AITaxiState;
                     if (takeoff != null)
                     {
-                        Plugin.Log.LogWarning("[flight] " + flight.Name + " · on the ground under command, back to the native takeoff");
+                        Plugin.Log.LogWarning("[flight] " + flight.Name + " · on the ground under command, back to the native takeoff · " +
+                            "gross " + aircraft.GetMass().ToString("0") + " kg of " +
+                            (aircraft.definition?.aircraftInfo != null ? aircraft.definition.aircraftInfo.maxWeight.ToString("0") : "?") + " max");
                         flight.Adopted = false;
                         groundedSince = -1f;
                         pilot.SwitchStateNew(takeoff);
