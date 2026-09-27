@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace NavalPower
 {
@@ -86,7 +88,7 @@ namespace NavalPower
                 s.Info("Fire a weapon, order an engagement, or hover a contact", Theme.TextMuted);
                 return;
             }
-            s.View(feedView.LiveTexture, FeedHeight);
+            Pannable(s.View(feedView.LiveTexture, FeedHeight), () => feedView.LivePan, pan => feedView.LivePan = pan);
 
             // Stepping through our own weapons, oldest first.
             if (feedView.CycleCount > 1 && feedView.CycleIndex >= 0)
@@ -103,6 +105,17 @@ namespace NavalPower
             }
         }
 
+        // Drag in the picture to swing the camera round what it watches; the
+        // title bar still moves the window. Double-click puts it back.
+        private static void Pannable(RawImage picture, Func<Vector2> get, Action<Vector2> set)
+        {
+            if (picture == null) return;
+            picture.raycastTarget = true;
+            var pan = picture.GetComponent<FeedPan>() ?? picture.gameObject.AddComponent<FeedPan>();
+            pan.Get = get;
+            pan.Set = set;
+        }
+
         private void PinPage(Surface s, int slot)
         {
             TargetFeed.Pane pane = feedView.Find(slot);
@@ -112,7 +125,29 @@ namespace NavalPower
                 : UiKit.Tint("PINNED  ·  " + pane.Name, Theme.Passive));
             // Black rather than the last frame while the track is stale, and the
             // same size, so the window does not jump when the track comes back.
-            s.View(pane.Showing ? pane.Texture : Texture2D.blackTexture, FeedHeight);
+            Pannable(s.View(pane.Showing ? pane.Texture : Texture2D.blackTexture, FeedHeight), () => pane.Pan, pan => pane.Pan = pan);
+        }
+    }
+
+    internal sealed class FeedPan : MonoBehaviour, IBeginDragHandler, IDragHandler, IPointerClickHandler
+    {
+        internal Func<Vector2> Get;
+        internal Action<Vector2> Set;
+
+        public void OnBeginDrag(PointerEventData data) { }
+
+        public void OnDrag(PointerEventData data)
+        {
+            if (Get == null || Set == null) return;
+            Vector2 pan = Get();
+            pan.x = (pan.x + data.delta.x * 0.35f) % 360f;
+            pan.y = Mathf.Clamp(pan.y - data.delta.y * 0.25f, -30f, 70f);
+            Set(pan);
+        }
+
+        public void OnPointerClick(PointerEventData data)
+        {
+            if (data.clickCount >= 2) Set?.Invoke(Vector2.zero);
         }
     }
 }

@@ -30,6 +30,7 @@ namespace NavalPower
             internal int Slot;
             internal Camera Camera;
             internal RenderTexture Texture;
+            internal Vector2 Pan;               // degrees around the subject, and up or down
             internal float LostAt = -1f;        // when what it watched was destroyed
             internal bool Lost => LostAt >= 0f;
             // Whether the faction holds it right now. A pin keeps its window
@@ -74,6 +75,8 @@ namespace NavalPower
 
         private Unit subject;
         private string subjectName = "";
+        // The live feed's pan, dragged in its window.
+        internal Vector2 LivePan;
         private bool chasing;          // subject is a weapon of ours, not a target
         private float nextSubjectCheck;
         private float lingerUntil = -1f;
@@ -243,7 +246,7 @@ namespace NavalPower
                 if (pane.Camera == null || !pane.Showing) continue;
                 // A destroyed unit's wreck may already be gone, so the camera
                 // holds its last pose rather than being re-aimed at nothing.
-                if (!pane.Lost) FrameOn(pane.Camera, pane.Unit);
+                if (!pane.Lost) FrameOn(pane.Camera, pane.Unit, pane.Pan);
                 pane.Camera.Render();
             }
         }
@@ -259,7 +262,7 @@ namespace NavalPower
                 peek = MakeCamera("Naval Power peek camera", peekTexture, -12f);
                 if (peek == null) return;
             }
-            FrameOn(peek, Peek);
+            FrameOn(peek, Peek, Vector2.zero);
             peek.Render();
         }
 
@@ -323,6 +326,7 @@ namespace NavalPower
                 }
             }
             if (subject != previous && subject != null) subjectName = ShipNames.Of(subject);
+            if (subject != previous) LivePan = Vector2.zero;        // a new subject starts from the default view
         }
 
         private void Frame()
@@ -336,8 +340,20 @@ namespace NavalPower
                 // Over the weapon's shoulder, so the target grows in frame.
                 Vector3 travel = subject.rb != null && subject.rb.velocity.sqrMagnitude > 1f
                     ? subject.rb.velocity.normalized : subject.transform.forward;
-                feed.transform.position = focus - travel * (size * 6f + 18f) + Vector3.up * (size + 4f);
-                feed.transform.rotation = Quaternion.LookRotation(travel, Vector3.up);
+                Vector3 behind = -travel * (size * 6f + 18f) + Vector3.up * (size + 4f);
+                if (LivePan == Vector2.zero)
+                {
+                    feed.transform.position = focus + behind;
+                    feed.transform.rotation = Quaternion.LookRotation(travel, Vector3.up);
+                }
+                else
+                {
+                    // Panned: swung round the weapon, still looking at it.
+                    Vector3 right = Vector3.Cross(Vector3.up, travel).normalized;
+                    Vector3 offset = Quaternion.AngleAxis(LivePan.x, Vector3.up) * (Quaternion.AngleAxis(-LivePan.y, right) * behind);
+                    feed.transform.position = focus + offset;
+                    feed.transform.rotation = Quaternion.LookRotation(focus - feed.transform.position, Vector3.up);
+                }
                 int index = IndexOf(subject as Missile);
                 CycleIndex = index;
                 Caption = (index >= 0 ? "WPN " + weapons[index].Id + "  ·  " : "") + subjectName +
@@ -347,14 +363,16 @@ namespace NavalPower
             }
 
             CycleIndex = -1;
-            FrameOn(feed, subject);
+            FrameOn(feed, subject, LivePan);
             Caption = "ENGAGING  ·  " + subjectName;
             CaptionColor = Theme.Text;
         }
 
         // Shared framing: from our own side of it, looking in, which is the angle
         // that shows what is coming at it.
-        private static void FrameOn(Camera camera, Unit unit)
+        // Panned, it swings round the subject by the pan's first angle and
+        // raises or lowers the view by its second, at the same distance.
+        private static void FrameOn(Camera camera, Unit unit, Vector2 pan)
         {
             float size = Mathf.Max(unit.maxRadius, 4f);
             Vector3 focus = unit.transform.position;
@@ -363,8 +381,11 @@ namespace NavalPower
             fromUs.y = 0f;
             if (fromUs.sqrMagnitude < 1f) fromUs = unit.transform.forward;
             fromUs.Normalize();
-            float range = size * 8f + 40f;
-            camera.transform.position = focus - fromUs * range + Vector3.up * (size * 2f + 12f);
+            float range = size * 8f + 40f, height = size * 2f + 12f;
+            Vector3 direction = Quaternion.AngleAxis(pan.x, Vector3.up) * fromUs;
+            float distance = Mathf.Sqrt(range * range + height * height);
+            float elevation = Mathf.Clamp(Mathf.Atan2(height, range) * Mathf.Rad2Deg + pan.y, -10f, 85f) * Mathf.Deg2Rad;
+            camera.transform.position = focus + (-direction * Mathf.Cos(elevation) + Vector3.up * Mathf.Sin(elevation)) * distance;
             camera.transform.rotation = Quaternion.LookRotation(focus - camera.transform.position, Vector3.up);
         }
 
