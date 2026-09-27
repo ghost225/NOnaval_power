@@ -95,9 +95,9 @@ namespace NavalPower
                 string name = ShipNames.Of(target);
                 bool covered = FlightOrders.CapableOf(target).Contains(flight);
                 Plugin.Log.LogInfo("[flight] " + flight.Name + (covered
-                    ? " · " + name + " · " + inFlight + " missile(s) already in flight at it, rejoining"
+                    ? " · " + name + " · " + inFlight + " missile(s) already closing on it, rejoining"
                     : " · cannot engage " + name + ", breaking off"));
-                if (covered) CommandState.Say(flight.Name + " · " + inFlight + " missile(s) already in flight at " + name + ", rejoining");
+                if (covered) CommandState.Say(flight.Name + " · " + inFlight + " missile(s) already closing on " + name + ", rejoining");
                 FlightOrders.BreakOff(flight);
                 return;
             }
@@ -110,18 +110,28 @@ namespace NavalPower
         // way, or loses its target without clearing it, leaves the count high.
         // Its scorer and its attack logic both refuse a target whose count
         // already meets what it needs, so a stale count stood a whole wing
-        // down against an aircraft nothing was shooting at. Recount the
-        // faction's missiles actually in flight at it, and correct the count.
+        // down against an aircraft nothing near was shooting at. Recount the
+        // faction's missiles actually closing on it, and correct the count.
         private static int Reconcile(FactionHQ hq, Unit target, TrackingInfo track)
         {
+            // Only shots that will actually arrive soon: close, closing, and
+            // under half a minute out. A missile far across the map, or one
+            // that has lost it, is no reason to leave an immediate threat alone.
             int live = 0;
             foreach (Unit unit in UnitRegistry.allUnits)
-                if (unit is Missile missile && !missile.disabled && missile.NetworkHQ == hq && missile.targetID == target.persistentID)
-                    live++;
+            {
+                if (!(unit is Missile missile) || missile.disabled || missile.NetworkHQ != hq || missile.targetID != target.persistentID) continue;
+                Vector3 toTarget = target.GlobalPosition() - missile.GlobalPosition();
+                float range = toTarget.magnitude;
+                if (range > 12000f) continue;
+                float closing = missile.rb != null ? Vector3.Dot(missile.rb.velocity - (target.rb != null ? target.rb.velocity : Vector3.zero), toTarget / Mathf.Max(range, 1f)) : 0f;
+                if (closing < 50f || range / closing > 30f) continue;
+                live++;
+            }
             if (track.missileAttacks != live)
             {
                 Plugin.Log.LogInfo("[flight] " + ShipNames.Of(target) + " · missiles counted at it " + track.missileAttacks +
-                    ", actually in flight " + live + " · corrected");
+                    ", actually closing on it " + live + " · corrected");
                 track.missileAttacks = (sbyte)Mathf.Clamp(live, 0, sbyte.MaxValue);
             }
             return live;
