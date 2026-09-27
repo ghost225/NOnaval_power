@@ -41,6 +41,7 @@ namespace NavalPower
             if (hq == null) return;
             TrackingInfo track = hq.GetTrackingData(target.persistentID);
             if (track == null) return;
+            int inFlight = Reconcile(hq, target, track);
 
             // Score with CombatAI's own analyzer rather than a heuristic of our
             // own, so the station chosen is one the attack logic will agree is
@@ -94,14 +95,36 @@ namespace NavalPower
                 string name = ShipNames.Of(target);
                 bool covered = FlightOrders.CapableOf(target).Contains(flight);
                 Plugin.Log.LogInfo("[flight] " + flight.Name + (covered
-                    ? " · " + name + " already has the attacks it needs, rejoining"
+                    ? " · " + name + " · " + inFlight + " missile(s) already in flight at it, rejoining"
                     : " · cannot engage " + name + ", breaking off"));
-                if (covered) CommandState.Say(flight.Name + " · " + name + " is covered, rejoining");
+                if (covered) CommandState.Say(flight.Name + " · " + inFlight + " missile(s) already in flight at " + name + ", rejoining");
                 FlightOrders.BreakOff(flight);
                 return;
             }
 
             __result = new CombatAI.TargetSearchResults(target, best, bestScore, !anyAmmo);
+        }
+
+        // The game counts missiles fired at a target up when one takes it and
+        // down when one changes or drops it -- and one that ends some other
+        // way, or loses its target without clearing it, leaves the count high.
+        // Its scorer and its attack logic both refuse a target whose count
+        // already meets what it needs, so a stale count stood a whole wing
+        // down against an aircraft nothing was shooting at. Recount the
+        // faction's missiles actually in flight at it, and correct the count.
+        private static int Reconcile(FactionHQ hq, Unit target, TrackingInfo track)
+        {
+            int live = 0;
+            foreach (Unit unit in UnitRegistry.allUnits)
+                if (unit is Missile missile && !missile.disabled && missile.NetworkHQ == hq && missile.targetID == target.persistentID)
+                    live++;
+            if (track.missileAttacks != live)
+            {
+                Plugin.Log.LogInfo("[flight] " + ShipNames.Of(target) + " · missiles counted at it " + track.missileAttacks +
+                    ", actually in flight " + live + " · corrected");
+                track.missileAttacks = live;
+            }
+            return live;
         }
     }
 }
