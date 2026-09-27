@@ -302,37 +302,45 @@ namespace NavalPower
                 }
             }
 
+            var slots = new List<Slot>();
             switch (force.Formation)
             {
                 case Formation.Column:
-                    for (int i = 0; i < force.Escorts.Count; i++)
-                        Place(force.Escorts[i], 180f, gap * 1.4f * (i + 1));
+                    for (int i = 0; i < force.Escorts.Count; i++) slots.Add(new Slot(180f, gap * 1.4f * (i + 1)));
+                    Assign(force, force.Escorts, slots);
                     return;
                 case Formation.Abreast:
                     for (int i = 0; i < force.Escorts.Count; i++)
-                        Place(force.Escorts[i], i % 2 == 0 ? 90f : 270f, gap * 1.4f * (i / 2 + 1));
+                        slots.Add(new Slot(i % 2 == 0 ? 90f : 270f, gap * 1.4f * (i / 2 + 1)));
+                    Assign(force, force.Escorts, slots);
                     return;
                 case Formation.Box:
                     float[] corners = { 45f, 315f, 135f, 225f };
                     for (int i = 0; i < force.Escorts.Count; i++)
-                        Place(force.Escorts[i], corners[i % 4], gap * 1.8f * (i / 4 + 1));
+                        slots.Add(new Slot(corners[i % 4], gap * 1.8f * (i / 4 + 1)));
+                    Assign(force, force.Escorts, slots);
                     return;
             }
 
-            // Screen: the main body astern, a ring round the guide, pickets ahead.
+            // Screen: the main body astern, a ring round the guide, pickets
+            // ahead -- each role's stations shared out within that role.
             for (int i = 0; i < main.Count; i++)
-                Place(main[i], 180f + (i % 2 == 0 ? 1 : -1) * 15f * ((i + 1) / 2), gap * 1.6f * (i / 2 + 1));
+                slots.Add(new Slot(180f + (i % 2 == 0 ? 1 : -1) * 15f * ((i + 1) / 2), gap * 1.6f * (i / 2 + 1)));
+            Assign(force, main, slots);
+            slots = new List<Slot>();
             float[] ringBearings = { 45f, 315f, 135f, 225f, 90f, 270f, 0f, 180f };
             for (int i = 0; i < ring.Count; i++)
-                Place(ring[i], ringBearings[i % ringBearings.Length], gap * 2.4f * (1f + 0.5f * (i / ringBearings.Length)));
+                slots.Add(new Slot(ringBearings[i % ringBearings.Length], gap * 2.4f * (1f + 0.5f * (i / ringBearings.Length))));
+            Assign(force, ring, slots);
+            slots = new List<Slot>();
             float arc = Mathf.Max(5f * (force.Guide != null ? force.Guide.maxRadius : 60f), 1500f) * force.Spacing;
             for (int i = 0; i < screen.Count; i++)
             {
                 int rank = i / 5, slot = i % 5;
                 float offset = (slot - 2) * 17.5f + (rank % 2 == 1 ? 8.75f : 0f);
-                Place(screen[i], offset, arc + 600f * rank);
-                screen[i].ThreatArc = true;
+                slots.Add(new Slot(offset, arc + 600f * rank, threatArc: true));
             }
+            Assign(force, screen, slots);
             Report(force, main, ring, screen);
         }
 
@@ -351,6 +359,94 @@ namespace NavalPower
                     .Append(escort.Range.ToString("0")).Append(" m");
             }
             Plugin.Log.LogInfo(line.ToString());
+        }
+
+        private readonly struct Slot
+        {
+            internal readonly float Bearing, Range;
+            internal readonly bool ThreatArc;
+            internal Slot(float bearing, float range, bool threatArc = false) { Bearing = bearing; Range = range; ThreatArc = threatArc; }
+        }
+
+        // Shares a formation's stations out so the ships travel least in all:
+        // each to the one that suits the whole group, not the next in the list.
+        // A ship sent past another to the far corner is never the shortest
+        // total, so this also keeps their paths from crossing. Exhaustive for a
+        // handful of ships, greedy nearest-first beyond that.
+        private static void Assign(TaskForce force, List<Escort> group, List<Slot> slots)
+        {
+            int n = Mathf.Min(group.Count, slots.Count);
+            if (n == 0) return;
+            var cost = new float[n, n];
+            for (int i = 0; i < n; i++)
+                for (int j = 0; j < n; j++)
+                {
+                    Vector3 offset = SlotPosition(force, slots[j]) - group[i].Ship.GlobalPosition();
+                    offset.y = 0f;
+                    cost[i, j] = offset.sqrMagnitude;
+                }
+
+            int[] best = new int[n];
+            if (n <= 7)
+            {
+                int[] order = new int[n];
+                for (int i = 0; i < n; i++) order[i] = i;
+                float bestCost = float.MaxValue;
+                Permute(order, 0, cost, ref bestCost, best);
+            }
+            else
+            {
+                var takenShip = new bool[n];
+                var takenSlot = new bool[n];
+                for (int round = 0; round < n; round++)
+                {
+                    int bi = -1, bj = -1;
+                    float low = float.MaxValue;
+                    for (int i = 0; i < n; i++)
+                        if (!takenShip[i])
+                            for (int j = 0; j < n; j++)
+                                if (!takenSlot[j] && cost[i, j] < low) { low = cost[i, j]; bi = i; bj = j; }
+                    takenShip[bi] = takenSlot[bj] = true;
+                    best[bi] = bj;
+                }
+            }
+            for (int i = 0; i < n; i++)
+            {
+                Slot slot = slots[best[i]];
+                Place(group[i], slot.Bearing, slot.Range);
+                group[i].ThreatArc = slot.ThreatArc;
+            }
+        }
+
+        private static void Permute(int[] order, int k, float[,] cost, ref float bestCost, int[] best)
+        {
+            int n = order.Length;
+            if (k == n)
+            {
+                float total = 0f;
+                for (int i = 0; i < n; i++) total += cost[i, order[i]];
+                if (total < bestCost) { bestCost = total; System.Array.Copy(order, best, n); }
+                return;
+            }
+            for (int i = k; i < n; i++)
+            {
+                (order[k], order[i]) = (order[i], order[k]);
+                Permute(order, k + 1, cost, ref bestCost, best);
+                (order[k], order[i]) = (order[i], order[k]);
+            }
+        }
+
+        // Where a station is now, in the world -- the smoothed guide once there
+        // is one, the guide itself when the force has only just formed.
+        private static GlobalPosition SlotPosition(TaskForce force, Slot slot)
+        {
+            GlobalPosition centre = force.LastSmooth >= 0f ? force.Centre : force.Guide.GlobalPosition();
+            Vector3 course = force.LastSmooth >= 0f ? force.Course
+                : new Vector3(force.Guide.transform.forward.x, 0f, force.Guide.transform.forward.z).normalized;
+            float reference = slot.ThreatArc ? ThreatBearing(force)
+                : force.FixedNorth ? 0f : Mathf.Atan2(course.x, course.z) * Mathf.Rad2Deg;
+            float radians = (reference + slot.Bearing) * Mathf.Deg2Rad;
+            return centre + new Vector3(Mathf.Sin(radians), 0f, Mathf.Cos(radians)) * slot.Range;
         }
 
         private static void Place(Escort escort, float bearing, float range)
@@ -441,7 +537,10 @@ namespace NavalPower
         private static float ThreatBearing(TaskForce force)
         {
             FactionHQ hq = force.Guide.NetworkHQ;
-            float course = Mathf.Atan2(force.Course.x, force.Course.z) * Mathf.Rad2Deg;
+            bool smoothed = force.LastSmooth >= 0f;
+            GlobalPosition centre = smoothed ? force.Centre : force.Guide.GlobalPosition();
+            Vector3 heading = smoothed ? force.Course : force.Guide.transform.forward;
+            float course = Mathf.Atan2(heading.x, heading.z) * Mathf.Rad2Deg;
             if (hq == null) return course;
             float best = 60000f;
             float bearing = course;
@@ -449,7 +548,7 @@ namespace NavalPower
             {
                 if (!(unit is Ship ship) || ship.disabled || ship.NetworkHQ == null || ship.NetworkHQ == hq) continue;
                 if (!hq.TryGetKnownPosition(ship, out GlobalPosition known)) continue;
-                Vector3 offset = known - force.Centre;
+                Vector3 offset = known - centre;
                 offset.y = 0f;
                 float range = offset.magnitude;
                 if (range >= best) continue;
