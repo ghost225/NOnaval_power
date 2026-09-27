@@ -482,8 +482,9 @@ namespace NavalPower
                     }
                 }
 
-                // A shot has left the aircraft: stop pressing.
-                if (flight.Mode == FlightMode.Strike && flight.AmmoAtAttack >= 0)
+                // A shot has left the aircraft: stop pressing. Not in an air
+                // fight, where turning away only hands the enemy the shot.
+                if (flight.Mode == FlightMode.Strike && flight.AmmoAtAttack >= 0 && !IsAirTarget(flight.Target))
                 {
                     int now = TotalAmmo(flight.Aircraft);
                     if (now >= 0 && now < flight.AmmoAtAttack) Egress(flight);
@@ -583,6 +584,7 @@ namespace NavalPower
 
                 // A fixed-wing strike is set up by us first -- the run-in, in
                 // our own state -- and handed to the combat pilot from there.
+                if (flight.Mode == FlightMode.Strike && IsAirTarget(flight.Target)) flight.RunInDone = true;
                 if (flight.Mode == FlightMode.Strike && !flight.RunInDone && !IsRotary(pilot) &&
                     NavalPilotState.CanBeFlown(flight.Aircraft))
                 {
@@ -985,6 +987,13 @@ namespace NavalPower
         // lines up late -- over the target, then a release that misses. So a
         // level bomb is taken down to bombing height and handed over only once
         // lined up, from far enough out to settle.
+        // In the air, not parked or landed: an air-to-air fight, which the
+        // combat pilot flies well from wherever it is. No run-in, and no
+        // egress after a shot -- that is for leaving a defended ground target,
+        // not for turning away from an enemy aircraft.
+        internal static bool IsAirTarget(Unit target) =>
+            target is Missile || (target is Aircraft aircraft && (aircraft.radarAlt > 10f || aircraft.speed > 25f));
+
         internal static bool RunInFor(WeaponInfo info, out float height, out float range, out bool straight)
         {
             height = 0f;

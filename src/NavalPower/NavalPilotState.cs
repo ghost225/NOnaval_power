@@ -470,6 +470,7 @@ namespace NavalPower
             FactionHQ hq = aircraft.NetworkHQ;
             WeaponStation station = FlightOrders.NamedStation(aircraft, flight.PreferredWeapon) ??
                 (target != null ? FlightOrders.BestStationFor(aircraft, target) : null);
+            if (FlightOrders.IsAirTarget(target)) { CompleteRunIn(pilot, "air target"); return; }
             if (target == null || target.disabled || hq == null || !hq.TryGetKnownPosition(target, out GlobalPosition known) ||
                 !FlightOrders.RunInFor(station?.WeaponInfo, out float height, out float release, out bool straight))
             {
