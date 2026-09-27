@@ -527,8 +527,10 @@ namespace NavalPower
             float guideKnots = guide.rb != null
                 ? Vector3.Dot(guide.rb.velocity, force.Course) / CommandableShip.MetresPerSecondPerKnot : 0f;
             float maximum = CommandableShip.MaximumSpeedKnots(ship);
+            // Ahead of its station it slows and lets the station come to it --
+            // down to a crawl if well ahead -- rather than turning back.
             float knots = escort.OffStation > 3000f && along > 0f ? maximum
-                : Mathf.Clamp(guideKnots + along * 0.004f, 3f, maximum);
+                : Mathf.Clamp(guideKnots + along * 0.004f, 1.5f, maximum);
 
             // Aim well ahead of the station along the course -- never at it, or
             // the native arrival hold stops the ship there.
@@ -538,6 +540,19 @@ namespace NavalPower
             // A column steers for a point further up the guide's own track.
             if (wake && escort.OffStation <= lead * 2f && WakePoint(force, Mathf.Max(escort.Range - lead, 0f), out GlobalPosition up, out _))
                 aim = up;
+            // Never aim behind the ship. With its station astern -- after the
+            // guide turned, or when it simply started ahead -- turning round to
+            // meet it only means turning round again to keep up. Hold the
+            // formation's course instead, edging across onto the station's
+            // line, and let the speed loop slow it until the station arrives.
+            Vector3 toAim = aim - here;
+            toAim.y = 0f;
+            if (along < lead * 0.5f || Vector3.Dot(toAim, course) < lead * 0.5f)
+            {
+                Vector3 across = gap - course * along;          // the sideways part of the gap
+                across = Vector3.ClampMagnitude(across, lead);
+                aim = here + course * lead + across;
+            }
 
             escort.GivingWay = GiveWay(force, escort, ref aim, ref knots);
 
