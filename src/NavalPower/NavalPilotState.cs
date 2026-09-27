@@ -15,6 +15,7 @@ namespace NavalPower
         private Flight flight;
         private float orbitPhase;
         private float nextReport;
+        private float groundedSince = -1f;
 
         internal static void Install(Pilot pilot, Flight flight)
         {
@@ -92,6 +93,28 @@ namespace NavalPower
             }
 
             Report();
+
+            // On the ground and barely moving under our state: whatever put it
+            // here, it cannot be flown from the deck by a navigation loop.
+            // Hand it back to the game's taxi and takeoff and take it again
+            // once it is up.
+            if (aircraft.radarAlt < 3f && aircraft.speed < 10f)
+            {
+                if (groundedSince < 0f) groundedSince = Time.timeSinceLevelLoad;
+                else if (Time.timeSinceLevelLoad - groundedSince > 8f)
+                {
+                    PilotBaseState takeoff = FlightOrders.IsRotary(pilot) ? (PilotBaseState)pilot.AIHeloTakeoffState : pilot.AITaxiState;
+                    if (takeoff != null)
+                    {
+                        Plugin.Log.LogWarning("[flight] " + flight.Name + " · on the ground under command, back to the native takeoff");
+                        flight.Adopted = false;
+                        groundedSince = -1f;
+                        pilot.SwitchStateNew(takeoff);
+                        return;
+                    }
+                }
+            }
+            else groundedSince = -1f;
 
             // Full power where speed matters -- the run-in and the escape --
             // and cruise power everywhere else.

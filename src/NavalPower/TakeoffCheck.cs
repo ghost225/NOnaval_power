@@ -70,7 +70,9 @@ namespace NavalPower
                 return result;
             }
 
-            if (result.Vtol && result.ThrustToWeight >= 1.02f)
+            // A margin, not the bare ratio: this is an estimate, and 1.03 is too
+            // close to call.
+            if (result.Vtol && result.ThrustToWeight >= 1.1f)
             {
                 result.Verdict = TakeoffVerdict.Ok;
                 result.Line = "Takeoff OK  ·  thrust exceeds weight  ·  " + weight + twr;

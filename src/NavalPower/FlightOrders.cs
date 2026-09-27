@@ -616,8 +616,9 @@ namespace NavalPower
                 // Wait until it is actually flying, but do not name the state it
                 // must be in: a helicopter goes to AIHeloCombatState and never
                 // to AIPilotCombatModes, so testing for the latter meant rotary
-                // flights were never taken under command at all.
-                if (StillLeaving(pilot)) continue;
+                // flights were never taken under command at all. And flying in
+                // fact, not just by its pilot's state: off the deck, or fast.
+                if (StillLeaving(pilot) || !Airborne(flight.Aircraft)) continue;
                 if (!NavalPilotState.CanBeFlown(flight.Aircraft))
                 {
                     // Better the native AI than an aircraft nobody is flying.
@@ -644,6 +645,12 @@ namespace NavalPower
 
         // On the deck, taxiing, or climbing out: taking over now would fight
         // the native launch sequence.
+        internal static bool Airborne(Aircraft aircraft)
+        {
+            float takeoff = aircraft.definition?.aircraftParameters != null ? aircraft.definition.aircraftParameters.takeoffSpeed : 0f;
+            return aircraft.radarAlt > 5f || aircraft.speed > Mathf.Max(takeoff * 0.9f, 20f);
+        }
+
         internal static bool StillLeaving(Pilot pilot) =>
             pilot.currentState is PilotParkedState ||
             pilot.currentState is AIPilotTaxiState ||
@@ -667,6 +674,10 @@ namespace NavalPower
                 if (aircraft.NetworkHQ != hq) continue;
                 if (request.Definition != null && aircraft.definition != request.Definition) continue;
                 if (Of(aircraft) != null) continue;
+                // Only one this field's hangar has just built. A parked or
+                // abandoned airframe of the same type on the deck matched
+                // before, and was flown -- crewless -- until it was cleared.
+                if (!DeckTraffic.CameFrom(request.Field, aircraft)) continue;
                 Pilot crew = FirstPilot(aircraft);
                 if (crew == null || crew.playerControlled) continue;
                 // Close by: it came off this field rather than another one.

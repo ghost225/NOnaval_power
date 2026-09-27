@@ -49,7 +49,7 @@ namespace NavalPower
             launchedFrom[aircraft] = field;
         }
 
-        private static bool CameFrom(Airbase field, Aircraft aircraft) =>
+        internal static bool CameFrom(Airbase field, Aircraft aircraft) =>
             aircraft != null && launchedFrom.TryGetValue(aircraft, out Airbase from) && from == field;
 
         private static void Forget()
