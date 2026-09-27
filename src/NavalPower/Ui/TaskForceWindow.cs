@@ -126,7 +126,7 @@ namespace NavalPower
                 Button row = s.Row(force.Name + "  ·  " + force.Count + " ships  ·  guide " + ShipNames.Of(guide) + Class(guide) +
                     (nav != null ? "  ·  " + Speed(nav.ActualSpeedKnots) : "") + (force.UnderFire ? "  ·  under fire" : ""), () =>
                     {
-                        if (guide != CommandState.Ship) SceneSingleton<CameraStateManager>.i?.SetFollowingUnit(guide);
+                        if (guide != CommandState.Ship) CameraGlide.SwitchTo(guide);
                     });
                 if (TaskForces.Of(CommandState.Ship) == force) row.image.color = Theme.AccentFill;
             }
@@ -138,7 +138,7 @@ namespace NavalPower
             Ship shown = ship;
             Button row = s.Row(label, () =>
             {
-                if (shown != CommandState.Ship) SceneSingleton<CameraStateManager>.i?.SetFollowingUnit(shown);
+                if (shown != CommandState.Ship) CameraGlide.SwitchTo(shown);
             });
             row.GetComponentInChildren<Text>().color = colour;
             if (ship == CommandState.Ship) row.image.color = Theme.AccentFill;
@@ -207,7 +207,7 @@ namespace NavalPower
             var ships = new List<Ship>(force.Ships());
             int index = ships.IndexOf(CommandState.Ship);
             Ship next = ships[((index + step) % ships.Count + ships.Count) % ships.Count];
-            if (next != CommandState.Ship) SceneSingleton<CameraStateManager>.i?.SetFollowingUnit(next);
+            if (next != CommandState.Ship) CameraGlide.SwitchTo(next);
         }
 
         // "TF ALPHA 2/4", for the strip.
