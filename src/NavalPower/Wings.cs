@@ -182,12 +182,23 @@ namespace NavalPower
             return false;
         }
 
-        // Height for a slot: a wingman's lead's; an escort's, above its charge.
+        // Height for a slot: the lead's actual height above the ground, not
+        // the height it was ordered to. The lead climbs gently toward a task
+        // area tens of kilometres off; a wingman told to go to the ordered
+        // height itself, from an aim point a few kilometres ahead, climbed
+        // steeply, bled its speed and fell behind. An escort holds above its
+        // charge's actual height.
         internal static float SlotAltitude(Flight flight)
         {
-            if (IsWingman(flight)) return LeadOf(flight).Altitude;
+            if (IsWingman(flight))
+            {
+                Flight lead = LeadOf(flight);
+                return lead.Aircraft != null && !lead.Aircraft.disabled ? lead.Aircraft.radarAlt : lead.Altitude;
+            }
             Flight escorted = EscortedLead(flight);
-            return escorted != null ? escorted.Altitude + Mathf.Lerp(300f, 600f, SpreadOf(flight)) : flight.Altitude;
+            if (escorted == null) return flight.Altitude;
+            float above = Mathf.Lerp(300f, 600f, SpreadOf(flight));
+            return (escorted.Aircraft != null && !escorted.Aircraft.disabled ? escorted.Aircraft.radarAlt : escorted.Altitude) + above;
         }
 
         // Where a wingman's slot is right now, and which way the lead is going.
