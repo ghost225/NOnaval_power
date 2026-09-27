@@ -122,7 +122,7 @@ namespace NavalPower
             {
                 Plugin.Log.LogInfo("[flight] " + ShipNames.Of(target) + " · missiles counted at it " + track.missileAttacks +
                     ", actually in flight " + live + " · corrected");
-                track.missileAttacks = live;
+                track.missileAttacks = (sbyte)Mathf.Clamp(live, 0, sbyte.MaxValue);
             }
             return live;
         }
