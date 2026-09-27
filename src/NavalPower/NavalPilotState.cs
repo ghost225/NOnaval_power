@@ -16,6 +16,7 @@ namespace NavalPower
         private float orbitPhase;
         private float nextReport;
         private float groundedSince = -1f;
+        private Vector3 smoothForward;
 
         internal static void Install(Pilot pilot, Flight flight)
         {
@@ -67,9 +68,12 @@ namespace NavalPower
             float lead = cruise - 0.05f;
             float behind = Wings.Straggle(flight);
             if (behind > 2000f) lead -= Mathf.Min(0.2f, (behind - 2000f) / 3000f * 0.2f);
+            // Not faster than the slowest wingman still behind, plus a little.
+            if (Wings.SlowestBehind(flight, out float slowest) && aircraft.speed > slowest + 4f)
+                lead -= Mathf.Min(0.25f, (aircraft.speed - slowest - 4f) * 0.03f);
             float minimum = definitionTakeoffSpeed * 1.4f;
             if (minimum > 0f && aircraft.speed < minimum) lead = Mathf.Max(lead, cruise);
-            return Mathf.Clamp(lead, 0.55f, 1f);
+            return Mathf.Clamp(lead, 0.45f, 1f);
         }
 
         private float definitionTakeoffSpeed => aircraft.definition?.aircraftParameters != null
@@ -336,6 +340,26 @@ namespace NavalPower
             }
             flight.Altitude = Wings.SlotAltitude(flight);
 
+            // The lead's heading, smoothed over a second or two: its raw
+            // velocity jitters, and a slot that jitters with it has the
+            // wingman rolling from side to side chasing it.
+            float blend = 1f - Mathf.Exp(-Time.fixedDeltaTime / 1.5f);
+            smoothForward = smoothForward.sqrMagnitude < 0.5f ? forward : Vector3.Slerp(smoothForward, forward, blend).normalized;
+            // Re-express the slot in the smoothed frame, about whatever it hangs
+            // off: the lead for a wingman, the escorted lead for an escort.
+            Flight anchorFlight = Wings.IsWingman(flight) ? Wings.LeadOf(flight) : Wings.EscortedLead(flight);
+            Aircraft anchorAircraft = anchorFlight?.Aircraft;
+            if (anchorAircraft != null)
+            {
+                Vector3 lateral = Vector3.Cross(Vector3.up, forward);
+                Vector3 smoothLateral = Vector3.Cross(Vector3.up, smoothForward);
+                GlobalPosition anchor = anchorAircraft.GlobalPosition();
+                Vector3 fromAnchor = slot - anchor;
+                float right = Vector3.Dot(fromAnchor, lateral), ahead = Vector3.Dot(fromAnchor, forward);
+                slot = anchor + smoothLateral * right + smoothForward * ahead;
+            }
+            forward = smoothForward;
+
             // Too close to anyone in the group: step up and out of the way
             // before anything else. Close formation makes this worth having.
             // Never while still slow off the deck: the aircraft are close there
@@ -367,7 +391,8 @@ namespace NavalPower
             float power = !flying || (distance > 3000f && along > 0f) ? 1f
                 : Mathf.Clamp(LeadCruise + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
             controlInputs.throttle = power;
-            Steer(aim, velocity);
+            // Gentle once near the slot: a hard bank there is an overcorrection.
+            Steer(aim, velocity, distance < 800f ? 35f : 70f);
         }
 
         private bool Crowded(out Vector3 away)
@@ -388,7 +413,7 @@ namespace NavalPower
             return false;
         }
 
-        private void Steer(GlobalPosition target, Vector3 velocity = default)
+        private void Steer(GlobalPosition target, Vector3 velocity = default, float bank = 70f)
         {
             Autopilot autopilot = aircraft.autopilot;
             if (autopilot == null) return;
@@ -405,7 +430,7 @@ namespace NavalPower
                 GlobalPosition point = AtAltitude(target, aboveGround);
                 destination = point;
                 autopilot.AutoAim(point, aimVelocity: true, ignoreCollisions: false, runwayAlign: false,
-                    effort: 1f, bankAllowed: 70f, followTerrain: followTerrain,
+                    effort: 1f, bankAllowed: bank, followTerrain: followTerrain,
                     altitudeHold: aboveGround, targetVelocity: velocity);
                 return;
             }

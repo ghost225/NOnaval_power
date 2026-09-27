@@ -289,6 +289,22 @@ namespace NavalPower
             return record.JoiningUp;
         }
 
+        // The slowest wingman that is behind its slot, and its speed: a lead
+        // outrunning it by more than a few m/s leaves it no way to close.
+        internal static bool SlowestBehind(Flight lead, out float speed)
+        {
+            speed = float.MaxValue;
+            if (!IsLead(lead)) return false;
+            foreach (Flight member in Members(lead.Wing))
+            {
+                if (member == lead || member.Mode != FlightMode.Formation || member.Aircraft == null) continue;
+                if (!Slot(member, out GlobalPosition slot, out Vector3 forward, out _)) continue;
+                if (Vector3.Dot(slot - member.Aircraft.GlobalPosition(), forward) < 150f) continue;
+                speed = Mathf.Min(speed, member.Aircraft.speed);
+            }
+            return speed < float.MaxValue;
+        }
+
         internal static void Detach(Flight flight)
         {
             if (flight?.Wing == null) return;

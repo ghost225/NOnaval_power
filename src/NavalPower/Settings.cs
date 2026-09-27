@@ -171,8 +171,11 @@ namespace NavalPower
                     "work and the endgame is short.",
                     new AcceptableValueRange<float>(200f, 20000f)));
 
-            CloseSpacing = config.Bind("Wings", "Transit spacing", 120f,
+            CloseSpacing = config.Bind("Wings", "Transit spacing", 200f,
                 "Metres between wingmen in the close route formation flown in transit.");
+            // 120 m was the first default and proved too tight; move a config
+            // still on it to the new one.
+            if (Mathf.Approximately(CloseSpacing.Value, 120f)) CloseSpacing.Value = 200f;
             CombatSpacing = config.Bind("Wings", "Combat spacing", 1600f,
                 "Metres between wingmen in combat spread, which the wing opens into when threatened, attacking " +
                 "or escaping, and holds for 20 s after it goes quiet.");

@@ -112,7 +112,7 @@ namespace NavalPower
             if (Aircraft == null || Aircraft.weaponStations == null) return;
             foreach (WeaponStation station in Aircraft.weaponStations)
             {
-                if (station?.WeaponInfo == null) continue;
+                if (station?.WeaponInfo == null || IsStore(station)) continue;
                 string role = FlightOrders.RoleOf(station.WeaponInfo);
                 int ammo = Mathf.Max(0, station.Ammo);
                 RoleStores.TryGetValue(role, out int running);
@@ -122,6 +122,34 @@ namespace NavalPower
             {
                 RolePeak.TryGetValue(entry.Key, out int peak);
                 if (entry.Value > peak) RolePeak[entry.Key] = entry.Value;
+            }
+        }
+
+        // Not a weapon: a drop tank or cargo. Counted as one, a jettisoned
+        // empty tank read as a role run dry, and flagged the flight for
+        // attention with nothing wrong.
+        internal static bool IsStore(WeaponStation station)
+        {
+            if (station.Cargo) return true;
+            GameObject prefab = station.WeaponInfo.weaponPrefab;
+            return prefab != null && prefab.GetComponentInChildren<FuelTank>(true) != null;
+        }
+
+        // Why a flight needs attention, or null when it doesn't.
+        public string Attention
+        {
+            get
+            {
+                if (Threat == FlightThreat.Missile) return "missile inbound";
+                if (FuelPercent < 25f) return "low fuel";
+                if (RoundsRemaining <= 0) return "out of weapons";
+                foreach (KeyValuePair<string, int> entry in RolePeak)
+                {
+                    if (entry.Value <= 0) continue;
+                    RoleStores.TryGetValue(entry.Key, out int now);
+                    if (now <= 0) return entry.Key + " gone";
+                }
+                return null;
             }
         }
 
@@ -773,7 +801,7 @@ namespace NavalPower
             if (aircraft == null || aircraft.weaponStations == null) return -1;
             int total = 0;
             foreach (WeaponStation station in aircraft.weaponStations)
-                if (station != null) total += Mathf.Max(0, station.Ammo);
+                if (station != null && station.WeaponInfo != null && !Flight.IsStore(station)) total += Mathf.Max(0, station.Ammo);
             return total;
         }
 

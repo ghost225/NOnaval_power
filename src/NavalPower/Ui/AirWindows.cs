@@ -155,7 +155,7 @@ namespace NavalPower
             Button header = s.Row("   " + (folded ? "▸  " : "▾  ") + wing + "  ·  " + members.Count + "× " + lead.TypeName +
                 "  ·  " + (lead.Status ?? ShortTask(lead)) + "  ·  " + fuel.ToString("0") + "% fuel" +
                 (waiting > 0 ? "  ·  " + waiting + " to launch" : "") +
-                (trouble > 0 ? "  ·  " + UiKit.Tint(trouble + " need attention", Theme.Bad) : ""), () =>
+                (trouble > 0 ? "  ·  " + UiKit.Tint(trouble + " need attention · " + FirstAttention(members), Theme.Bad) : ""), () =>
                 {
                     if (!collapsed.Remove(key)) collapsed.Add(key);
                 });
@@ -163,13 +163,21 @@ namespace NavalPower
                 ? Theme.Dim(Theme.Accent, 0.3f) : Theme.Dim(FlightIcons.For(lead), 0.26f);
         }
 
+        private static string FirstAttention(List<Flight> members)
+        {
+            foreach (Flight member in members) if (member.Attention != null) return member.Attention;
+            return "";
+        }
+
         private void FlightRow(Surface s, Flight flight, string indent)
         {
             Flight shown = flight;
             bool selected = CommandState.SelectedFlight == flight;
             string role = flight.Wing != null && Wings.IsLead(flight) ? "lead · " : "";
+            string attention = flight.Attention;
             Button row = s.Row(indent + flight.Name + "  ·  " + role + (flight.Status ?? ShortTask(flight)) +
-                "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight),
+                "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight) +
+                (attention != null ? "  ·  " + UiKit.Tint(attention.ToUpperInvariant(), Theme.Bad) : ""),
                 () => OpenFlight(shown));
             row.GetComponentInChildren<Text>().color =
                 NeedsYou(flight) ? Theme.Bad
@@ -191,9 +199,7 @@ namespace NavalPower
         // Low on fuel, under fire, or out of what it was sent to use: a strike
         // flight with no bombs left needs bringing home even with a full load
         // of air-to-air.
-        private static bool NeedsYou(Flight flight) =>
-            flight.Threat == FlightThreat.Missile || flight.FuelPercent < 25f ||
-            flight.RoundsRemaining <= 0 || flight.AnyRoleExhausted;
+        private static bool NeedsYou(Flight flight) => flight.Attention != null;
 
         private static string ShortTask(Flight flight)
         {
