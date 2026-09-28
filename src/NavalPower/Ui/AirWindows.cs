@@ -254,51 +254,89 @@ namespace NavalPower
             if (!Alive(s, flight)) return;
             CommandState.SelectedFlight = flight;
 
-            s.Title(flight.Name.ToUpperInvariant() + "  ·  " + flight.Describe());
-            s.Info(flight.TypeName + "   ·   " + flight.FuelPercent.ToString("0") + "% fuel   ·   " +
-                flight.StoresSummary + "   ·   from " + flight.HomeName,
+            // Status: what it is doing, what it has, and anything wrong.
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  " + flight.TypeName + "  ·  " + flight.Describe());
+            s.Info(flight.FuelPercent.ToString("0") + "% fuel  ·  " + flight.StoresSummary + FlareTag(flight) +
+                "  ·  from " + flight.HomeName + (flight.Wing != null
+                    ? "  ·  " + (Wings.IsLead(flight) ? "lead of " + flight.Wing : "formation on " + Wings.LeadOf(flight).Name) : ""),
                 flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
-            s.Info(flight.Stores);
-            float flares = IrDefence.FlareFraction(flight.Aircraft);
-            s.Info("Countermeasures  ·  " + IrDefence.Readout(flight.Aircraft),
-                flares <= 0f ? Theme.Bad : flares <= Settings.FlareReserve.Value ? Theme.Warn : Theme.TextMuted);
-            if (flight.Wing != null) WingRows(s, flight);
+            string attention = flight.Attention;
+            if (attention != null) s.Info(UiKit.Tint(attention.ToUpperInvariant(), Theme.Bad));
             s.Info(CommandState.AwaitingCargoZone == flight
                     ? UiKit.Tint("WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +
                                  " ZONE  ·  right-click the map", Theme.Accent)
+                : flight.Mode == FlightMode.Cargo
+                    ? UiKit.Tint((flight.Airdrop ? "AIRDROP" : "DELIVERY") + " UNDER WAY", Theme.Accent) + "  ·  right-click the map to move the zone"
                 : flight.Route.Count > 0
-                    ? "Right-click the map to task it   ·   " + flight.Route.Count + " leg(s) queued"
-                    : "Right-click the map to task it   ·   right-click a contact to attack it");
+                    ? "Right-click map: task area · shift: route  ·  " + flight.Route.Count + " leg(s) queued"
+                    : "Right-click map: task area · shift: route · right-click a contact: attack", Theme.TextMuted);
 
-            if (CargoMissions.CanCarry(flight.Aircraft))
+            // The orders given most, one click each.
+            Button[] quick = s.Group(new[] { "Hold here", "Return to base", "Weapons free" }, i =>
             {
-                Button cargo = s.Row(
-                    CommandState.AwaitingCargoZone == flight
-                        ? "CARGO  ·  " + (CommandState.AwaitingAirdrop ? "airdrop" : "landing") + "  ·  waiting for a zone"
-                    : flight.Mode == FlightMode.Cargo
-                        ? "CARGO  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change the zone"
-                        : "CARGO  ·  land or airdrop at a point…",
-                    () => s.Show(x => CargoPage(x, flight)));
-                if (flight.Mode == FlightMode.Cargo || CommandState.AwaitingCargoZone == flight)
-                    cargo.image.color = Theme.AccentFill;
-            }
+                switch (i)
+                {
+                    case 0:
+                        WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
+                        CommandState.Say(flight.Name + " · holding overhead");
+                        break;
+                    case 1:
+                        WingOrders.ReturnToBase(flight);
+                        CommandState.Say(flight.Name + " · recovering");
+                        break;
+                    default:
+                        WingOrders.Engage(flight);
+                        CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
+                        break;
+                }
+            });
+            if (flight.Mode == FlightMode.ReturnToBase) quick[1].image.color = Theme.AccentFill;
+            if (flight.Mode == FlightMode.Engage) quick[2].image.color = Theme.AccentFill;
 
-            s.Row("Hold here  ·  task area on the aircraft", () =>
+            // Everything else, a page each, each row showing where it stands.
+            s.Row("Tasking  ▸   " + ShortTask(flight) + (flight.Mode == FlightMode.Orbit
+                ? "  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius) : ""), () => s.Show(x => TaskingPage(x, flight)));
+            s.Row("Height  ▸   " + UnitConverter.AltitudeReading(flight.Altitude), () => s.Show(x => AltitudePage(x, flight)));
+            s.Row("Rules & weapons  ▸   " + FlightOrders.Describe(flight.Roe) + "  ·  " +
+                (flight.ConfineToArea ? "inside task area" : "anywhere in reach"), () => s.Show(x => RulesPage(x, flight)));
+            if (flight.Wing != null || JoinableWings(flight).Count > 0)
+                s.Row("Wing  ▸   " + (flight.Wing != null
+                    ? flight.Wing + "  ·  " + Wings.Members(flight.Wing).Count + " aircraft" + (Wings.IsLead(flight) ? "  ·  lead" : "")
+                    : "not in a wing"), () => s.Show(x => WingPage(x, flight)));
+            s.Row("Aircraft  ▸   camera · " + (flight.Wing != null ? "stores" : "callsign · stores"), () => s.Show(x => AircraftPage(x, flight)));
+
+            Button seat = s.Row("TAKE THE CONTROLS  ·  fly it yourself", () =>
+            {
+                if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
+            });
+            seat.image.color = Theme.Dim(Theme.Accent, 0.3f);
+        }
+
+        // Where it goes and what it does there.
+        private void TaskingPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            CommandState.SelectedFlight = flight;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  tasking  ·  " + ShortTask(flight));
+            Back(s, flight);
+
+            Row(s, flight, "Hold here  ·  task area on the aircraft", () =>
             {
                 WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
                 CommandState.Say(flight.Name + " · holding overhead");
             });
-            s.Row("Station on " + flight.HomeName + "  ·  offboard sensor", () =>
+            Button station = Row(s, flight, "Station on " + flight.HomeName + "  ·  offboard sensor", () =>
             {
                 WingOrders.Station(flight);
                 CommandState.Say(flight.Name + " · keeping company");
             });
+            if (flight.Mode == FlightMode.Station && flight.StationShip == null) station.image.color = Theme.AccentFill;
             if (TaskForces.All.Count > 0)
                 s.Row("Cover a task force…", () => s.Show(x => CoverForcePage(x, flight)));
             Flight escortLead = Wings.LeadOf(flight);
             if (escortLead?.Escorting != null)
             {
-                Button stop = s.Row("Stop escorting " + (Wings.EscortedLead(flight)?.Wing ?? escortLead.Escorting.Name), () =>
+                Button stop = Row(s, flight, "Stop escorting " + (Wings.EscortedLead(flight)?.Wing ?? escortLead.Escorting.Name), () =>
                 {
                     Wings.StopEscort(flight);
                     CommandState.Say((escortLead.Wing ?? escortLead.Name) + " · escort released");
@@ -306,61 +344,108 @@ namespace NavalPower
                 stop.image.color = Theme.AccentFill;
             }
             else s.Row("Escort a flight or wing…", () => s.Show(x => EscortPage(x, flight)));
-            s.Row("Clear the route", () =>
+            if (CargoMissions.CanCarry(flight.Aircraft))
             {
-                WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
-                CommandState.Say(flight.Name + " · route cleared");
-            });
-            s.Row("Altitude  ·  " + UnitConverter.AltitudeReading(flight.Altitude), () => s.Show(x => AltitudePage(x, flight)));
+                Button cargo = s.Row(
+                    CommandState.AwaitingCargoZone == flight
+                        ? "Cargo  ·  " + (CommandState.AwaitingAirdrop ? "airdrop" : "landing") + "  ·  waiting for a zone"
+                    : flight.Mode == FlightMode.Cargo
+                        ? "Cargo  ·  " + (flight.Airdrop ? "airdrop" : "landing") + "  ·  change the zone"
+                        : "Cargo  ·  land or airdrop at a point…",
+                    () => s.Show(x => CargoPage(x, flight)));
+                if (flight.Mode == FlightMode.Cargo || CommandState.AwaitingCargoZone == flight)
+                    cargo.image.color = Theme.AccentFill;
+            }
             s.Row("Task area radius  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius), () => s.Show(x => RadiusPage(x, flight)));
+            if (flight.Route.Count > 0)
+                Row(s, flight, "Clear the route  ·  " + flight.Route.Count + " leg(s)", () =>
+                {
+                    WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);
+                    CommandState.Say(flight.Name + " · route cleared");
+                });
+        }
+
+        // How freely it fights, and with what.
+        private void RulesPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            CommandState.SelectedFlight = flight;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  rules & weapons");
+            Back(s, flight);
             s.Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), () => s.Show(x => FlightRoePage(x, flight)));
-            s.Row("Engagement  ·  " + (flight.ConfineToArea ? "inside the task area only" : "anywhere in reach"), () =>
+            // A toggle stays on its page, so the change can be seen.
+            Button confine = s.Row(flight.ConfineToArea ? "Fights only inside its task area" : "Fights anywhere in reach", () =>
             {
                 WingOrders.SetConfined(flight, !flight.ConfineToArea);
                 CommandState.Say(flight.Name + (flight.ConfineToArea
                     ? " · will fight only inside its task area"
                     : " · released to engage anywhere in reach"));
             });
-            Button free = s.Row("WEAPONS FREE  ·  hand to the AI", () =>
+            if (flight.ConfineToArea) confine.image.color = Theme.AccentFill;
+            Button free = Row(s, flight, "WEAPONS FREE  ·  hand to the AI", () =>
             {
                 WingOrders.Engage(flight);
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
             });
             if (flight.Mode == FlightMode.Engage) free.image.color = Theme.AccentFill;
-            Button home = s.Row("Return to base", () =>
-            {
-                WingOrders.ReturnToBase(flight);
-                CommandState.Say(flight.Name + " · recovering");
-            });
-            if (flight.Mode == FlightMode.ReturnToBase) home.image.color = Theme.AccentFill;
+            s.Info("Stores  ·  " + flight.Stores, Theme.TextMuted);
+            float flares = IrDefence.FlareFraction(flight.Aircraft);
+            s.Info("Countermeasures  ·  " + IrDefence.Readout(flight.Aircraft),
+                flares <= 0f ? Theme.Bad : flares <= Settings.FlareReserve.Value ? Theme.Warn : Theme.TextMuted);
+        }
+
+        // Who it flies with.
+        private void WingPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            CommandState.SelectedFlight = flight;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  wing");
+            Back(s, flight);
             if (flight.Wing != null)
+            {
+                WingRows(s, flight);
                 s.Row("Wing name  ·  " + flight.Wing + "  ·  rename, and every member with it",
                     () => s.Show(x => WingNamePage(x, flight)));
-            else
+                Row(s, flight, "Detach " + flight.Name + " from " + flight.Wing, () =>
+                {
+                    Wings.Detach(flight);
+                    CommandState.Say(flight.Name + " · detached · now its own flight");
+                });
+            }
+            else if (JoinableWings(flight).Count > 0)
+                s.Row("Join a wing…", () => s.Show(x => JoinWingPage(x, flight)));
+        }
+
+        // The airframe itself: its name, a camera on it, and what it carries.
+        private void AircraftPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) return;
+            CommandState.SelectedFlight = flight;
+            s.Title(flight.Name.ToUpperInvariant() + "  ·  aircraft");
+            Back(s, flight);
+            if (flight.Wing == null)
                 s.Row("Callsign  ·  " + flight.Name + "  ·  rename", () => s.Show(x => RenamePage(x, flight)));
+            else
+                s.Info("Callsign " + flight.Name + " comes from the wing's name, set on the Wing page", Theme.TextMuted);
             if (feedView != null)
             {
                 bool pinned = feedView.IsPinned(flight.Aircraft);
-                Button feed = s.Row(pinned ? "Close its camera feed" : "Pin a camera feed on it", () =>
+                Button feed = Row(s, flight, pinned ? "Close its camera feed" : "Pin a camera feed on it", () =>
                 {
                     feedView.Pin(flight.Aircraft, out string reason);
                     CommandState.Say(flight.Name + " · " + reason);
                 });
                 if (pinned) feed.image.color = Theme.AccentFill;
             }
-            if (flight.Wing != null)
-                s.Row("Detach " + flight.Name + " from " + flight.Wing, () =>
-                {
-                    Wings.Detach(flight);
-                    CommandState.Say(flight.Name + " · detached · now its own flight");
-                });
-            else if (JoinableWings(flight).Count > 0)
-                s.Row("Join a wing…", () => s.Show(x => JoinWingPage(x, flight)));
-            s.Row("TAKE THE CONTROLS  ·  fly it yourself", () =>
-            {
-                if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
-            });
+            s.Info(flight.TypeName + "  ·  from " + flight.HomeName, Theme.TextMuted);
+            s.Info("Stores  ·  " + flight.Stores, Theme.TextMuted);
         }
+
+        // A row that gives an order and returns to the flight's main page.
+        private Button Row(Surface s, Flight flight, string label, System.Action order) =>
+            s.Row(label, () => { order(); s.Show(x => FlightPage(x, flight)); });
+
+        private void Back(Surface s, Flight flight) => s.Row("◀  Back", () => s.Show(x => FlightPage(x, flight)));
 
         // The wing it flies with: every member, who leads, and who is still to
         // come off the deck. Orders given here go to the whole wing.

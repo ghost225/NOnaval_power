@@ -114,6 +114,11 @@ namespace NavalPower
             {
                 if (station?.WeaponInfo == null || IsStore(station)) continue;
                 string role = FlightOrders.RoleOf(station.WeaponInfo);
+                // Anything that scores against nothing is filed as GUN; only a
+                // real gun is one. Pods and other equipment -- jammers,
+                // designators, radar pods -- are left out, or an empty pod
+                // read as "GUN gone" on an aircraft that never had a gun.
+                if (role == "GUN" && !station.WeaponInfo.gun) continue;
                 int ammo = Mathf.Max(0, station.Ammo);
                 RoleStores.TryGetValue(role, out int running);
                 RoleStores[role] = running + ammo;
