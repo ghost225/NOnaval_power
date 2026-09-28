@@ -150,9 +150,12 @@ namespace NavalPower
                 // of them is a reason to give up the field.
                 if (CommandState.Base != null && unit == null) return;
                 lastField = null;
-                Leave();
-                // Same rule when the camera moves by some other route.
-                if (unit is Ship next && CommandableShip.CanCommand(next, out _)) { Enter(next, fresh: false); return; }
+                // Same rule when the camera moves by some other route. Moving
+                // straight to another ship keeps the game's strip hidden
+                // across the switch rather than showing it for a moment.
+                bool switching = unit is Ship next && CommandableShip.CanCommand(next, out _);
+                Leave(keepNativeBarHidden: switching);
+                if (switching) { Enter((Ship)unit, fresh: false); return; }
                 suppressEntryFrame = Time.frameCount;
                 return;
             }
@@ -261,13 +264,13 @@ namespace NavalPower
             return cameras.followingUnit == CommandState.Ship && CommandableShip.CanCommand(CommandState.Ship, out _);
         }
 
-        internal void Leave()
+        internal void Leave(bool keepNativeBarHidden = false)
         {
             if (!CommandState.Active) return;
             FlightIcons.Clear();
             ReleaseKillCredit();
             // lastCommanded deliberately survives, so command can be resumed.
-            RestoreNativeBar();
+            if (!keepNativeBarHidden) RestoreNativeBar();
             CommandState.Clear();
             Ui?.Tidy();
             CursorManager.SetFlag(CommandCursor, false);
