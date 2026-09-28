@@ -391,8 +391,17 @@ namespace NavalPower
             float power = !flying || (distance > 3000f && along > 0f) ? 1f
                 : Mathf.Clamp(LeadCruise + along * 0.0006f + speedGap * 0.02f, 0.35f, 1f);
             controlInputs.throttle = power;
-            // Gentle once near the slot: a hard bank there is an overcorrection.
-            Steer(aim, velocity, distance < 800f ? 35f : 70f);
+            // Bank in proportion to the error: a few metres off the slot or a
+            // few degrees off the lead's heading is a touch of bank, a long way
+            // off is a hard turn. A fixed limit was either too much for the
+            // small corrections -- rolling side to side -- or too little to rejoin.
+            Vector3 across = Vector3.Cross(Vector3.up, forward);
+            float sideways = Mathf.Abs(Vector3.Dot(gap, across));
+            Vector3 track = aircraft.rb != null ? aircraft.rb.velocity : aircraft.transform.forward;
+            track.y = 0f;
+            float offHeading = track.sqrMagnitude > 1f ? Vector3.Angle(track, forward) : 0f;
+            float bank = distance > 2000f ? 70f : Mathf.Clamp(6f + sideways * 0.08f + offHeading * 1.5f, 6f, 70f);
+            Steer(aim, velocity, bank);
         }
 
         private bool Crowded(out Vector3 away)
