@@ -98,18 +98,29 @@ namespace NavalPower
         // ---- frame -----------------------------------------------------------
 
         private float appliedScale = -1f;
+        private int appliedHeight = -1;
         private bool reclamp;
 
-        // The interface scale on top of scaling to the screen: a smaller
-        // reference resolution draws everything larger. Windows are pulled
-        // back on screen a frame later, once the canvas has laid out at the
-        // new size.
+        // Below this the interface stops shrinking with the screen. Laid out
+        // for 1080p, it was drawn at two-thirds size on a 720p screen, which
+        // puts its 13-15 px text at 9-10 real pixels: too few to render a
+        // letter cleanly, which is the fuzziness reported at 1360x720.
+        private const float SmallestAutoScale = 0.9f;
+
+        // Sized by the screen's height against 1080p, never below the floor
+        // above, times the player's interface scale. Recomputed when either
+        // changes -- the window resized, or the setting moved -- and windows
+        // are pulled back on screen a frame later, once the canvas has laid
+        // out at the new size.
         private void ApplyScale()
         {
             if (root == null) return;
             var scaler = root.GetComponent<CanvasScaler>();
-            appliedScale = Mathf.Clamp(Settings.InterfaceScale.Value, 0.6f, 2f);
-            scaler.referenceResolution = new Vector2(1920f, 1080f) / appliedScale;
+            appliedScale = Settings.InterfaceScale.Value;
+            appliedHeight = Screen.height;
+            float auto = Mathf.Max(Screen.height / 1080f, SmallestAutoScale);
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = auto * Mathf.Clamp(appliedScale, 0.6f, 2f);
             reclamp = true;
         }
 
@@ -131,7 +142,7 @@ namespace NavalPower
             RefreshCompass(flying);
             if (flying) { hover.gameObject.SetActive(false); return; }
 
-            if (!Mathf.Approximately(appliedScale, Settings.InterfaceScale.Value)) ApplyScale();
+            if (!Mathf.Approximately(appliedScale, Settings.InterfaceScale.Value) || appliedHeight != Screen.height) ApplyScale();
             else if (reclamp) { reclamp = false; foreach (Surface window in windows.Values) if (window.IsOpen) window.Clamp(); }
             WatchFeeds();
             CycleTaskForce();
@@ -569,11 +580,9 @@ namespace NavalPower
             // between whole numbers (1440p is ×1.33).
             canvas.pixelPerfect = true;
             var scaler = root.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             // Scaled by the screen's height, not its width: an ultrawide
             // 3440×1440 was scaled ×1.79 by width, blowing the interface up
             // past what the screen's height could hold.
-            scaler.matchWidthOrHeight = 1f;
             ApplyScale();
 
             Surface.ReservedBottom = StripHeight + EventHeight + 8f;
