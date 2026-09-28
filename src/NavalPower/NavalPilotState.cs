@@ -42,6 +42,7 @@ namespace NavalPower
             // collective all the way into the ground.
             aircraft.SetFlightAssistToDefault();
             aircraft.SetGear(deployed: false);
+            heloHold = -1f;                         // start from wherever it is
             ControlsFilter filter = aircraft.GetControlsFilter();
             if (filter != null) filter.SetAutoHover(enabled: false);
         }
@@ -226,7 +227,8 @@ namespace NavalPower
 
         // About seventeen degrees. Steeper than this and a rotary aircraft
         // pitches up hard enough to lose control rather than climb.
-        private const float MaxClimbGradient = 0.3f;
+        private const float MaxClimbGradient = 0.15f;
+        private float heloHold = -1f;               // the height a helicopter is being walked up to
 
         // How far ahead a rotary aircraft is ever asked to steer. Beyond this
         // the tilt PID saturates and the aircraft wallows rather than flies.
@@ -459,9 +461,22 @@ namespace NavalPower
             // and let it walk up to the ordered altitude over successive frames.
             float floor = parameters != null ? parameters.minimumRadarAlt : 0f;
             float lookAhead = Mathf.Max(aircraft.speed, 100f) * 6f;
-            float wanted = floor + aboveGround;
-            float reachable = aircraft.radarAlt + lookAhead * MaxClimbGradient;
-            float commanded = Mathf.Clamp(Mathf.Min(wanted, reachable), floor, floor + 1000f);
+            float wanted = Mathf.Clamp(floor + aboveGround, floor, floor + 1000f);
+
+            // Walk the held height toward the ordered one at the native
+            // state's own pace: up at 10 m/s, down at 20. Asking instead for a
+            // fixed margin above wherever it is now set a target that ran ahead
+            // as fast as it climbed; low and slow after evading, it pitched up
+            // after it, bled off its speed, sank, and went round again.
+            if (heloHold < 0f) heloHold = Mathf.Max(aircraft.radarAlt, floor);
+            float step = (heloHold < wanted ? 10f : 20f) * Time.deltaTime;
+            heloHold = Mathf.MoveTowards(heloHold, wanted, step);
+            // Never far ahead of where it actually is, and hardly any climb at
+            // all until it has flying speed: height from collective alone at a
+            // hover is what the attitude controller handles worst.
+            float margin = aircraft.speed < 25f ? 25f : lookAhead * MaxClimbGradient;
+            heloHold = Mathf.Min(heloHold, Mathf.Max(aircraft.radarAlt, floor) + margin);
+            float commanded = Mathf.Clamp(heloHold, floor, floor + 1000f);
 
             // Bounded steering point.
             //
