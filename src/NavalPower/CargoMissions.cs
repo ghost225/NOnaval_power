@@ -149,7 +149,9 @@ namespace NavalPower
                 // A landing has to be put down on something usable, so the
                 // state's own search runs -- but close in, around the ordered
                 // point rather than around a zone of its choosing.
-                UpdateTouchdown.Invoke(destination, new object[] { 120f, aircraft });
+                // A wing landing together searches only round its own slot,
+                // or two aircraft settle on the same patch of ground.
+                UpdateTouchdown.Invoke(destination, new object[] { flight.CargoSearch > 0f ? flight.CargoSearch : 120f, aircraft });
             }
             Destination.SetValue(state, destination);
             // Only stamped when we actually re-solved, or the state's own

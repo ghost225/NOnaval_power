@@ -55,6 +55,9 @@ namespace NavalPower
         public float LastCargoPlan;
         internal bool CargoSeeded;          // the transport state knows this zone
         internal Ship SupplyShip;           // a naval supply run: the ship the container is for
+        internal float CargoSearch;         // how far round its point it may look for ground; 0 is the default
+        internal int CargoAtOrder;          // cargo aboard when the delivery was ordered
+        internal bool RejoinAfterCargo;     // a wingman done with its drop, circling until the lead is done
         public GlobalPosition EgressPoint;
         public float EgressUntil;
         public float NextEgressPlan;
@@ -512,6 +515,8 @@ namespace NavalPower
             // over during taxi or takeoff would fight the native sequence.
             foreach (Flight flight in flights)
             {
+                if (flight.Aircraft != null && !flight.Aircraft.disabled) CargoProgress(flight);
+
                 if (flight.Mode == FlightMode.Jam && (flight.Target == null || flight.Target.disabled))
                 {
                     Plugin.Log.LogInfo("[flight] " + flight.Name + " · jamming target gone");
@@ -988,9 +993,66 @@ namespace NavalPower
             flight.Airdrop = airdrop;
             flight.LastCargoPlan = 0f;             // solve the approach at once
             flight.CargoSeeded = false;            // and from our zone, not its own
+            flight.CargoSearch = 0f;
+            flight.CargoAtOrder = CargoAboard(flight.Aircraft);
+            flight.RejoinAfterCargo = false;
             flight.Route.Clear();
             flight.Mode = FlightMode.Cargo;
             flight.Adopted = false;
+        }
+
+        // Containers, pallets, troops: whatever the cargo stations still hold.
+        internal static int CargoAboard(Aircraft aircraft)
+        {
+            int count = 0;
+            if (aircraft?.weaponStations == null) return 0;
+            foreach (WeaponStation station in aircraft.weaponStations)
+                if (station != null && (station.Cargo || (station.WeaponInfo != null && station.WeaponInfo.cargo)))
+                    count += Mathf.Max(0, station.Ammo);
+            return count;
+        }
+
+        // A delivery is done when what it set out with is gone. The transport
+        // state then hands the aircraft to the combat or takeoff state, and
+        // without this it was forced straight back into delivering nothing.
+        // A wingman circles the zone until its lead is done too -- forming up
+        // on a lead still hovering over a landing zone is how rotors meet --
+        // and everyone else takes up what it was doing before.
+        private static void CargoProgress(Flight flight)
+        {
+            if (flight.RejoinAfterCargo)
+            {
+                Flight lead = Wings.LeadOf(flight);
+                if (lead == null || lead == flight || lead.Mode != FlightMode.Cargo)
+                {
+                    flight.RejoinAfterCargo = false;
+                    flight.Mode = lead != null && lead != flight ? FlightMode.Formation : FlightMode.Orbit;
+                    flight.Adopted = false;
+                }
+                return;
+            }
+            if (flight.Mode != FlightMode.Cargo || flight.SupplyShip != null || flight.CargoAtOrder <= 0) return;
+            if (CargoAboard(flight.Aircraft) > 0) return;
+
+            bool wingman = Wings.IsWingman(flight) && Wings.LeadOf(flight) != flight;
+            Flight leader = wingman ? Wings.LeadOf(flight) : null;
+            if (wingman && leader != null && leader.Mode == FlightMode.Cargo)
+            {
+                flight.RejoinAfterCargo = true;
+                flight.Mode = FlightMode.Orbit;
+                flight.OrbitCentre = flight.CargoPoint;
+                flight.OrbitRadius = 1500f;
+            }
+            else if (wingman) flight.Mode = FlightMode.Formation;
+            else
+            {
+                flight.Mode = flight.PreviousMode == FlightMode.Cargo ? FlightMode.Orbit : flight.PreviousMode;
+                if (flight.Mode == FlightMode.Orbit && flight.OrbitRadius <= 0f) flight.OrbitRadius = Settings.DefaultAreaRadius.Value;
+            }
+            flight.CargoAtOrder = 0;
+            flight.Adopted = false;
+            CommandState.Say(flight.Name + " · cargo delivered" + (flight.RejoinAfterCargo ? ", circling for the wing" : wingman ? ", rejoining" : ""));
+            Plugin.Log.LogInfo("[flight] " + flight.Name + " · cargo delivered");
         }
 
         // Only the transport state knows how to run an approach, pick usable

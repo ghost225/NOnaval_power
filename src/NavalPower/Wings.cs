@@ -467,8 +467,57 @@ namespace NavalPower
 
         public static void Jam(Flight flight, Unit target) => FlightOrders.Jam(Led(flight), target);
 
-        public static void Deliver(Flight flight, GlobalPosition where, bool airdrop) =>
-            FlightOrders.Deliver(Led(flight), where, airdrop);
+        private const float AirdropSpacing = 200f;       // drop points abreast, across the run
+        private const float LandingSpacing = 150f;       // rotor to rotor, with room to spare
+        private const float LandingSearch = 60f;         // each looks for ground only round its own slot
+
+        // Every aircraft in the wing that has cargo makes its own drop. An
+        // airdrop is flown abreast: each drop point beside the last, across
+        // the approach, so they cross the zone side by side. A landing gives
+        // each its own touchdown spot, the lead's in the middle and the rest
+        // in a ring round it. Those with nothing to deliver keep formation,
+        // or hold over the zone if it is the lead that has nothing.
+        public static void Deliver(Flight flight, GlobalPosition where, bool airdrop)
+        {
+            Flight lead = Led(flight);
+            if (lead == null) return;
+            var carriers = new List<Flight>();
+            foreach (Flight member in Wings.Group(lead))
+                if (FlightOrders.CanDeliver(member.Aircraft) && FlightOrders.CargoAboard(member.Aircraft) > 0)
+                    carriers.Add(member);
+            if (carriers.Count <= 1 && (carriers.Count == 0 || carriers[0] == lead))
+            {
+                FlightOrders.Deliver(lead, where, airdrop);
+                return;
+            }
+            carriers.Remove(lead);
+            if (FlightOrders.CanDeliver(lead.Aircraft) && FlightOrders.CargoAboard(lead.Aircraft) > 0) carriers.Insert(0, lead);
+            else FlightOrders.SetArea(lead, where, 2000f);
+
+            Vector3 approach = where - lead.Aircraft.GlobalPosition();
+            approach.y = 0f;
+            approach = approach.sqrMagnitude > 1f ? approach.normalized : Vector3.forward;
+            Vector3 side = Vector3.Cross(Vector3.up, approach);
+            for (int i = 0; i < carriers.Count; i++)
+            {
+                Vector3 offset;
+                if (airdrop)
+                {
+                    int step = (i + 1) / 2 * (i % 2 == 1 ? 1 : -1);     // 0, +1, -1, +2, -2 ...
+                    offset = side * step * AirdropSpacing;
+                }
+                else if (i == 0) offset = Vector3.zero;
+                else
+                {
+                    int ring = (i - 1) / 6 + 1;
+                    float angle = ((i - 1) % 6) * 60f + (ring % 2 == 0 ? 30f : 0f);
+                    offset = Quaternion.AngleAxis(angle, Vector3.up) * approach * (LandingSpacing * ring);
+                }
+                FlightOrders.Deliver(carriers[i], where + offset, airdrop);
+                if (!airdrop) carriers[i].CargoSearch = LandingSearch;
+            }
+            CommandState.Say((lead.Wing ?? lead.Name) + " · " + carriers.Count + " aircraft " + (airdrop ? "airdropping abreast" : "landing, each to its own spot"));
+        }
 
         public static void SetConfined(Flight flight, bool confined)
         {
