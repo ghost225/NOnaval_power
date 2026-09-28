@@ -36,6 +36,7 @@ namespace NavalPower
 
             bool nvgWas = nvg.enabled, levelWas = level.enabled, effectsWere = urp.renderPostProcessing;
             Transform triggerWas = urp.volumeTrigger;
+            LayerMask maskWas = urp.volumeLayerMask;
             VolumeFrameworkUpdateMode modeWas = camera.GetVolumeFrameworkUpdateMode();
             Camera main = SceneSingleton<CameraStateManager>.i?.mainCamera;
             Describe(nvg, level, camera, urp, main);
@@ -52,6 +53,11 @@ namespace NavalPower
                 // that only updates its volumes when told to would keep the
                 // stack it had before night vision came on.
                 if (main != null) urp.volumeTrigger = main.transform;
+                // The main camera does no post-processing of its own (its
+                // volume mask is empty; another camera in the game's stack
+                // does it), so copying its mask left the feed blind to every
+                // volume. Look on the night-vision volume's own layer.
+                urp.volumeLayerMask = maskWas | (1 << nvg.gameObject.layer);
                 camera.SetVolumeFrameworkUpdateMode(VolumeFrameworkUpdateMode.EveryFrame);
                 camera.Render();
             }
@@ -61,6 +67,7 @@ namespace NavalPower
                 level.enabled = levelWas;
                 urp.renderPostProcessing = effectsWere;
                 urp.volumeTrigger = triggerWas;
+                urp.volumeLayerMask = maskWas;
                 camera.SetVolumeFrameworkUpdateMode(modeWas);
             }
         }
