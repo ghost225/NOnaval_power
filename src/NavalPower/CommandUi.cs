@@ -545,8 +545,11 @@ namespace NavalPower
         {
             if (root != null) return;
 
+            // The game's own UI font, but only a dynamic one: a font baked to a
+            // fixed-size texture is sharp at 1080p and smeared at any larger
+            // scale, which is what fuzzy text on a big screen turned out to be.
             foreach (Text text in Resources.FindObjectsOfTypeAll<Text>())
-                if (text.font != null) { font = text.font; break; }
+                if (text.font != null && text.font.dynamic) { font = text.font; break; }
             if (font == null)
             {
                 try { font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch (ArgumentException) { }
@@ -554,15 +557,23 @@ namespace NavalPower
             }
             if (font == null) throw new InvalidOperationException("No native UI font is available.");
             UiKit.Font = font;
+            Plugin.Log.LogInfo("[ui] font " + font.name + (font.dynamic ? " (dynamic)" : " (fixed size)") +
+                " · screen " + Screen.width + "×" + Screen.height + " · interface scale " + Settings.InterfaceScale.Value.ToString("0.##"));
 
             root = new GameObject("Naval Power", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.transform.SetParent(transform, false);
             canvas = root.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 120;
+            // Glyphs and edges on whole pixels, so text stays crisp at scales
+            // between whole numbers (1440p is ×1.33).
+            canvas.pixelPerfect = true;
             var scaler = root.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.matchWidthOrHeight = 0f;
+            // Scaled by the screen's height, not its width: an ultrawide
+            // 3440×1440 was scaled ×1.79 by width, blowing the interface up
+            // past what the screen's height could hold.
+            scaler.matchWidthOrHeight = 1f;
             ApplyScale();
 
             Surface.ReservedBottom = StripHeight + EventHeight + 8f;
