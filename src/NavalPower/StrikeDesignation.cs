@@ -94,7 +94,7 @@ namespace NavalPower
                 // the same as being unable to hurt it.
                 string name = ShipNames.Of(target);
                 bool covered = FlightOrders.CapableOf(target).Contains(flight);
-                Plugin.Log.LogInfo("[flight] " + flight.Name + (covered
+                Diag.Flight("[flight] " + flight.Name + (covered
                     ? " · " + name + " · " + inFlight + " missile(s) already closing on it, rejoining"
                     : " · cannot engage " + name + ", breaking off"));
                 if (covered) CommandState.Say(flight.Name + " · " + inFlight + " missile(s) already closing on " + name + ", rejoining");
@@ -130,7 +130,7 @@ namespace NavalPower
             }
             if (track.missileAttacks != live)
             {
-                Plugin.Log.LogInfo("[flight] " + ShipNames.Of(target) + " · missiles counted at it " + track.missileAttacks +
+                Diag.Flight("[flight] " + ShipNames.Of(target) + " · missiles counted at it " + track.missileAttacks +
                     ", actually closing on it " + live + " · corrected");
                 track.missileAttacks = (sbyte)Mathf.Clamp(live, 0, sbyte.MaxValue);
             }

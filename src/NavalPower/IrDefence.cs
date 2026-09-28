@@ -57,7 +57,7 @@ namespace NavalPower
                     flight.NextFlare = now + 0.3f;
                     flight.ThrottleCutUntil = now + 1.2f;
                     if (flight.FlaresThisShot == 1)
-                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · heat-seeker at " +
+                        Diag.Flight("[flight] " + flight.Name + " · heat-seeker at " +
                             UnitConverter.DistanceReading(shotRange) + " · flaring, holding the run");
                 }
                 return;

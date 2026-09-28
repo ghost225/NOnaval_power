@@ -77,10 +77,10 @@ namespace NavalPower
         // Once, for the log: how the night-vision volume is set up.
         private static void Describe(Volume nvg, Volume level, Camera camera, UniversalAdditionalCameraData urp, Camera main)
         {
-            if (described) return;
+            if (described || !Settings.InterfaceTrace.Value) return;
             described = true;
             UniversalAdditionalCameraData mainUrp = main != null ? main.GetUniversalAdditionalCameraData() : null;
-            Plugin.Log.LogInfo("[nv] volume '" + nvg.name + "' global=" + nvg.isGlobal + " layer=" + nvg.gameObject.layer +
+            Diag.Ui("[nv] volume '" + nvg.name + "' global=" + nvg.isGlobal + " layer=" + nvg.gameObject.layer +
                 " priority=" + nvg.priority + " weight=" + nvg.weight + " profile=" + (nvg.sharedProfile != null ? nvg.sharedProfile.name : "none") +
                 " | level '" + level.name + "' layer=" + level.gameObject.layer + " priority=" + level.priority +
                 " | feed mask=" + urp.volumeLayerMask.value + " mode=" + camera.GetVolumeFrameworkUpdateMode() + " asset=" + UniversalRenderPipeline.asset?.volumeFrameworkUpdateMode +

@@ -358,7 +358,7 @@ namespace NavalPower
                     .Append("] ").Append(role).Append(" · ").Append(escort.Bearing.ToString("000")).Append("° ")
                     .Append(escort.Range.ToString("0")).Append(" m");
             }
-            Plugin.Log.LogInfo(line.ToString());
+            Diag.Nav(line.ToString());
         }
 
         private readonly struct Slot
@@ -493,7 +493,7 @@ namespace NavalPower
             foreach (Escort escort in force.Escorts)
             {
                 if (escort.Ship == null) continue;
-                Plugin.Log.LogInfo("[tf] " + force.Name + " · " + ShipNames.Of(escort.Ship) + " · " + Describe(force, escort) +
+                Diag.Nav("[tf] " + force.Name + " · " + ShipNames.Of(escort.Ship) + " · " + Describe(force, escort) +
                     " · station " + escort.Range.ToString("0") + " m at " + escort.Bearing.ToString("000") + "° · off by " +
                     escort.OffStation.ToString("0") + " m · aim " +
                     FastMath.Distance(escort.LastAim, escort.Ship.GlobalPosition()).ToString("0") + " m ahead · ordered " +

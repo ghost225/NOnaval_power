@@ -555,7 +555,7 @@ namespace NavalPower
                 (straight && !lined && range < release * 0.8f)))
             {
                 flight.SettingUp = true;
-                Plugin.Log.LogInfo("[flight] " + flight.Name + " · opening out to set up the run");
+                Diag.Flight("[flight] " + flight.Name + " · opening out to set up the run");
             }
 
             GlobalPosition aim = known;
@@ -572,7 +572,7 @@ namespace NavalPower
                 if (Horizontal(setUp, here) < 1500f || (low && range >= release * (outward - 0.15f)))
                 {
                     flight.SettingUp = false;
-                    Plugin.Log.LogInfo("[flight] " + flight.Name + " · turning in for the run");
+                    Diag.Flight("[flight] " + flight.Name + " · turning in for the run");
                 }
                 else aim = setUp;
             }
@@ -588,7 +588,7 @@ namespace NavalPower
         {
             flight.RunInDone = true;
             flight.StrikeStarted = Time.timeSinceLevelLoad;     // patience runs from the attack, not the transit
-            Plugin.Log.LogInfo("[flight] " + flight.Name + " · run-in complete · " + why + " · alt " +
+            Diag.Flight("[flight] " + flight.Name + " · run-in complete · " + why + " · alt " +
                 aircraft.radarAlt.ToString("0") + " m");
             HandBackToCombat(pilot);
         }
@@ -599,7 +599,7 @@ namespace NavalPower
             // leaving the aircraft with nobody at the controls.
             PilotBaseState combat = FlightOrders.CombatStateFor(pilot);
             if (combat == null) { FlyOrbit(flight.OrbitCentre); return; }
-            Plugin.Log.LogInfo("[flight] " + flight.Name + " · handing to the combat pilot · " + flight.Describe());
+            Diag.Flight("[flight] " + flight.Name + " · handing to the combat pilot · " + flight.Describe());
             pilot.SwitchStateNew(combat);
         }
 

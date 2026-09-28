@@ -306,7 +306,7 @@ namespace NavalPower
                 candidate.SetTarget(order.Target);
                 order.NextShot = now + Time.fixedDeltaTime;
                 order.NextMountCheck = now + .2f;
-                Plugin.Log.LogInfo("[mount] " + order.Key + " -> station " + station.Number +
+                Diag.Nav("[mount] " + order.Key + " -> station " + station.Number +
                     " turret=" + (order.Turret != null ? order.Turret.name : "none") +
                     " fixed=" + NativeBindings.FiresWithoutAiming(order.Turret));
                 return true;

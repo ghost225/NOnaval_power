@@ -121,7 +121,7 @@ namespace NavalPower
         // against what is actually there.
         internal static void Report(Airbase airbase)
         {
-            if (airbase == null) return;
+            if (airbase == null || !Settings.DeckTrace.Value) return;
             var lines = new System.Text.StringBuilder();
             lines.Append("[field] ").Append(NameOf(airbase)).Append(" · ").Append(airbase.hangars.Count)
                 .Append(" hangar(s) registered · ").Append(Inventory(airbase));
@@ -147,7 +147,7 @@ namespace NavalPower
                     .Append(" [").Append(KindOf(hangar)).Append("] belongs to ")
                     .Append(hangar.parentAirbase != null ? NameOf(hangar.parentAirbase) : "no airbase");
             }
-            Plugin.Log.LogInfo(lines.ToString());
+            Diag.Deck(lines.ToString());
         }
     }
 }

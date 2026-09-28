@@ -172,7 +172,7 @@ namespace NavalPower
             // but only from states it believes it left -- so the HUD is asked
             // for once more here, where nothing follows to countermand it.
             FlightHud.EnableCanvas(enable: true);
-            Plugin.Log.LogInfo("[seat] cockpit up · camera " + CameraStateManager.cameraMode +
+            Diag.Deck("[seat] cockpit up · camera " + CameraStateManager.cameraMode +
                 " · map " + (DynamicMap.mapMaximized ? "maximized" : "minimized") +
                 " · combat HUD on " + (SceneSingleton<CombatHUD>.i?.aircraft == aircraft ? "this aircraft" : "something else"));
             ReportHud(aircraft);
@@ -274,7 +274,7 @@ namespace NavalPower
             {
                 // It destroys itself with the aircraft it was showing, so this
                 // is what an earlier sortie in the same session leaves behind.
-                Plugin.Log.LogInfo("[seat] no " + what + " in the scene · its displays will stay dark");
+                Diag.Deck("[seat] no " + what + " in the scene · its displays will stay dark");
                 return;
             }
             try
@@ -297,7 +297,7 @@ namespace NavalPower
                 // bound to nothing for the rest of the session.
                 var bound = held.GetValue(manager) as Aircraft;
                 if (bound == aircraft)
-                { Plugin.Log.LogInfo("[seat] " + what + " already on this aircraft"); return; }
+                { Diag.Deck("[seat] " + what + " already on this aircraft"); return; }
 
                 // Its teardown hook follows the aircraft it is showing.
                 var teardown = onDisable != null
@@ -319,7 +319,7 @@ namespace NavalPower
                     page.RefreshSettings();
                     rebound++;
                 }
-                Plugin.Log.LogInfo("[seat] " + what + " · " + rebound + " display(s) bound, from " +
+                Diag.Deck("[seat] " + what + " · " + rebound + " display(s) bound, from " +
                     (bound == null ? "nothing" : bound.definition?.unitName ?? bound.name));
             }
             catch (Exception ex)
@@ -346,16 +346,16 @@ namespace NavalPower
             {
                 Mirage.NetworkIdentity identity = aircraft.Identity;
                 if (identity == null || !identity.IsServer)
-                { Plugin.Log.LogInfo("[seat] not the server; leaving ownership alone"); return; }
+                { Diag.Deck("[seat] not the server; leaving ownership alone"); return; }
                 if (identity.Owner != null)
-                { Plugin.Log.LogInfo("[seat] the airframe is already owned"); return; }
+                { Diag.Deck("[seat] the airframe is already owned"); return; }
 
                 Mirage.INetworkPlayer owner = player.Identity != null ? player.Identity.Owner : null;
-                if (owner == null) { Plugin.Log.LogInfo("[seat] no network owner to assign"); return; }
+                if (owner == null) { Diag.Deck("[seat] no network owner to assign"); return; }
 
                 identity.AssignClientAuthority(owner);
                 claimedAuthority = true;
-                Plugin.Log.LogInfo("[seat] took ownership of the airframe · authority " + identity.HasAuthority);
+                Diag.Deck("[seat] took ownership of the airframe · authority " + identity.HasAuthority);
             }
             catch (Exception ex)
             {
@@ -372,7 +372,7 @@ namespace NavalPower
                 Mirage.NetworkIdentity identity = aircraft != null ? aircraft.Identity : null;
                 if (identity == null || !identity.IsServer || identity.Owner == null) return;
                 identity.RemoveClientAuthority();
-                Plugin.Log.LogInfo("[seat] gave the airframe's ownership back");
+                Diag.Deck("[seat] gave the airframe's ownership back");
             }
             catch (Exception ex)
             {
@@ -401,7 +401,7 @@ namespace NavalPower
             TargetCam view = aircraft.targetCam;
             if (view == null)
             {
-                Plugin.Log.LogInfo("[seat] target camera already gone -- it went before this flight " +
+                Diag.Deck("[seat] target camera already gone -- it went before this flight " +
                     "was known to be ours, so there was nothing to keep");
                 return;
             }
@@ -412,7 +412,7 @@ namespace NavalPower
                 {
                     view.Initialize();
                     lens = TargetCamCamera.GetValue(view) as Camera;
-                    Plugin.Log.LogInfo("[seat] target camera " + (lens != null ? "built"
+                    Diag.Deck("[seat] target camera " + (lens != null ? "built"
                         : "NOT built · authority " + (aircraft.Identity != null && aircraft.Identity.HasAuthority)));
                     if (lens == null) return;
                 }
@@ -492,18 +492,18 @@ namespace NavalPower
         {
             if (aircraft == null || CockpitBuild == null || CockpitTacScreen == null) return;
             Cockpit cockpit = CockpitOf(aircraft);
-            if (cockpit == null) { Plugin.Log.LogInfo("[seat] this airframe has no cockpit screens"); return; }
+            if (cockpit == null) { Diag.Deck("[seat] this airframe has no cockpit screens"); return; }
             try
             {
                 if (CockpitTacScreen.GetValue(cockpit) != null)
                 {
                     cockpit.enabled = true;              // already built, just left off
-                    Plugin.Log.LogInfo("[seat] cockpit screens already built");
+                    Diag.Deck("[seat] cockpit screens already built");
                     return;
                 }
                 CockpitBuild.Invoke(cockpit, null);
                 builtScreens = CockpitTacScreen.GetValue(cockpit) != null;
-                Plugin.Log.LogInfo("[seat] cockpit screens " + (builtScreens ? "built" : "NOT built"));
+                Diag.Deck("[seat] cockpit screens " + (builtScreens ? "built" : "NOT built"));
             }
             catch (Exception ex)
             {
@@ -592,7 +592,7 @@ namespace NavalPower
                     announced++;
                 }
                 if (announced > 0)
-                    Plugin.Log.LogInfo("[seat] " + announced +
+                    Diag.Deck("[seat] " + announced +
                         " missile(s) already inbound · put on the threat display");
             }
             catch (Exception ex)
@@ -640,21 +640,22 @@ namespace NavalPower
         // active and still invisible because something above it is not.
         private static void ReportHud(Aircraft aircraft)
         {
+            if (!Settings.DeckTrace.Value) return;
             try
             {
                 FlightHud hud = SceneSingleton<FlightHud>.i;
                 if (hud == null) { Plugin.Log.LogWarning("[hud] no FlightHud"); return; }
-                Plugin.Log.LogInfo("[hud] FlightHud " + Describe(hud.gameObject));
+                Diag.Deck("[hud] FlightHud " + Describe(hud.gameObject));
 
                 var canvas = FlightHudCanvas?.GetValue(hud) as Canvas;
                 if (canvas == null) { Plugin.Log.LogWarning("[hud] FlightHud has no canvas field"); return; }
-                Plugin.Log.LogInfo("[hud] canvas " + Describe(canvas.gameObject) +
+                Diag.Deck("[hud] canvas " + Describe(canvas.gameObject) +
                     " · component " + (canvas.enabled ? "enabled" : "DISABLED") +
                     " · order " + canvas.sortingOrder +
                     " · group alpha " + GroupAlpha(canvas.gameObject));
 
                 var apps = SceneSingleton<HUDAppManager>.i;
-                Plugin.Log.LogInfo("[hud] HUDAppManager " +
+                Diag.Deck("[hud] HUDAppManager " +
                     (apps == null ? "absent" : Describe(apps.gameObject)));
 
                 // The singleton is only set by Awake, and Awake never runs for
@@ -666,26 +667,26 @@ namespace NavalPower
                 foreach (MFDAppManager found in Resources.FindObjectsOfTypeAll<MFDAppManager>())
                 {
                     if (!found.gameObject.scene.IsValid()) continue;     // skip the prefab assets
-                    Plugin.Log.LogInfo("[hud] MFDAppManager found · " + Describe(found.gameObject) +
+                    Diag.Deck("[hud] MFDAppManager found · " + Describe(found.gameObject) +
                         " · singleton " + (SceneSingleton<MFDAppManager>.i == null ? "NOT set" : "set"));
                 }
                 if (SceneSingleton<MFDAppManager>.i == null)
-                    Plugin.Log.LogInfo("[hud] HUD extras for this airframe: " +
+                    Diag.Deck("[hud] HUD extras for this airframe: " +
                         (hudExtras == null ? "none instantiated" : Describe(hudExtras)));
-                Plugin.Log.LogInfo("[hud] status display: " +
+                Diag.Deck("[hud] status display: " +
                     (statusDisplay == null ? "none instantiated" : Describe(statusDisplay.gameObject)));
 
                 // The panels themselves, rather than the manager that was
                 // supposed to own them.
                 foreach (MFDScreen screen in Resources.FindObjectsOfTypeAll<MFDScreen>())
                     if (screen.gameObject.scene.IsValid())
-                        Plugin.Log.LogInfo("[hud] MFDScreen " + screen.shortName + " · " +
+                        Diag.Deck("[hud] MFDScreen " + screen.shortName + " · " +
                             Describe(screen.gameObject) +
                             " · panel " + (screen.displayPanel == null ? "none"
                                 : screen.displayPanel.activeInHierarchy ? "on" : "OFF"));
                 foreach (VirtualMFD mfd in Resources.FindObjectsOfTypeAll<VirtualMFD>())
                     if (mfd.gameObject.scene.IsValid())
-                        Plugin.Log.LogInfo("[hud] VirtualMFD " + Describe(mfd.gameObject));
+                        Diag.Deck("[hud] VirtualMFD " + Describe(mfd.gameObject));
                 ReportAircraftScreens(aircraft);
             }
             catch (Exception ex) { Plugin.Log.LogWarning("[hud] could not report: " + ex.Message); }
@@ -700,24 +701,24 @@ namespace NavalPower
         {
             if (aircraft == null) return;
             Cockpit pit = CockpitOf(aircraft);
-            Plugin.Log.LogInfo("[hud] Cockpit " + (pit == null ? "not found for this airframe"
+            Diag.Deck("[hud] Cockpit " + (pit == null ? "not found for this airframe"
                 : Describe(pit.gameObject) + " · component " + (pit.enabled ? "enabled" : "DISABLED")));
-            Plugin.Log.LogInfo("[hud] aircraft.cockpit part " +
+            Diag.Deck("[hud] aircraft.cockpit part " +
                 (aircraft.cockpit == null ? "null" : Describe(aircraft.cockpit.gameObject)));
             foreach (TacScreen screen in Resources.FindObjectsOfTypeAll<TacScreen>())
                 if (screen.gameObject.scene.IsValid())
-                    Plugin.Log.LogInfo("[hud] TacScreen " + Describe(screen.gameObject));
+                    Diag.Deck("[hud] TacScreen " + Describe(screen.gameObject));
             int found = 0;
             foreach (Canvas screen in aircraft.GetComponentsInChildren<Canvas>(includeInactive: true))
             {
                 found++;
-                Plugin.Log.LogInfo("[hud] cockpit canvas " + Describe(screen.gameObject) +
+                Diag.Deck("[hud] cockpit canvas " + Describe(screen.gameObject) +
                     " · " + screen.renderMode +
                     " · component " + (screen.enabled ? "enabled" : "DISABLED") +
                     " · camera " + (screen.worldCamera == null ? "NONE"
                         : screen.worldCamera.name + (screen.worldCamera.enabled ? "" : " (off)")));
             }
-            Plugin.Log.LogInfo("[hud] " + found + " canvas(es) under the airframe · cockpit render camera " +
+            Diag.Deck("[hud] " + found + " canvas(es) under the airframe · cockpit render camera " +
                 (SceneSingleton<CameraStateManager>.i?.cockpitCamRender == null ? "none"
                     : SceneSingleton<CameraStateManager>.i.cockpitCamRender.enabled ? "on" : "OFF"));
         }

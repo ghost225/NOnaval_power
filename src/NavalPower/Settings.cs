@@ -56,10 +56,16 @@ namespace NavalPower
         internal static ConfigEntry<bool> FlightTrace;
         internal static ConfigEntry<bool> NavigationTrace;
         internal static ConfigEntry<bool> HarnessKeys;
+        internal static ConfigEntry<bool> InterfaceTrace;
         internal static ConfigEntry<KeyboardShortcut> ReportKey;
         internal static ConfigEntry<KeyboardShortcut> OrderNearestKey;
         internal static ConfigEntry<KeyboardShortcut> CeaseFireKey;
         internal static ConfigEntry<KeyboardShortcut> WaypointKey;
+
+        // Tuning and diagnostics: kept, but out of the way behind the
+        // configuration manager's "Advanced settings" toggle.
+        private static ConfigDescription Advanced(string description, AcceptableValueBase range = null) =>
+            new ConfigDescription(description, range, new ConfigurationManagerAttributes { IsAdvanced = true });
 
         internal static void Bind(ConfigFile config)
         {
@@ -90,12 +96,12 @@ namespace NavalPower
                     new AcceptableValueRange<float>(500f, 60000f)));
 
             MinimumClearance = config.Bind("Flights", "Minimum ground clearance", 55f,
-                new ConfigDescription("Never command a flight lower than this above the ground, whatever " +
+                Advanced("Never command a flight lower than this above the ground, whatever " +
                     "altitude is selected. The autopilot needs room to arrest a descent.",
                     new AcceptableValueRange<float>(20f, 500f)));
 
             ThreatSettleSeconds = config.Bind("Flights", "Threat settle time", 8f,
-                new ConfigDescription("How long a flight's threat picture must stay clear before it resumes " +
+                Advanced("How long a flight's threat picture must stay clear before it resumes " +
                     "its task. Lower reacts sooner; too low and it bounces between fighting and flying.",
                     new AcceptableValueRange<float>(1f, 60f)));
 
@@ -106,7 +112,7 @@ namespace NavalPower
                     new AcceptableValueRange<float>(1000f, 40000f)));
 
             EgressSeconds = config.Bind("Flights", "Egress time limit", 45f,
-                new ConfigDescription("Give up on opening to standoff after this long and decide anyway.",
+                Advanced("Give up on opening to standoff after this long and decide anyway.",
                     new AcceptableValueRange<float>(5f, 180f)));
 
             ReattackAfterEgress = config.Bind("Flights", "Re-attack after egress", true,
@@ -114,15 +120,17 @@ namespace NavalPower
                 "Off means one pass per order.");
 
             ClaimAuthority = config.Bind("Flights", "Take ownership when flying a flight", true,
-                "Claim network ownership of an aircraft while you fly it, and hand it back on release. " +
+                Advanced("Claim network ownership of an aircraft while you fly it, and hand it back on release. " +
                 "The game builds an aircraft's targeting camera only for an owned airframe, so without " +
                 "this the cockpit's target view has nothing behind it. Turn off if ownership causes " +
-                "trouble in multiplayer.");
+                "trouble in multiplayer."));
 
-            DeckTrace = config.Bind("Diagnostics", "Deck and cockpit trace", true,
-                "Log how a landed aircraft leaves the deck, and the life of an aircraft's targeting camera " +
-                "from being built to being asked for to reaching the cockpit screen. Leave on while " +
-                "comparing a normal spawn against taking over a flight.");
+            // A new key rather than the old "Deck and cockpit trace", which
+            // defaulted on while launches were being debugged: a new key starts
+            // everyone off.
+            DeckTrace = config.Bind("Diagnostics", "Deck, cockpit and camera trace", false,
+                Advanced("Log launches and recoveries in detail, taking the controls of a flight, cockpit " +
+                "displays, and the life of an aircraft's targeting camera."));
 
             LaunchCostFromAllocation = config.Bind("Flights", "Launches cost your allocation", true,
                 "You pay for every aircraft you launch, out of your own allocation, at its full value. " +
@@ -135,24 +143,24 @@ namespace NavalPower
                 "personally, so a commanded flight otherwise earns nothing by coming back.");
 
             CarrierApproachFix = config.Bind("Flights", "Slow deck approaches", true,
-                "Approach a ship's deck more slowly than a runway. The game computes one landing speed for " +
+                Advanced("Approach a ship's deck more slowly than a runway. The game computes one landing speed for " +
                 "both -- the branch meant to distinguish them returns the same number either way -- so " +
-                "aircraft arrive at a flattop fast and high, fail to stabilise and go around repeatedly.");
+                "aircraft arrive at a flattop fast and high, fail to stabilise and go around repeatedly."));
 
             CarrierApproachFactor = config.Bind("Flights", "Deck approach factor", 0.75f,
-                new ConfigDescription("Fraction of the normal approach speed used when recovering to a ship, " +
+                Advanced("Fraction of the normal approach speed used when recovering to a ship, " +
                     "for vertical-landing aircraft only -- the case the game's own branch was meant to " +
                     "distinguish and does not. Conventional aircraft keep the speed the game computed.",
                     new AcceptableValueRange<float>(0.4f, 1f)));
 
             StrikePatience = config.Bind("Flights", "Strike patience", 120f,
-                new ConfigDescription("How long a flight may press an attack without anything leaving the " +
+                Advanced("How long a flight may press an attack without anything leaving the " +
                     "rails before trying a different store, and then giving up. Long enough to reach the " +
                     "target and acquire it, short enough not to circle forever.",
                     new AcceptableValueRange<float>(20f, 600f)));
 
             JammingStandoff = config.Bind("Flights", "Jamming standoff", 18000f,
-                new ConfigDescription("How far a jamming aircraft holds off the emitter it is suppressing. " +
+                Advanced("How far a jamming aircraft holds off the emitter it is suppressing. " +
                     "It never closes: the point of sending a jammer is that it works from outside.",
                     new AcceptableValueRange<float>(2000f, 60000f)));
 
@@ -162,12 +170,12 @@ namespace NavalPower
                     new AcceptableValueRange<float>(60f, 3000f)));
 
             RadarHandover = config.Bind("Flights", "Radar shot handover", 15000f,
-                new ConfigDescription("While egressing, keep running from a radar-guided shot until it is " +
+                Advanced("While egressing, keep running from a radar-guided shot until it is " +
                     "this close, then hand the aircraft to native evasion.",
                     new AcceptableValueRange<float>(1000f, 60000f)));
 
             InfraredHandover = config.Bind("Flights", "Heat-seeker handover", 2000f,
-                new ConfigDescription("The same for a heat-seeking shot, which is let in far closer: flares " +
+                Advanced("The same for a heat-seeking shot, which is let in far closer: flares " +
                     "work and the endgame is short.",
                     new AcceptableValueRange<float>(200f, 20000f)));
 
@@ -200,11 +208,11 @@ namespace NavalPower
                 "On an attack run inside the reach of an IR launcher the faction knows about, release a flare " +
                 "every few seconds, so a shot fired without warning meets flares already in the air.");
             PreFlareInterval = config.Bind("Flights", "Pre-flare interval", 2f,
-                "Seconds between pre-emptive flares near known IR launchers.");
+                Advanced("Seconds between pre-emptive flares near known IR launchers."));
             FlareReserve = config.Bind("Flights", "Flare reserve", 0.3f,
-                "Pre-flaring stops when the flares left fall to this fraction, keeping them for actual shots.");
+                Advanced("Pre-flaring stops when the flares left fall to this fraction, keeping them for actual shots."));
             FlareInterval = config.Bind("Flights", "Flare interval", 1.5f,
-                new ConfigDescription("Seconds between flare releases while egressing with a heat-seeker " +
+                Advanced("Seconds between flare releases while egressing with a heat-seeker " +
                     "inbound. The native pilot runs its own countermeasures once it has the aircraft.",
                     new AcceptableValueRange<float>(0.5f, 10f)));
 
@@ -215,12 +223,12 @@ namespace NavalPower
                     new AcceptableValueRange<int>(1, 20)));
 
             DamageControlPreserveCapacity = config.Bind("Damage control", "Preserve total capacity", true,
-                "Charge the reserve for the extra work, so a faster crew gets through the same total amount " +
+                Advanced("Charge the reserve for the extra work, so a faster crew gets through the same total amount " +
                 "of damage control, just sooner. Turn this off to make damage control genuinely more capable " +
-                "rather than merely quicker, at the cost of the game's own balance.");
+                "rather than merely quicker, at the cost of the game's own balance."));
 
             DamageControlConcentration = config.Bind("Damage control", "Concentration limit", 6,
-                new ConfigDescription("How many extra shares of effort a prioritised compartment may take " +
+                Advanced("How many extra shares of effort a prioritised compartment may take " +
                     "from the compartments being withheld. The ship's total capacity is unchanged either " +
                     "way; this caps how sharply it can be focused.",
                     new AcceptableValueRange<int>(1, 20)));
@@ -267,25 +275,29 @@ namespace NavalPower
                 "Draw aircraft in the pattern to recover on this deck.");
 
             FlightTrace = config.Bind("Diagnostics", "Flight trace", false,
-                "Log each flight's task, destination bearing and range, and altitude every five seconds. " +
-                "Useful for diagnosing a flight that will not go where it is sent.");
+                Advanced("Log each flight's task, destination bearing and range, and altitude every five seconds, and " +
+                "the steps of its attacks: run-ins, re-attacks, join-ups, flares. Useful for diagnosing a " +
+                "flight that will not go where it is sent."));
 
             NavigationTrace = config.Bind("Diagnostics", "Navigation trace", false,
-                "Log the commanded ship's route state, ordered against actual speed, throttle and whether " +
-                "the native controller is being held off its own choices. For diagnosing a ship that will " +
-                "not follow the course it was given.");
+                Advanced("Log the commanded ship's route state, ordered against actual speed, throttle and whether " +
+                "the native controller is being held off its own choices, and each task-force escort's " +
+                "station keeping. For diagnosing a ship that will not follow the course it was given."));
+
+            InterfaceTrace = config.Bind("Diagnostics", "Interface trace", false,
+                Advanced("Log map docking, night vision set-up and the name given to each ship."));
 
             HarnessKeys = config.Bind("Diagnostics", "Test harness keys", false,
-                "Enable the keyboard test harness. Superseded by the command interface; kept for diagnosis.");
+                Advanced("Enable the keyboard test harness. Superseded by the command interface; kept for diagnosis."));
 
             ReportKey = config.Bind("Diagnostics", "Report key", new KeyboardShortcut(KeyCode.F6),
-                "Dump the followed ship's state to the log.");
+                Advanced("Dump the followed ship's state to the log."));
             OrderNearestKey = config.Bind("Diagnostics", "Order nearest key", new KeyboardShortcut(KeyCode.F7),
-                "Order the best available weapon at the best available target.");
+                Advanced("Order the best available weapon at the best available target."));
             CeaseFireKey = config.Bind("Diagnostics", "Cease fire key", new KeyboardShortcut(KeyCode.F8),
-                "Cease fire on the followed ship.");
+                Advanced("Cease fire on the followed ship."));
             WaypointKey = config.Bind("Diagnostics", "Waypoint ahead key", new KeyboardShortcut(KeyCode.F9),
-                "Set a waypoint five kilometres off the bow.");
+                Advanced("Set a waypoint five kilometres off the bow."));
         }
     }
 }

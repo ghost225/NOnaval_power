@@ -275,14 +275,14 @@ namespace NavalPower
                 record.JoiningUp = true;
                 record.JoinPoint = lead.Aircraft.GlobalPosition();
                 record.JoinStarted = now;
-                Plugin.Log.LogInfo("[wing] " + lead.Wing + " · holding for the wing to join · " +
+                Diag.Flight("[wing] " + lead.Wing + " · holding for the wing to join · " +
                     (waiting > 0 ? waiting + " still to launch" : "furthest " + UnitConverter.DistanceReading(worst) + " off"));
             }
             else if (record.JoiningUp && (!need || now - record.JoinStarted > 300f))
             {
                 record.JoiningUp = false;
                 record.NextJoinAllowed = now + 60f;
-                Plugin.Log.LogInfo("[wing] " + lead.Wing + (need ? " · join-up timed out, proceeding" : " · joined, proceeding"));
+                Diag.Flight("[wing] " + lead.Wing + (need ? " · join-up timed out, proceeding" : " · joined, proceeding"));
                 if (!need) CommandState.Say(lead.Wing + " · formed up, proceeding");
             }
             point = record.JoinPoint;

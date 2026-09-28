@@ -52,7 +52,10 @@ both take over the same map controls.
 - **Getting back in:** **F10** re-enters command, and hands back an aircraft
   you're flying.
 
-Settings are in BepInEx ConfigurationManager (F1) under *Naval Power*.
+Settings are in BepInEx ConfigurationManager (F1) under *Naval Power*. Tuning
+knobs and the diagnostic logs (under *Diagnostics*, all off by default) show
+when *Advanced settings* is ticked. Turn the relevant trace on when reporting a
+bug.
 
 ## Build
 

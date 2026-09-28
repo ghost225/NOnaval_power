@@ -371,7 +371,7 @@ namespace NavalPower
                     existing.Wing = wing;
                     Rename(existing, callsign ?? existing.Label);
                     Wings.Joined(existing);
-                    Plugin.Log.LogInfo("[deck] " + existing.Name + " · corrected from a proximity match");
+                    Diag.Deck("[deck] " + existing.Name + " · corrected from a proximity match");
                     return existing;
                 }
                 var flight = new Flight
@@ -544,7 +544,7 @@ namespace NavalPower
 
                     if (alternative != null)
                     {
-                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · no release after " +
+                        Diag.Flight("[flight] " + flight.Name + " · no release after " +
                             Settings.StrikePatience.Value.ToString("0") + " s, switching to " +
                             alternative.WeaponInfo.weaponName);
                         Strike(flight, flight.Target, alternative.WeaponInfo.name);
@@ -585,12 +585,12 @@ namespace NavalPower
                             Settings.ReattackAfterEgress.Value;
                         if (rearmed)
                         {
-                            Plugin.Log.LogInfo("[flight] " + flight.Name + " · re-attacking");
+                            Diag.Flight("[flight] " + flight.Name + " · re-attacking");
                             Strike(flight, flight.Target);
                         }
                         else
                         {
-                            Plugin.Log.LogInfo("[flight] " + flight.Name + " · clear of the target, resuming");
+                            Diag.Flight("[flight] " + flight.Name + " · clear of the target, resuming");
                             BreakOff(flight);
                         }
                     }
@@ -606,7 +606,7 @@ namespace NavalPower
                         flight.Interrupted = true;
                         PilotBaseState combat = CombatStateFor(crew);
                         if (combat != null) crew.SwitchStateNew(combat);
-                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · " +
+                        Diag.Flight("[flight] " + flight.Name + " · " +
                             (flight.Threat == FlightThreat.Missile ? "evading" : "engaging"));
                     }
                     else if (!yield && flight.Interrupted &&
@@ -614,7 +614,7 @@ namespace NavalPower
                     {
                         // Settle before taking it back, or it yo-yos between
                         // states every time a threat flickers in and out.
-                        Plugin.Log.LogInfo("[flight] " + flight.Name + " · clear, resuming task");
+                        Diag.Flight("[flight] " + flight.Name + " · clear, resuming task");
                         Reclaim(flight);
                     }
                 }

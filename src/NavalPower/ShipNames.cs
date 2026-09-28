@@ -133,7 +133,7 @@ namespace NavalPower
             entry.Name = Saved(ship) ?? Pick(ship, pool, entry.Pool);
             named[ship] = entry;
             Apply(ship, entry);
-            Plugin.Log.LogInfo("[ships] " + Identity(ship) + " -> " + Full(entry));
+            Diag.Ui("[ships] " + Identity(ship) + " -> " + Full(entry));
         }
 
         // Nothing aboard scores against anything: a merchant.

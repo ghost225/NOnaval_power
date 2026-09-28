@@ -83,7 +83,7 @@ namespace NavalPower
             float wanted = speed * Mathf.Clamp01(Settings.CarrierApproachFactor.Value);
             LandingSpeed.SetValue(__instance, wanted);
 
-            Plugin.Log.LogInfo("[recovery] " + (aircraft.definition?.unitName ?? aircraft.name) +
+            Diag.Deck("[recovery] " + (aircraft.definition?.unitName ?? aircraft.name) +
                 " · vertical deck approach " + speed.ToString("0") + " to " + wanted.ToString("0"));
         }
 

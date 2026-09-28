@@ -40,7 +40,7 @@ namespace NavalPower
             if (loadout == null) return;                                // an AI spawn
             Flight claimed = FlightOrders.ClaimLaunch(loadout, aircraft);
             if (claimed != null)
-                Plugin.Log.LogInfo("[deck] launch identified · " + claimed.Name);
+                Diag.Deck("[deck] launch identified · " + claimed.Name);
         }
     }
 }

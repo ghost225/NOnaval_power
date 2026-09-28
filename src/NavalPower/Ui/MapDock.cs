@@ -356,7 +356,7 @@ namespace NavalPower
             if (!reportedBackdrop)
             {
                 reportedBackdrop = true;
-                Plugin.Log.LogInfo("[map] docked · hid " + (names.Count == 0 ? "nothing" : string.Join(", ", names)));
+                Diag.Ui("[map] docked · hid " + (names.Count == 0 ? "nothing" : string.Join(", ", names)));
             }
         }
 
