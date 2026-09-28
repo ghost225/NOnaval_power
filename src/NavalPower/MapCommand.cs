@@ -305,8 +305,21 @@ namespace NavalPower
             LeaveForNativeFlow();
         }
 
+        private float nextBarCheck;
+
         private void LateUpdate()
         {
+            // Switching ships, the game's strip is still on the old ship when
+            // command moves, and only re-follows a moment later -- so the
+            // search at entry finds nothing and the strip showed through.
+            // Keep looking until it is the one on this ship.
+            if (CommandState.Active && CommandState.Ship != null && Time.unscaledTime >= nextBarCheck &&
+                (nativeBar == null || (DebugFollowing != null && DebugFollowing.GetValue(nativeBar.GetComponent<UnitDebug>()) as Unit != CommandState.Ship)))
+            {
+                nextBarCheck = Time.unscaledTime + 0.25f;
+                HideNativeBar(CommandState.Ship);
+            }
+
             // The native bar re-shows itself as the spectator UI updates, so the
             // suppression has to be reapplied rather than set once.
             if (CommandState.Active && nativeBar != null)
@@ -321,11 +334,21 @@ namespace NavalPower
         // on top of it, and its text shows through the translucent panel.
         private void HideNativeBar(Ship ship)
         {
-            RestoreNativeBar();
+            UnitDebug found = null;
             foreach (UnitDebug candidate in Resources.FindObjectsOfTypeAll<UnitDebug>())
             {
                 if (!candidate.gameObject.scene.IsValid()) continue;
                 if (DebugFollowing != null && DebugFollowing.GetValue(candidate) as Unit != ship) continue;
+                found = candidate;
+                break;
+            }
+            // Not re-followed yet: keep whatever is hidden hidden, rather than
+            // restore it and let the old ship's strip show in the meantime.
+            if (found == null) return;
+            if (nativeBar != null && nativeBar.gameObject == found.gameObject) return;
+            RestoreNativeBar();
+            foreach (UnitDebug candidate in new[] { found })
+            {
                 nativeBar = candidate.GetComponent<CanvasGroup>();
                 addedNativeBar = nativeBar == null;
                 if (addedNativeBar) nativeBar = candidate.gameObject.AddComponent<CanvasGroup>();
