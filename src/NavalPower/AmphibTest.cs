@@ -38,7 +38,7 @@ namespace NavalPower
             float best = float.MaxValue;
             foreach (AmphibSurvey.Beach candidate in AmphibSurvey.Known())
             {
-                float d = (candidate.Inland - carrier.transform.position).sqrMagnitude;
+                float d = (candidate.Point - carrier.transform.position).sqrMagnitude;
                 if (d < best) { best = d; beach = candidate; }
             }
             if (beach == null) { CommandState.Say("No beach found on this map"); return; }
@@ -115,8 +115,8 @@ namespace NavalPower
         private IEnumerator Run()
         {
             Log("start · method " + method + " · " + ShipNames.Of(carrier) + " · craft " + craftType.unitName + " · doors " +
-                AmphibSurveyAccess.DoorCount(hold) + " · beach " + Where(beach.Inland) + " · inland " +
-                beach.Height.ToString("0.0") + " m up, slope " + beach.Slope.ToString("0") + "°");
+                AmphibSurveyAccess.DoorCount(hold) + " · beach " + Where(beach.Point) + " · climbs " +
+                beach.Height.ToString("0.0") + " m in 60 m, steepest " + beach.Slope.ToString("0") + "° · shore '" + beach.AtShore + "'");
 
             // A couple of the faction's own convoy vehicles, lightest first.
             var loaded = new StringBuilder();
@@ -228,7 +228,7 @@ namespace NavalPower
                 {
                     nextReport = Time.timeSinceLevelLoad + 10f;
                     Log((changed ? "→ " : "  ") + state + " · " + Where(craft.transform.position) +
-                        " · to beach " + (Vector3.Distance(craft.transform.position, beach.Inland) / 1000f).ToString("0.00") + " km" +
+                         " · to beach " + (Vector3.Distance(craft.transform.position, beach.Point) / 1000f).ToString("0.00") + " km" +
                         " · " + craft.speed.ToString("0.0") + " m/s · cushion " + CushionState(ai) + " · hold " + Contents(cargo));
                     last = state;
                 }
@@ -249,8 +249,8 @@ namespace NavalPower
 
         private void Order()
         {
-            craft.UnitCommand.SetDestination(beach.Inland.ToGlobalPosition(), true);
-            Log("ordered to the beach · " + Where(beach.Inland));
+            craft.UnitCommand.SetDestination(beach.Order.ToGlobalPosition(), true);
+            Log("ordered to the beach · order point " + Where(beach.Order) + " · expected ashore " + Where(beach.Point));
         }
 
         private static string CushionState(LandingCraftAI ai)
