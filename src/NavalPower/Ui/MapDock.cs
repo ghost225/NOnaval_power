@@ -191,7 +191,7 @@ namespace NavalPower
 
             // The game's own map key, or anything else, can take the map away.
             if (docked && !DynamicMap.mapMaximized) Undock();
-            if (docked && map != null) { FitMap(map); fullFitted = false; }
+            if (docked && map != null) { if (fullFitted) Unstretch(map); FitMap(map); }
 
             // Undocked in command, the map fills the screen edge to edge rather
             // than the game's centred square; its top and bottom run off-screen.
@@ -222,10 +222,13 @@ namespace NavalPower
         // works as the game's does, with open space round the map when fully
         // zoomed out. (Scaling the map up instead made everything huge and
         // left no room to zoom out.)
-        private static void FitToScreen(DynamicMap map)
+        private Vector2 nativeSize, nativeBackground;
+
+        private void FitToScreen(DynamicMap map)
         {
             if (map.mapBackground == null) return;
             var root = (RectTransform)map.transform;
+            if (!fullFitted) { nativeSize = root.sizeDelta; nativeBackground = map.mapBackground.rectTransform.sizeDelta; }
             if (root.localScale != Vector3.one) root.localScale = Vector3.one;
             float units = Mathf.Max(root.lossyScale.x, 0.0001f);
             Vector2 size = new Vector2(Screen.width, Screen.height) / units;
@@ -235,6 +238,16 @@ namespace NavalPower
             if ((background.sizeDelta - withMargin).sqrMagnitude > 1f) background.sizeDelta = withMargin;
             Vector3 centre = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, root.position.z);
             if ((root.position - centre).sqrMagnitude > 1f) root.position = centre;
+        }
+
+        // Docking straight from full screen: give the map back its own square
+        // panel before the dock scales it into the window.
+        private void Unstretch(DynamicMap map)
+        {
+            fullFitted = false;
+            if (map.mapBackground == null) return;
+            ((RectTransform)map.transform).sizeDelta = nativeSize;
+            map.mapBackground.rectTransform.sizeDelta = nativeBackground;
         }
 
         private void ReleaseFull(DynamicMap map)
