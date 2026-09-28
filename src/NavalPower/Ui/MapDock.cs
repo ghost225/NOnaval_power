@@ -215,12 +215,26 @@ namespace NavalPower
             Fit(map, centre, want);
         }
 
-        // Cover the whole screen: the map's square as wide as the screen's
-        // longer side, centred.
+        // Widen the map's window to the whole screen without scaling the map.
+        // The terrain and icons are placed by the map's own display factor,
+        // not by the size of its panel, so enlarging the panel shows more of
+        // the map at its normal scale: icons stay their normal size and zoom
+        // works as the game's does, with open space round the map when fully
+        // zoomed out. (Scaling the map up instead made everything huge and
+        // left no room to zoom out.)
         private static void FitToScreen(DynamicMap map)
         {
             if (map.mapBackground == null) return;
-            Fit(map, new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f), Mathf.Max(Screen.width, Screen.height));
+            var root = (RectTransform)map.transform;
+            if (root.localScale != Vector3.one) root.localScale = Vector3.one;
+            float units = Mathf.Max(root.lossyScale.x, 0.0001f);
+            Vector2 size = new Vector2(Screen.width, Screen.height) / units;
+            if ((root.sizeDelta - size).sqrMagnitude > 1f) root.sizeDelta = size;
+            RectTransform background = map.mapBackground.rectTransform;
+            Vector2 withMargin = size + new Vector2(20f, 20f);
+            if ((background.sizeDelta - withMargin).sqrMagnitude > 1f) background.sizeDelta = withMargin;
+            Vector3 centre = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, root.position.z);
+            if ((root.position - centre).sqrMagnitude > 1f) root.position = centre;
         }
 
         private void ReleaseFull(DynamicMap map)
