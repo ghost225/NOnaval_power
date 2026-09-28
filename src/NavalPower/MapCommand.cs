@@ -413,6 +413,7 @@ namespace NavalPower
             Guard.Run("Flight orders", FlightOrders.Tick);
             Guard.Run("Launch queue", LaunchQueue.Tick);
             Guard.Run("Supply runs", Replenishment.Tick);
+            Guard.Run("Amphibious survey", AmphibSurvey.Tick);
             Guard.Run("Wings", Wings.Tick);
             Guard.Run("Ship names", ShipNames.Tick);
             Guard.Run("Task forces", TaskForces.Tick);
