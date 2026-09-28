@@ -138,6 +138,12 @@ namespace NavalPower
                     (legs > 0 ? "  ·  " + legs + " leg(s) queued" : ""), Theme.TextMuted);
 
             s.Row("Speed…", () => s.Show(SpeedPage));
+            if (AmphibTest.Available(ship, out _, out _))
+                s.Row("TEST  ·  launch a landing craft to the nearest beach (free)", () =>
+                {
+                    AmphibTest.Start(ship);
+                    s.Close();
+                });
             s.Row("Hold position  ·  all stop, clear the route", () =>
             {
                 NavigationOrders.ClearWaypoints(ship, out _);

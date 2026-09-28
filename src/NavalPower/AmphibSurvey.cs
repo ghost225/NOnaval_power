@@ -121,15 +121,28 @@ namespace NavalPower
 
         private const float SampleEvery = 250f;       // metres between sea-lane samples
         private const float ReachFromSea = 3000f;     // a road this far from the lane is not this beach's
-        private const float MaxHeight = 6f;           // above sea level at the landing point
+        private const float MaxHeight = 10f;          // above sea level, a little inland
+        private const float InlandProbe = 40f;        // how far past the waterline the ground is judged
         private const float MinUpright = 0.9f;        // ground normal: about 25 degrees of slope at most
         private const float ClusterRadius = 600f;
 
-        private sealed class Beach
+        internal sealed class Beach
         {
-            internal Vector3 Point;
-            internal float Height, Slope;
+            internal Vector3 Point;         // where the shore line strikes land
+            internal Vector3 Inland;        // a little further in: where to send a craft
+            internal float Height, Slope;   // of the ground inland, which the craft must climb onto
             internal int Hits;
+        }
+
+        private static List<Beach> found;
+        private static object foundFor;
+
+        // Found once per map, and kept.
+        internal static List<Beach> Known()
+        {
+            LevelInfo level = NetworkSceneSingleton<LevelInfo>.i;
+            if (found == null || !ReferenceEquals(foundFor, level)) { foundFor = level; Beaches(new List<Ship>()); }
+            return found ?? new List<Beach>();
         }
 
         private static string Beaches(List<Ship> amphibs)
@@ -161,6 +174,7 @@ namespace NavalPower
                 }
             }
 
+            found = beaches;
             var text = new StringBuilder("[amphib] beaches · " + samples + " sea-lane samples, " + reached +
                 " reach a gentle shore, " + beaches.Count + " beach(es) · " + clock.ElapsedMilliseconds + " ms");
             beaches.Sort((x, y) => y.Hits.CompareTo(x.Hits));
@@ -200,14 +214,20 @@ namespace NavalPower
                 || ground.point.y <= Datum.LocalSeaY) return false;
             if (!Physics.Linecast(flatSea, flatRoad, out RaycastHit shore, PhysicsLayers.StaticsMask)) return false;
 
-            // What the shore is like where it is struck.
-            if (!Physics.Linecast(shore.point + Vector3.up * 200f, shore.point - Vector3.up * 50f, out RaycastHit top, PhysicsLayers.StaticsMask))
-                top = shore;
+            // What the ground is like a little way in from the waterline,
+            // which is what the craft has to climb onto. At the waterline
+            // itself the line only ever finds ground a metre up.
+            Vector3 inward = flatRoad - flatSea;
+            inward.y = 0f;
+            Vector3 probe = shore.point + inward.normalized * InlandProbe;
+            if (!Physics.Linecast(probe + Vector3.up * 200f, probe - Vector3.up * 50f, out RaycastHit top, PhysicsLayers.StaticsMask))
+                return false;
             float height = top.point.y - Datum.LocalSeaY;
             if (height > MaxHeight || top.normal.y < MinUpright) return false;
             beach = new Beach
             {
-                Point = top.point,
+                Point = shore.point,
+                Inland = top.point,
                 Height = height,
                 Slope = Mathf.Acos(Mathf.Clamp01(top.normal.y)) * Mathf.Rad2Deg,
                 Hits = 1
