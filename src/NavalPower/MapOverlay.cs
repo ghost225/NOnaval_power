@@ -59,7 +59,52 @@ namespace NavalPower
             Vector2 center = Project(CommandState.PostPosition);
             if (ship != null) DrawShip(vh, ship, center);
             if (ship != null) DrawTaskForce(vh, ship);
+            if (ship != null) DrawLanding(vh, ship);
             DrawFlights(vh);
+        }
+
+        // Landing craft: while a landing point is being chosen, where a craft
+        // sent to the point under the cursor will really come ashore -- the
+        // game snaps the order to a sea lane and a road first -- in warning
+        // colour when the way in looks bad. After that, the chosen landing,
+        // and a line from each craft at sea to where it is going.
+        private void DrawLanding(VertexHelper vh, Ship ship)
+        {
+            if (!Amphib.HasWellDeck(ship)) return;
+            Color ours = Theme.Dim(Theme.Accent, 0.9f), warn = Theme.Dim(Theme.Warn, 0.95f);
+            if (CommandState.AwaitingLanding == ship)
+            {
+                Vector3 cursor = map.GetCursorCoordinates().ToLocalPosition();
+                bool lands = Amphib.Preview(cursor, out Vector3 ashore, out string hint);
+                Color colour = hint != null ? warn : ours;
+                Vector2 at = Project(cursor.ToGlobalPosition());
+                Circle(vh, cursor.ToGlobalPosition(), 120f, Theme.Dim(colour, 0.5f));
+                if (lands)
+                {
+                    Vector2 shore = Project(ashore.ToGlobalPosition());
+                    Line(vh, at, shore, Theme.Dim(colour, 0.6f), 1.4f);
+                    Diamond(vh, shore, 8f, colour);
+                }
+            }
+            else
+            {
+                Amphib.Plan plan = Amphib.PlanFor(ship);
+                if (plan.HasPoint)
+                {
+                    Vector3 ashore = plan.Predicted ? plan.Ashore : plan.Point;
+                    Color colour = plan.Hint != null ? warn : ours;
+                    Line(vh, Project(ship.GlobalPosition()), Project(ashore.ToGlobalPosition()), Theme.Dim(colour, 0.35f), 1.2f);
+                    Diamond(vh, Project(ashore.ToGlobalPosition()), 8f, colour);
+                }
+            }
+            foreach (Amphib.Sortie sortie in Amphib.SortiesFrom(ship))
+            {
+                if (sortie.Craft == null || sortie.Craft.disabled) continue;
+                Vector2 craft = Project(sortie.Craft.GlobalPosition());
+                Vector2 shore = Project(sortie.Ashore.ToGlobalPosition());
+                if (!sortie.Unloaded && !sortie.Recalled) Line(vh, craft, shore, Theme.Dim(ours, 0.6f), 1.4f);
+                Diamond(vh, shore, 6f, Theme.Dim(ours, sortie.Unloaded ? 0.4f : 0.9f));
+            }
         }
 
         // Each escort's station, and a line to it while closing.

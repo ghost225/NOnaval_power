@@ -33,6 +33,10 @@ namespace NavalPower
             AwaitingFromMode = flight.Mode;
         }
 
+        // A landing point wanted for this ship's next craft: the next
+        // right-click on the map gives it.
+        internal static Ship AwaitingLanding;
+
         internal static bool Active => Ship != null || Base != null;
 
         // The field air operations run from: the base itself, or the ship's deck.
@@ -63,6 +67,7 @@ namespace NavalPower
             SelectedKey = null;
             SelectedFlight = null;
             AwaitingCargoZone = null;
+            AwaitingLanding = null;
             Quantity = 1;
         }
 

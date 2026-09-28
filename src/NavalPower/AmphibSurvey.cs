@@ -24,6 +24,7 @@ namespace NavalPower
         private static readonly FieldInfo DeployableTypes = AccessTools.Field(typeof(UnitStorage), "deployableTypes");
         private static readonly FieldInfo CurrentMass = AccessTools.Field(typeof(UnitStorage), "currentMass");
         private static readonly FieldInfo Deploying = AccessTools.Field(typeof(UnitStorage), "deployingUnits");
+        private static readonly FieldInfo Doors = AccessTools.Field(typeof(UnitStorage), "doors");
 
         private static object surveyedLevel;
         private static float surveyAt = -1f;
@@ -46,7 +47,7 @@ namespace NavalPower
             if (surveyAt > 0f && Time.timeSinceLevelLoad >= surveyAt)
             {
                 surveyAt = -1f;
-                Guard.Run("Amphibious survey", Survey);
+                if (Settings.InterfaceTrace.Value) Guard.Run("Amphibious survey", Survey);
             }
 
             // Command moved to a ship with a hold: describe it again, now.
@@ -54,7 +55,7 @@ namespace NavalPower
             if (ship != lastCommanded)
             {
                 lastCommanded = ship;
-                if (ship != null && ship.GetComponentInChildren<UnitStorage>(true) != null)
+                if (ship != null && Settings.InterfaceTrace.Value && ship.GetComponentInChildren<UnitStorage>(true) != null)
                     Guard.Run("Amphibious survey", () => Plugin.Log.LogInfo(DescribeShip(ship)));
             }
         }
@@ -106,7 +107,7 @@ namespace NavalPower
                     var types = DeployableTypes?.GetValue(hold) as List<UnitDefinition>;
                     text.Append("\n      hold '").Append(hold.name).Append("' · ")
                         .Append((hold.MassLimit / 1000f).ToString("0")).Append(" t · doors ")
-                        .Append(AmphibSurveyAccess.DoorCount(hold)).Append(" · launches ")
+                        .Append(Doors?.GetValue(hold) is System.Array doors ? doors.Length : -1).Append(" · launches ")
                         .Append(types == null ? "?" : types.Count == 0 ? "anything"
                             : string.Join(", ", types.ConvertAll(t => t != null ? t.unitName : "null")));
                 }
@@ -265,6 +266,45 @@ namespace NavalPower
             if (level.roadNetwork.TryGetNearestPoint(lane, out GlobalPosition road, out _)) destination = road.ToLocalPosition();
             sea.y = destination.y = Datum.LocalSeaY + 1f;
             return Physics.Linecast(sea, destination, out shore, PhysicsLayers.StaticsMask);
+        }
+
+        // For the landing preview: where a craft sent here comes ashore, and a
+        // word of warning if the way in looks bad. Advice, never a refusal --
+        // the landing point is the commander's call. False when the point is
+        // on water: the craft just sails there and waits.
+        internal static bool Assess(Vector3 order, out Vector3 ashore, out string hint)
+        {
+            ashore = order;
+            hint = null;
+            if (!Predict(order, out Vector3 sea, out Vector3 destination, out RaycastHit shore))
+            {
+                hint = "on water · it will sail there and wait";
+                return false;
+            }
+            ashore = shore.point;
+            if (shore.normal.y < MinShoreUpright) { hint = "wall at the waterline"; return true; }
+            Vector3 way = destination - sea;
+            way.y = 0f;
+            way.Normalize();
+            float steepest = 0f, previous = float.NaN, rise = 0f;
+            for (float d = -ProfileOut; d <= ProfileIn; d += ProfileStep)
+            {
+                Vector3 at = shore.point + way * d;
+                float height = Datum.LocalSeaY;
+                if (Physics.Linecast(at + Vector3.up * 300f, at - Vector3.up * 100f, out RaycastHit hit, PhysicsLayers.StaticsMask))
+                {
+                    height = Mathf.Max(hit.point.y, Datum.LocalSeaY);
+                    if (d >= 0f && d <= 20f && hit.normal.y < MinShoreUpright && hit.point.y > Datum.LocalSeaY)
+                    { hint = "wall just past the waterline"; return true; }
+                }
+                if (!float.IsNaN(previous) && d > -ProfileStep)
+                    steepest = Mathf.Max(steepest, Mathf.Atan2(height - previous, ProfileStep) * Mathf.Rad2Deg);
+                previous = height;
+                if (d >= ProfileIn - 0.01f) rise = height - Datum.LocalSeaY;
+            }
+            if (steepest > MaxClimb) hint = "steep · " + steepest.ToString("0") + "°";
+            else if (rise > MaxRise) hint = "high · " + rise.ToString("0") + " m up";
+            return true;
         }
 
         private const float ProfileStep = 4f, ProfileIn = 60f, ProfileOut = 40f;

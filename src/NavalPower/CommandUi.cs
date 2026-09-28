@@ -250,7 +250,7 @@ namespace NavalPower
 
             string[,] defs =
             {
-                { "nav", "NAV" }, { "wpn", "WPN" }, { "sns", "SNS" }, { "roe", "ROE" }, { "dmg", "DMG" }, { "tf", "TF" },
+                { "nav", "NAV" }, { "wpn", "WPN" }, { "sns", "SNS" }, { "roe", "ROE" }, { "dmg", "DMG" }, { "tf", "TF" }, { "amp", "AMPH" },
                 { "air", "AIR" }, { "cam", "CAM" }, { "rpl", "RPL" }, { "map", "MAP" }, { "exit", "EXIT" }
             };
             int count = defs.GetLength(0);
@@ -273,7 +273,7 @@ namespace NavalPower
         // The tools a ship has that an airfield does not: it cannot steer,
         // fire, radiate, flood or take on stores.
         private static bool ShipOnly(string key) =>
-            key == "nav" || key == "wpn" || key == "sns" || key == "roe" || key == "dmg" || key == "rpl" || key == "tf" || key == "tfedit";
+            key == "nav" || key == "wpn" || key == "sns" || key == "roe" || key == "dmg" || key == "rpl" || key == "tf" || key == "tfedit" || key == "amp";
 
         // Right-aligned, closing up over whatever this post does not have.
         private void LayoutTools(bool ship)
@@ -282,12 +282,15 @@ namespace NavalPower
             for (int i = tools.Count - 1; i >= 0; i--)
             {
                 Tool tool = tools[i];
-                bool shown = ship || !ShipOnly(tool.Key);
+                bool shown = (ship || !ShipOnly(tool.Key)) &&
+                    (tool.Key != "amp" || Amphib.HasWellDeck(CommandState.Ship));
                 tool.Button.gameObject.SetActive(shown);
                 if (!shown) continue;
                 ((RectTransform)tool.Button.transform).anchoredPosition = new Vector2(-x, 0f);
                 x += ToolWidth + ToolGap;
             }
+            // Moved to a ship without a well deck: its window goes.
+            if (!Amphib.HasWellDeck(CommandState.Ship) && windows.TryGetValue("amp", out Surface amphib) && amphib.IsOpen) amphib.Close();
             if (ship) return;
             foreach (KeyValuePair<string, Surface> window in windows)
                 if (ShipOnly(window.Key) && window.Value.IsOpen) window.Value.Close();
@@ -463,6 +466,7 @@ namespace NavalPower
             {
                 case "air": width = 580f; break;
                 case "tf": width = 560f; break;
+                case "amp": width = 580f; break;
                 case "tfedit": width = PlotSize + 40f; break;
                 case "cam": case "pin1": case "pin2": case "pin3": width = FeedWindowWidth; break;
                 case "dmg": width = 540f; break;
@@ -544,6 +548,7 @@ namespace NavalPower
                 case "rpl": return ReplenishmentPage;
                 case "air": return AirPage;
                 case "tf": return TaskForcePage;
+                case "amp": return AmphibPage;
                 case "deck": return DeckPage;
                 case "cam": return LiveFeedPage;
                 default: return s => s.Title(key);

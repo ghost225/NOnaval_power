@@ -414,6 +414,7 @@ namespace NavalPower
             Guard.Run("Launch queue", LaunchQueue.Tick);
             Guard.Run("Supply runs", Replenishment.Tick);
             Guard.Run("Amphibious survey", AmphibSurvey.Tick);
+            Guard.Run("Landing craft", Amphib.Tick);
             Guard.Run("Wings", Wings.Tick);
             Guard.Run("Ship names", ShipNames.Tick);
             Guard.Run("Task forces", TaskForces.Tick);
@@ -594,6 +595,17 @@ namespace NavalPower
             bool append = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
 
             if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }
+
+            // A landing point was asked for: this click is it, wherever it is.
+            if (CommandState.AwaitingLanding != null && onMap)
+            {
+                Ship carrier = CommandState.AwaitingLanding;
+                CommandState.AwaitingLanding = null;
+                Amphib.SetLandingPoint(carrier, map.GetCursorCoordinates().ToLocalPosition());
+                Amphib.Plan plan = Amphib.PlanFor(carrier);
+                CommandState.Say("Landing point set" + (plan.Hint != null ? " · " + plan.Hint : ""));
+                return;
+            }
 
             // A selected flight takes the contact rather than opening a menu:
             // with a flight in hand, right-clicking a hostile plainly means
