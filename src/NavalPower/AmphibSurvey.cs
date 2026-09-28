@@ -78,6 +78,41 @@ namespace NavalPower
             Plugin.Log.LogInfo(text.ToString());
 
             Plugin.Log.LogInfo(Beaches(ships));
+            Plugin.Log.LogInfo(Catalogue());
+        }
+
+        // Every ship type the game knows -- the base game's and every mod's,
+        // since mods register theirs in the same encyclopedia -- checked on its
+        // prefab rather than in the scene: which have a hold, what they
+        // launch, whether the hold has doors that animate, and what AI drives
+        // them.
+        private static string Catalogue()
+        {
+            if (Encyclopedia.Lookup == null) return "[amphib] catalogue · encyclopedia not loaded";
+            int ships = 0;
+            var text = new StringBuilder();
+            var seen = new HashSet<UnitDefinition>();
+            foreach (UnitDefinition definition in Encyclopedia.Lookup.Values)
+            {
+                if (definition == null || !seen.Add(definition) || definition.unitPrefab == null) continue;
+                if (definition.unitPrefab.GetComponent<Ship>() == null) continue;
+                ships++;
+                UnitStorage[] holds = definition.unitPrefab.GetComponentsInChildren<UnitStorage>(true);
+                if (holds.Length == 0) continue;
+                text.Append("\n    ").Append(definition.unitName).Append(" (").Append(definition.jsonKey).Append(")")
+                    .Append(" · AI ").Append(definition.unitPrefab.GetComponent<ShipAI>()?.GetType().Name ?? "none");
+                foreach (UnitStorage hold in holds)
+                {
+                    var types = DeployableTypes?.GetValue(hold) as List<UnitDefinition>;
+                    text.Append("\n      hold '").Append(hold.name).Append("' · ")
+                        .Append((hold.MassLimit / 1000f).ToString("0")).Append(" t · doors ")
+                        .Append(AmphibSurveyAccess.DoorCount(hold)).Append(" · launches ")
+                        .Append(types == null ? "?" : types.Count == 0 ? "anything"
+                            : string.Join(", ", types.ConvertAll(t => t != null ? t.unitName : "null")));
+                }
+            }
+            return "[amphib] catalogue · " + ships + " ship type(s) known" +
+                (text.Length == 0 ? " · none has a hold" : text.ToString());
         }
 
         private static string DescribeShip(Ship ship)
