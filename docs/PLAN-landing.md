@@ -35,6 +35,13 @@ way the game prices a convoy bought from the aircraft selection screen.
   craft will actually come ashore: the game snaps the point to the nearest
   sea lane and road, and we can run the same calculation first. Refuse
   points it can't reach.
+- **Highlighted beaches:** while picking, mark every landing spot the craft
+  can actually reach, and snap a click to the nearest one. The game's sea
+  lanes and roads are public lists (`RoadNetwork.roads` / `.nodes`), so once
+  per map we can walk the coast: take road points near a sea lane, run the
+  same shore linecast the craft uses, and keep hits that are low and gently
+  sloped. Cluster them into beaches, ideally showing only those within reach
+  of this carrier.
 - **Launch:** spawn one craft at the well deck, put the chosen load in it,
   and launch it. Don't use the game's deploy-everything call.
 - **Status per craft:** launching / in transit / beaching / unloading /
