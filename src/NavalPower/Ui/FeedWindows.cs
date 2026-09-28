@@ -15,6 +15,25 @@ namespace NavalPower
         private int weaponsSeen;
         private bool liveClosedByHand;
         private Ship feedShip;
+        private readonly System.Collections.Generic.Dictionary<string, Text> nightButtons =
+            new System.Collections.Generic.Dictionary<string, Text>();
+
+        // Each feed has its own night vision, apart from the main view's.
+        private void ToggleNight(string key)
+        {
+            if (feedView == null) return;
+            if (key == "cam") feedView.LiveNight = !feedView.LiveNight;
+            else if (int.TryParse(key.Substring(3), out int slot) && feedView.Find(slot) is TargetFeed.Pane pane) pane.Night = !pane.Night;
+            ShowNight(key);
+        }
+
+        private void ShowNight(string key)
+        {
+            if (feedView == null || !nightButtons.TryGetValue(key, out Text label) || label == null) return;
+            bool on = key == "cam" ? feedView.LiveNight
+                : int.TryParse(key.Substring(3), out int slot) && feedView.Find(slot) is TargetFeed.Pane pane && pane.Night;
+            label.color = on ? Theme.Good : Theme.TextMuted;
+        }
 
         private static float FeedPicture => Settings.FeedWidth.Value;
         private static float FeedWindowWidth => FeedPicture + 16f;
@@ -75,6 +94,7 @@ namespace NavalPower
 
         private void LiveFeedPage(Surface s)
         {
+            ShowNight("cam");
             if (!Settings.TargetFeed.Value)
             {
                 s.Title("CAMERA");
@@ -120,6 +140,7 @@ namespace NavalPower
         {
             TargetFeed.Pane pane = feedView.Find(slot);
             if (pane == null) { s.Close(); return; }
+            ShowNight("pin" + slot);
             if (pane.Unit != null && !pane.Lost) pane.Name = TargetFeed.NameOf(pane.Unit);   // follows renames
             s.Title(pane.Lost && pane.TrackedAtLoss ? UiKit.Tint("DESTROYED  ·  " + pane.Name, Theme.Bad)
                 : !pane.Showing ? UiKit.Tint("CONTACT LOST  ·  " + pane.Name + "  ·  no current track", Theme.Warn)

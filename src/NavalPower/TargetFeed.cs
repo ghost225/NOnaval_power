@@ -39,6 +39,7 @@ namespace NavalPower
             internal bool Tracked = true;
             internal bool TrackedAtLoss;        // whether its end was seen at all
             internal bool Showing => Lost ? TrackedAtLoss : Tracked;
+            internal bool Night;                // looking through night vision
         }
 
         private readonly List<Pane> pins = new List<Pane>();
@@ -53,6 +54,7 @@ namespace NavalPower
 
         // Set by the UI each frame: nobody is looking, so nothing is rendered.
         internal bool WantLive;
+        internal bool LiveNight;
 
         // A glance rather than a feed: whatever the cursor is resting on, shown
         // in its hover card for as long as it rests there. Set by the UI every
@@ -130,7 +132,7 @@ namespace NavalPower
             int slot = FreeSlot();
             if (slot < 0) { reason = "All " + MaxPinned + " pinned feeds are in use."; return false; }
 
-            var pane = new Pane { Unit = unit, Slot = slot, Name = NameOf(unit) };
+            var pane = new Pane { Unit = unit, Slot = slot, Name = NameOf(unit), Night = NightSight.MainOn };
             Build(pane);
             pins.Add(pane);
             reason = "Watching " + pane.Name + ".";
@@ -222,7 +224,7 @@ namespace NavalPower
             // While holding, the camera stays exactly where it was when the
             // subject went, looking at what is left of it.
             if (!Lingering) Frame();
-            feed.Render();
+            NightSight.Render(feed, LiveNight);
         }
 
         private void BeginLinger()
@@ -256,7 +258,7 @@ namespace NavalPower
                 // A destroyed unit's wreck may already be gone, so the camera
                 // holds its last pose rather than being re-aimed at nothing.
                 if (!pane.Lost) FrameOn(pane.Camera, pane.Unit, pane.Pan);
-                pane.Camera.Render();
+                NightSight.Render(pane.Camera, pane.Night);
             }
         }
 
@@ -272,7 +274,7 @@ namespace NavalPower
                 if (peek == null) return;
             }
             FrameOn(peek, Peek, Vector2.zero);
-            peek.Render();
+            NightSight.Render(peek, NightSight.MainOn);   // a glance sees as the main view does
         }
 
         // ---- choosing and framing the live subject ---------------------------------
@@ -434,6 +436,9 @@ namespace NavalPower
                 urp.renderType = CameraRenderType.Base;
                 urp.requiresColorOption = CameraOverrideOption.UsePipelineSettings;
                 urp.requiresDepthOption = CameraOverrideOption.UsePipelineSettings;
+                // Where to look for post-processing, for night vision.
+                UniversalAdditionalCameraData mainUrp = main.GetUniversalAdditionalCameraData();
+                if (mainUrp != null) urp.volumeLayerMask = mainUrp.volumeLayerMask;
             }
             camera.enabled = false;
             return camera;

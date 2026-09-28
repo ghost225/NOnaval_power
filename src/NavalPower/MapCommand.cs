@@ -72,7 +72,7 @@ namespace NavalPower
         internal static MapCommand Instance;
 
         // A private flag: never borrow or clear the map's or another menu's.
-        private const CursorFlags CommandCursor = (CursorFlags)0x20000000;
+        internal const CursorFlags CommandCursor = (CursorFlags)0x20000000;
 
         private int suppressEntryFrame = -1, inputFrame = -1, gestureFrame = -1;
         // The ship we were commanding, so command can be resumed after a pause

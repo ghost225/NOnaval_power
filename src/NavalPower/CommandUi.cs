@@ -455,6 +455,11 @@ namespace NavalPower
             // Closed by hand, the live feed stays closed until asked for again,
             // rather than springing back open with the next launch.
             if (key == "cam") window.OnClosed = () => liveClosedByHand = true;
+            if (key == "cam" || key.StartsWith("pin"))
+            {
+                string feedKey = key;
+                nightButtons[key] = window.AddTitleButton("NV", () => ToggleNight(feedKey)).GetComponentInChildren<Text>();
+            }
             windows[key] = window;
             return window;
         }
