@@ -46,6 +46,10 @@ namespace NavalPower
         private static readonly FieldInfo LastDeployed = AccessTools.Field(typeof(UnitStorage), "lastDeployedUnit");
         private static readonly FieldInfo HomeDock = AccessTools.Field(typeof(LandingCraftAI), "homeDock");
         private static readonly FieldInfo LastDestination = AccessTools.Field(typeof(ShipAI), "lastDestinationSelected");
+        private static readonly FieldInfo Destination = AccessTools.Field(typeof(ShipAI), "destination");
+        private static readonly FieldInfo ShoreDirection = AccessTools.Field(typeof(LandingCraftAI), "shoreDirection");
+        private static readonly FieldInfo Cushion = AccessTools.Field(typeof(LandingCraftAI), "airCushion");
+        private static readonly MethodInfo WaitDeployUnits = AccessTools.Method(typeof(LandingCraftAI), "WaitDeployUnits");
 
         internal static WellDeck Deck(Ship ship)
         {
@@ -234,6 +238,7 @@ namespace NavalPower
             internal float LaunchedAt;
             internal bool Ordered, Unloaded, Recalled, Launching = true;
             internal int Orders;
+            internal float NextOrder;
         }
 
         private static readonly List<Sortie> sorties = new List<Sortie>();
@@ -384,6 +389,39 @@ namespace NavalPower
             }
         }
 
+        // Sent to the point, then its destination moved on inland along its
+        // own run-in. The craft stops and holds once within its radius plus
+        // 100 m of its destination, a check that comes before its beaching
+        // check, and its destination is the very point its line meets the
+        // shore -- so a craft reaching that close while still over the
+        // shallows held there for good, never landing and never unloading.
+        private const float PushInland = 150f;
+
+        private static void Order(Sortie sortie)
+        {
+            Ship craft = sortie.Craft;
+            craft.UnitCommand.SetDestination(sortie.Point.ToGlobalPosition(), true);
+            if (sortie.Ai == null || sortie.Ai.state != ShipAI.ShipAIState.landing || Destination == null || ShoreDirection == null) return;
+            if (!(ShoreDirection.GetValue(sortie.Ai) is Vector3 inward) || inward.sqrMagnitude < 1f) return;
+            inward.y = 0f;
+            GlobalPosition goal = (GlobalPosition)Destination.GetValue(sortie.Ai);
+            Destination.SetValue(sortie.Ai, goal + inward.normalized * (craft.maxRadius + PushInland));
+        }
+
+        private static bool OnLand(Sortie sortie) =>
+            sortie.Ai != null && Cushion?.GetValue(sortie.Ai) is AirCushion cushion && cushion.Landed();
+
+        // What LandingCraftAI does itself when it touches down in its landing
+        // run: let the cushion down, unload, and go home when done.
+        private static void Beach(Sortie sortie)
+        {
+            if (!(Cushion?.GetValue(sortie.Ai) is AirCushion cushion) || WaitDeployUnits == null) return;
+            cushion.Deflate();
+            WaitDeployUnits.Invoke(sortie.Ai, null);
+            sortie.Ai.state = ShipAI.ShipAIState.unloading;
+            Plugin.Log.LogInfo("[amphib] " + sortie.Name + " held on the beach; landing it");
+        }
+
         // ---- every frame -------------------------------------------------------------
 
         private static object tickLevel;
@@ -434,13 +472,20 @@ namespace NavalPower
                     sortie.Ordered = true;
                     sortie.Orders = 1;
                     HomeDock?.SetValue(sortie.Ai, sortie.Hold);
-                    craft.UnitCommand.SetDestination(sortie.Point.ToGlobalPosition(), true);
+                    Order(sortie);
                 }
-                // Stopped short of the beach without landing: ask again, a few times.
-                if (sortie.Ordered && !sortie.Unloaded && !sortie.Recalled && state == ShipAI.ShipAIState.holding && sortie.Orders < 4 && age > 30f)
+                // Holding without having unloaded. On land already: land it,
+                // the way the game does when it beaches properly. Short of the
+                // beach on the water: send it in again, a few times.
+                if (sortie.Ordered && !sortie.Unloaded && !sortie.Recalled && state == ShipAI.ShipAIState.holding && age > 30f)
                 {
-                    sortie.Orders++;
-                    craft.UnitCommand.SetDestination(sortie.Point.ToGlobalPosition(), true);
+                    if (OnLand(sortie)) Beach(sortie);
+                    else if (sortie.Orders < 5 && Time.timeSinceLevelLoad >= sortie.NextOrder)
+                    {
+                        sortie.Orders++;
+                        sortie.NextOrder = Time.timeSinceLevelLoad + 8f;
+                        Order(sortie);
+                    }
                 }
                 // On its way back, home stays home.
                 if ((state == ShipAI.ShipAIState.returning || state == ShipAI.ShipAIState.docking) && sortie.Hold != null)
