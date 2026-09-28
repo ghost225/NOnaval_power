@@ -52,6 +52,20 @@ namespace NavalPower
     {
         private static readonly FieldInfo DeployableTypes = AccessTools.Field(typeof(UnitStorage), "deployableTypes");
         private static readonly FieldInfo Doors = AccessTools.Field(typeof(UnitStorage), "doors");
+        private static readonly FieldInfo LastDeployed = AccessTools.Field(typeof(UnitStorage), "lastDeployedUnit");
+        private static readonly FieldInfo Rail = AccessTools.Field(typeof(UnitStorage), "deployRail");
+
+        // What the game's own deploy does after spawning: the hold steers the
+        // new unit out along its rail each physics step -- centred, squared
+        // up, eased outward -- until it is clear. Without it the craft
+        // slewed into the well deck's walls and was destroyed.
+        internal static bool GuideOut(UnitStorage storage, Unit unit)
+        {
+            if (LastDeployed == null) return false;
+            LastDeployed.SetValue(storage, unit);
+            storage.enabled = true;
+            return Rail?.GetValue(storage) is bool rail && rail;
+        }
 
         internal static List<UnitDefinition> Deployable(UnitStorage storage) =>
             DeployableTypes?.GetValue(storage) as List<UnitDefinition> ?? new List<UnitDefinition>();
@@ -121,18 +135,31 @@ namespace NavalPower
                 carrier.rb != null ? carrier.rb.GetPointVelocity(door.position) : Vector3.zero, carrier, null);
             craft = spawned as Ship;
             if (craft == null) { Log("spawn failed"); Destroy(this); yield break; }
+            bool rail = AmphibSurveyAccess.GuideOut(hold, craft);
             UnitStorage cargo = craft.GetComponentInChildren<UnitStorage>(true);
             if (cargo != null) cargo.TryFillFromStorage(hold);
+            Log("guided out along the deck rail: " + rail);
             Log("spawned " + ShipNames.Of(craft) + " · its hold: " + Contents(cargo) + " · left in the carrier: " + Contents(hold));
             craft.Launch();
             float launched = Time.timeSinceLevelLoad;
 
-            // Keep the gate open while it clears the deck, as the game does.
+            // Keep the gate open while it clears the deck, as the game does,
+            // and say where it is relative to the door every half second:
+            // along the deck, off the centreline, and turned from it.
             while (Time.timeSinceLevelLoad - launched < 12f)
             {
                 hold.OpenDoors();
-                yield return new WaitForSeconds(1f);
-                if (craft == null || craft.disabled) break;
+                yield return new WaitForSeconds(0.5f);
+                if (craft == null || craft.disabled)
+                {
+                    Log("destroyed " + (Time.timeSinceLevelLoad - launched).ToString("0.0") + " s after launch");
+                    break;
+                }
+                Vector3 offset = craft.transform.position - door.position;
+                float yaw = Vector3.SignedAngle(door.forward, craft.transform.forward, Vector3.up);
+                Log("  clearing · " + Vector3.Dot(offset, door.forward).ToString("0") + " m along · " +
+                    Vector3.Dot(offset, door.right).ToString("0.0") + " m off centre · " +
+                    (offset.y).ToString("0.0") + " m up · turned " + yaw.ToString("0") + "° · " + craft.speed.ToString("0.0") + " m/s");
             }
 
             // Its own launch run is over; now the beach.
