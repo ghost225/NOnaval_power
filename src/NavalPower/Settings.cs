@@ -57,6 +57,9 @@ namespace NavalPower
         internal static ConfigEntry<bool> NavigationTrace;
         internal static ConfigEntry<bool> HarnessKeys;
         internal static ConfigEntry<bool> InterfaceTrace;
+        internal static ConfigEntry<float> InterfaceScale;
+        internal static ConfigEntry<float> LowFuelAlert;
+        internal static ConfigEntry<bool> NameShips;
         internal static ConfigEntry<KeyboardShortcut> ReportKey;
         internal static ConfigEntry<KeyboardShortcut> OrderNearestKey;
         internal static ConfigEntry<KeyboardShortcut> CeaseFireKey;
@@ -76,6 +79,10 @@ namespace NavalPower
             ResumeCommand = config.Bind("Command", "Resume command", new KeyboardShortcut(KeyCode.F10),
                 "Re-enter command on the ship the camera is following. Command also resumes on its own " +
                 "after a pause menu when Auto resume is on.");
+
+            NameShips = config.Bind("Command", "Name ships automatically", true,
+                "Give every ship a name from its side's registry (BMDF, PALN, MV), renamable. Off leaves ships " +
+                "with the game's names; renames made while it was on are kept for when it is turned back on.");
 
             AutoResume = config.Bind("Command", "Auto resume", true,
                 "Return to command automatically once gameplay is ready again, for example after closing " +
@@ -193,6 +200,10 @@ namespace NavalPower
             EscortIntercept = config.Bind("Wings", "Escorts intercept missiles", true,
                 "An escort fires an air-to-air missile (heat-seeking first, then active radar) at a missile fired " +
                 "on the aircraft it escorts, when it can reach it in time.");
+            LowFuelAlert = config.Bind("Flights", "Low fuel alert", 25f,
+                new ConfigDescription("Fuel percentage below which a flight is marked as needing attention, " +
+                    "until it is heading home. Raise it when the deck is far from the fight.",
+                    new AcceptableValueRange<float>(5f, 60f)));
             BombingHeight = config.Bind("Flights", "Bombing height", 1500f,
                 "Height above ground a level-bombing run is flown at. Lower is more accurate and more exposed.");
             CruiseThrottle = config.Bind("Flights", "Cruise throttle", 0.8f,
@@ -232,6 +243,12 @@ namespace NavalPower
                     "from the compartments being withheld. The ship's total capacity is unchanged either " +
                     "way; this caps how sharply it can be focused.",
                     new AcceptableValueRange<int>(1, 20)));
+
+            InterfaceScale = config.Bind("Interface", "Interface scale", 1f,
+                new ConfigDescription("Size of the command interface -- windows, text, menus, the tool strip, " +
+                    "the compass and camera feeds -- on top of the automatic scaling to screen size. " +
+                    "1 is the normal size; above 1 is bigger, below fits more on screen.",
+                    new AcceptableValueRange<float>(0.6f, 2f), new ConfigurationManagerAttributes { Order = 100 }));
 
             ZoomSensitivity = config.Bind("Interface", "Zoom sensitivity", 4f,
                 new ConfigDescription("Degrees of field of view per wheel notch when zooming the world view " +

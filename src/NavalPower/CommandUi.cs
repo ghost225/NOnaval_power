@@ -97,6 +97,22 @@ namespace NavalPower
 
         // ---- frame -----------------------------------------------------------
 
+        private float appliedScale = -1f;
+        private bool reclamp;
+
+        // The interface scale on top of scaling to the screen: a smaller
+        // reference resolution draws everything larger. Windows are pulled
+        // back on screen a frame later, once the canvas has laid out at the
+        // new size.
+        private void ApplyScale()
+        {
+            if (root == null) return;
+            var scaler = root.GetComponent<CanvasScaler>();
+            appliedScale = Mathf.Clamp(Settings.InterfaceScale.Value, 0.6f, 2f);
+            scaler.referenceResolution = new Vector2(1920f, 1080f) / appliedScale;
+            reclamp = true;
+        }
+
         private void Update()
         {
             if (!CommandState.Active && !PilotSeat.Active)
@@ -115,6 +131,8 @@ namespace NavalPower
             RefreshCompass(flying);
             if (flying) { hover.gameObject.SetActive(false); return; }
 
+            if (!Mathf.Approximately(appliedScale, Settings.InterfaceScale.Value)) ApplyScale();
+            else if (reclamp) { reclamp = false; foreach (Surface window in windows.Values) if (window.IsOpen) window.Clamp(); }
             WatchFeeds();
             CycleTaskForce();
             if (Time.unscaledTime >= nextRefresh)
@@ -544,8 +562,8 @@ namespace NavalPower
             canvas.sortingOrder = 120;
             var scaler = root.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0f;
+            ApplyScale();
 
             Surface.ReservedBottom = StripHeight + EventHeight + 8f;
             Surface.ReservedTop = 12f;

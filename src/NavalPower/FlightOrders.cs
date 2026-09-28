@@ -158,7 +158,7 @@ namespace NavalPower
             {
                 if (Threat == FlightThreat.Missile) return "missile inbound";
                 bool heading = Mode == FlightMode.ReturnToBase;
-                if (!heading && FuelPercent < 25f) return "low fuel";
+                if (!heading && FuelPercent < Settings.LowFuelAlert.Value) return "low fuel";
                 UpdateEvents();
                 if (heading) return null;
                 float now = Time.timeSinceLevelLoad;

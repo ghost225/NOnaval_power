@@ -110,6 +110,15 @@ namespace NavalPower
             foreach (Ship ship in gone) named.Remove(ship);
             foreign.RemoveWhere(ship => ship == null);
 
+            // Switched off: every ship we named goes back to the game's name.
+            // Saved renames stay in the preferences for when it comes back on.
+            if (!Settings.NameShips.Value)
+            {
+                foreach (Ship ship in named.Keys) Restore(ship);
+                named.Clear();
+                return;
+            }
+
             // In a stable order, so first picks do not depend on spawn order.
             var fresh = new List<Ship>();
             foreach (Unit unit in UnitRegistry.allUnits)
@@ -218,6 +227,15 @@ namespace NavalPower
             try { PlayerPrefs.SetString(Key(ship), name); PlayerPrefs.Save(); }
             catch (System.Exception ex) { Plugin.Log.LogWarning("[ships] could not remember the name: " + ex.Message); }
             return true;
+        }
+
+        private static void Restore(Ship ship)
+        {
+            if (ship == null || ship.definition == null) return;
+            string original = ship.definition.unitName;
+            ship.NetworkunitName = original;
+            if (UnitRegistry.TryGetPersistentUnit(ship.persistentID, out PersistentUnit persistent) && persistent != null)
+                persistent.unitName = original;
         }
 
         // The game's own name for it, as the hover card and kill feed read it.

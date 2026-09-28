@@ -261,7 +261,7 @@ namespace NavalPower
             s.Info(flight.FuelPercent.ToString("0") + "% fuel  ·  " + flight.StoresSummary + FlareTag(flight) +
                 "  ·  from " + flight.HomeName + (flight.Wing != null
                     ? "  ·  " + (Wings.IsLead(flight) ? "lead of " + flight.Wing : "formation on " + Wings.LeadOf(flight).Name) : ""),
-                flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
+                flight.FuelPercent < Settings.LowFuelAlert.Value ? Theme.Bad : Theme.Text);
             if (attention != null) s.Info(UiKit.Tint(attention.ToUpperInvariant(), Theme.Bad));
             s.Info(CommandState.AwaitingCargoZone == flight
                     ? UiKit.Tint("WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +
