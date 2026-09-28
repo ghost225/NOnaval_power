@@ -386,8 +386,25 @@ namespace NavalPower
 
         // ---- every frame -------------------------------------------------------------
 
+        private static object tickLevel;
+
         internal static void Tick()
         {
+            // A mission ending takes every craft with it; that is not a loss
+            // to report, and nothing from it carries into the next mission.
+            if (!MissionManager.IsRunning) return;
+            object level = NetworkSceneSingleton<LevelInfo>.i;
+            if (!ReferenceEquals(level, tickLevel))
+            {
+                tickLevel = level;
+                sorties.Clear();
+                plans.Clear();
+                decks.Clear();
+                without.Clear();
+                bought.Clear();
+                deckBusy.Clear();
+                return;
+            }
             for (int i = sorties.Count - 1; i >= 0; i--)
             {
                 Sortie sortie = sorties[i];
