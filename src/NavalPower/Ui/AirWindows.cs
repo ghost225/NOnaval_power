@@ -226,20 +226,24 @@ namespace NavalPower
 
         // Beside the list it was picked from, rather than wherever it was last
         // dragged or on the far side of the screen: the two are used together.
-        private void OpenFlight(Flight flight)
+        // Where it was last left, like every other window; the first time,
+        // beside the air operations window if that is open.
+        internal void OpenFlight(Flight flight)
         {
+            Ensure();
             Surface window = Window("flight");
             bool wasOpen = window.IsOpen;
             window.Show(s => FlightPage(s, flight));
             if (wasOpen) return;
+            Vector2 fallback = DropUp(window, ToolFor("air"));
             if (windows.TryGetValue("air", out Surface air) && air.IsOpen)
             {
                 Vector2 at = air.Panel.anchoredPosition;
                 float x = at.x - window.Width - 8f;
                 if (x < 8f) x = at.x + air.Width + 8f;       // no room to its left
-                window.PlaceAt(new Vector2(x, at.y));
+                fallback = new Vector2(x, at.y);
             }
-            else window.Place(DropUp(window, ToolFor("air")));
+            window.Place(fallback);
         }
 
         // While this window is open the map tasks this flight, including from
@@ -356,7 +360,6 @@ namespace NavalPower
             {
                 if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
             });
-            s.Row("All flights…", () => Open("air", AirPage));
         }
 
         // The wing it flies with: every member, who leads, and who is still to

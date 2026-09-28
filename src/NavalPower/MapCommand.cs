@@ -491,6 +491,17 @@ namespace NavalPower
         internal bool HandleSelection(Unit unit)
         {
             if (unit == null) return true;
+            // One of our flights, clicked on the map, full or docked: open its
+            // orders as the air operations list does, instead of the game's own
+            // selection, which would move the camera and end command.
+            if (CommandState.Active && !PilotSeat.Active && unit is Aircraft clicked && FlightOrders.Of(clicked) is Flight flight)
+            {
+                UpdateGesture();
+                if (leftGesture.Claimed) return false;
+                Ui?.OpenFlight(flight);
+                CommandState.Say(flight.Name + " · selected · right-click the map to task it");
+                return false;
+            }
             // Clicking the ship left with EXIT is asking for it back.
             if (unit == dismissed) dismissed = null;
             UpdateGesture();
