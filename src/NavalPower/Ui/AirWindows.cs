@@ -253,6 +253,8 @@ namespace NavalPower
         {
             if (!Alive(s, flight)) return;
             CommandState.SelectedFlight = flight;
+            string attention = flight.Attention;       // read before acknowledging, so it shows once here
+            flight.Acknowledge();
 
             // Status: what it is doing, what it has, and anything wrong.
             s.Title(flight.Name.ToUpperInvariant() + "  ·  " + flight.TypeName + "  ·  " + flight.Describe());
@@ -260,7 +262,6 @@ namespace NavalPower
                 "  ·  from " + flight.HomeName + (flight.Wing != null
                     ? "  ·  " + (Wings.IsLead(flight) ? "lead of " + flight.Wing : "formation on " + Wings.LeadOf(flight).Name) : ""),
                 flight.FuelPercent < 25f ? Theme.Bad : Theme.Text);
-            string attention = flight.Attention;
             if (attention != null) s.Info(UiKit.Tint(attention.ToUpperInvariant(), Theme.Bad));
             s.Info(CommandState.AwaitingCargoZone == flight
                     ? UiKit.Tint("WAITING FOR A " + (CommandState.AwaitingAirdrop ? "DROP" : "LANDING") +

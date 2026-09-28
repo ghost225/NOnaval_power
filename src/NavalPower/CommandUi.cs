@@ -387,7 +387,7 @@ namespace NavalPower
 
             List<Flight> airborne = FlightOrders.All();
             int trouble = 0;
-            foreach (Flight flight in airborne) if (flight.Threat == FlightThreat.Missile || flight.FuelPercent < 25f) trouble++;
+            foreach (Flight flight in airborne) if (flight.Attention != null) trouble++;
             stripState.text = UiKit.Tint("AIRFIELD", Theme.Passive) + "   " +
                 airborne.Count + " airborne" +
                 (trouble > 0 ? "   " + UiKit.Tint(trouble + " need attention", Theme.Bad) : "");
@@ -414,7 +414,7 @@ namespace NavalPower
             bool trouble = false, busy = false;
             foreach (Flight flight in airborne)
             {
-                if (flight.Threat == FlightThreat.Missile || flight.FuelPercent < 25f) trouble = true;
+                if (flight.Attention != null) trouble = true;
                 else if (flight.Interrupted) busy = true;
             }
             string label = "AIR " + airborne.Count;

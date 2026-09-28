@@ -140,22 +140,58 @@ namespace NavalPower
             return prefab != null && prefab.GetComponentInChildren<FuelTank>(true) != null;
         }
 
-        // Why a flight needs attention, or null when it doesn't.
+        // Why a flight needs attention, or null when it doesn't. Nothing here
+        // stays up for good:
+        //   missile inbound -- while a missile is on it;
+        //   low fuel        -- while it is not already heading home (the
+        //                      pilot turns for home on its own at 20%);
+        //   out of weapons, or a weapon type run dry -- events, shown for a
+        //                      minute or until its window is opened, never
+        //                      while heading home; a type rearmed resets.
+        private readonly Dictionary<string, float> eventAt = new Dictionary<string, float>();
+        private readonly HashSet<string> acknowledged = new HashSet<string>();
+        private const float EventSeconds = 60f;
+
         public string Attention
         {
             get
             {
                 if (Threat == FlightThreat.Missile) return "missile inbound";
-                if (FuelPercent < 25f) return "low fuel";
-                if (RoundsRemaining <= 0) return "out of weapons";
+                bool heading = Mode == FlightMode.ReturnToBase;
+                if (!heading && FuelPercent < 25f) return "low fuel";
+                UpdateEvents();
+                if (heading) return null;
+                float now = Time.timeSinceLevelLoad;
+                foreach (KeyValuePair<string, float> entry in eventAt)
+                    if (!acknowledged.Contains(entry.Key) && now - entry.Value < EventSeconds) return entry.Key;
+                return null;
+            }
+        }
+
+        // Opening the flight's window has seen what it had to say.
+        public void Acknowledge()
+        {
+            UpdateEvents();
+            foreach (string key in eventAt.Keys) acknowledged.Add(key);
+        }
+
+        private void UpdateEvents()
+        {
+            var current = new HashSet<string>();
+            if (RoundsRemaining <= 0 && RolePeak.Count > 0) current.Add("out of weapons");
+            else
                 foreach (KeyValuePair<string, int> entry in RolePeak)
                 {
                     if (entry.Value <= 0) continue;
                     RoleStores.TryGetValue(entry.Key, out int now);
-                    if (now <= 0) return entry.Key + " gone";
+                    if (now <= 0) current.Add(entry.Key + " gone");
                 }
-                return null;
-            }
+            foreach (string key in current)
+                if (!eventAt.ContainsKey(key)) eventAt[key] = Time.timeSinceLevelLoad;
+            // Rearmed, or superseded: forget it, so it can be raised afresh.
+            var gone = new List<string>();
+            foreach (string key in eventAt.Keys) if (!current.Contains(key)) gone.Add(key);
+            foreach (string key in gone) { eventAt.Remove(key); acknowledged.Remove(key); }
         }
 
         // Short enough for a chip: "A/S 0  A/A 4  GUN 240".
