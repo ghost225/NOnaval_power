@@ -271,21 +271,60 @@ namespace NavalPower
 
         // ---- replenishment -----------------------------------------------------
 
+        // Resupply by air first: the nearest base that can send a supply
+        // helicopter, what it would send and from how far. A rearming point
+        // alongside -- a port, a supply ship -- is offered when one is in reach.
         private void ReplenishmentPage(Surface s)
         {
             Ship ship = CommandState.Ship;
             if (ship == null) return;
             RearmSnapshot status = Replenishment.Status(ship);
             s.Title("REPLENISHMENT");
-            s.Info(status.Reason, Theme.Text);
-            s.Info(status.StationsShort + " station(s) below capacity");
-            Button request = s.Row(status.Requested ? "Requested  ·  waiting" : "Request rearm", () =>
+            s.Info(status.StationsShort == 0 ? "Magazines full." : status.StationsShort + " station(s) below capacity",
+                status.StationsShort == 0 ? Theme.TextMuted : Theme.Text);
+
+            string inbound = Replenishment.InboundTo(ship);
+            if (inbound != null)
             {
-                Replenishment.Request(CommandState.Ship, out string reason);
-                CommandState.Say(reason);
-            });
-            if (status.Requested) request.image.color = Theme.AccentFill;
-            else if (status.StationsShort == 0) request.GetComponentInChildren<Text>().color = Theme.TextMuted;
+                Aircraft helicopter = Replenishment.InboundAircraft(ship);
+                Button row = CameraRow(s, "SUPPLY  ·  " + inbound, () =>
+                {
+                    Flight flight = helicopter != null ? FlightOrders.Of(helicopter) : null;
+                    if (flight != null) OpenFlight(flight);
+                }, helicopter, "Supply");
+                row.image.color = Theme.AccentFill;
+                s.Info("The ship asks for its rearm when the helicopter is 6 km out.", Theme.TextMuted);
+            }
+            else if (status.StationsShort > 0)
+            {
+                Replenishment.SupplySource source = Replenishment.BestSource(ship, out string why);
+                if (source == null) s.Info(why, Theme.Warn);
+                else
+                {
+                    string cost = source.InReserve ? "from reserve"
+                        : Settings.LaunchCostFromAllocation.Value ? "costs " + source.Type.value.ToString("0") : "faction pays";
+                    s.Row("Send supply helicopter  ·  " + source.Type.unitName + " from " + Airfields.NameOf(source.Base) +
+                        "  ·  " + UnitConverter.DistanceReading(source.Distance) + "  ·  " + cost, () =>
+                        {
+                            Replenishment.SendSupply(CommandState.Ship, out string reason);
+                            CommandState.Say(reason);
+                        });
+                }
+            }
+
+            // Alongside something that can rearm it: ask directly.
+            if (status.StationsShort > 0 && status.InRange && inbound == null)
+            {
+                Button request = s.Row(status.Requested ? "Rearming from " + status.NearestName + "  ·  waiting"
+                    : "Rearm from " + status.NearestName + " alongside", () =>
+                    {
+                        Replenishment.Request(CommandState.Ship, out string reason);
+                        CommandState.Say(reason);
+                    });
+                if (status.Requested) request.image.color = Theme.AccentFill;
+            }
+            if (status.StationsShort > 0 && status.Moving)
+                s.Info("A rearm is only taken aboard below " + UnitConverter.SpeedReadingGround(25f) + ".", Theme.TextMuted);
         }
     }
 }

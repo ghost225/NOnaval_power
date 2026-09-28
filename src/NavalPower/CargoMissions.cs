@@ -34,6 +34,9 @@ namespace NavalPower
             ? AccessTools.Field(DestinationType, "LZ") : null;
         private static readonly FieldInfo Touchdown = DestinationType != null
             ? AccessTools.Field(DestinationType, "touchdownPoint") : null;
+        private static readonly MethodInfo UpdateLzOnUnit = DestinationType != null
+            ? AccessTools.Method(DestinationType, "UpdateLZ", new[] { typeof(Aircraft), typeof(Unit) })
+            : null;
         private static readonly ConstructorInfo NewDestination = DestinationType != null
             ? AccessTools.Constructor(DestinationType,
                 new[] { typeof(GlobalPosition), typeof(GlobalPosition), typeof(float) })
@@ -47,7 +50,8 @@ namespace NavalPower
             Line("TransportDestination.LZ", Lz) +
             Line("TransportDestination.touchdownPoint", Touchdown) +
             Line("TransportDestination.UpdateTouchdownPoint", UpdateTouchdown) +
-            Line("TransportDestination..ctor", NewDestination);
+            Line("TransportDestination..ctor", NewDestination) +
+            Line("TransportDestination.UpdateLZ(Aircraft, Unit)", UpdateLzOnUnit);
 
         private static string Line(string name, MemberInfo member) =>
             "\n  " + (member != null ? "ok      " : "MISSING ") + name;
@@ -88,6 +92,7 @@ namespace NavalPower
         internal static void Apply(AIHeloTransportState state, Flight flight)
         {
             if (!Available || state == null || flight == null) return;
+            if (flight.SupplyShip != null) { ApplySupply(state, flight); return; }
 
             // Cheap every tick: says what job this is, and that there is one.
             TransportMode.SetValue(state, AIHeloTransportState.TransportMode.LandSuppy);
@@ -149,6 +154,39 @@ namespace NavalPower
             Destination.SetValue(state, destination);
             // Only stamped when we actually re-solved, or the state's own
             // throttling is defeated and it re-plans as fast as we do.
+            LastSpotCheck.SetValue(state, Time.timeSinceLevelLoad);
+        }
+
+        // A naval supply run. The state already knows how to deliver to a ship
+        // -- lead a moving one, come over its wake, and drop when it is lined
+        // up -- but picks for itself which ship, from every request the faction
+        // has open. Keep it on ours: the same naval-supply job, solved against
+        // our ship every tick, and its own search held off so it never
+        // chooses another.
+        private static void ApplySupply(AIHeloTransportState state, Flight flight)
+        {
+            if (UpdateLzOnUnit == null) return;
+            Aircraft aircraft = StateAircraft?.GetValue(state) as Aircraft;
+            Ship ship = flight.SupplyShip;
+            if (aircraft == null || ship == null || ship.disabled) return;
+
+            TransportMode.SetValue(state, AIHeloTransportState.TransportMode.NavalSupply);
+            Airdrop.SetValue(state, true);
+            state.stateDisplayName = "Delivering naval supplies";
+
+            // The container it drops is whatever its current station holds.
+            WeaponStation supply = Replenishment.SupplyStation(aircraft);
+            if (supply != null && aircraft.weaponManager != null) aircraft.weaponManager.currentWeaponStation = supply;
+
+            object destination = flight.CargoSeeded ? Destination.GetValue(state) : null;
+            if (destination == null)
+            {
+                destination = NewDestination.Invoke(new object[] { ship.GlobalPosition(), ship.GlobalPosition(), 0f });
+                flight.CargoSeeded = true;
+            }
+            ValidMission.SetValue(destination, true);
+            UpdateLzOnUnit.Invoke(destination, new object[] { aircraft, ship });
+            Destination.SetValue(state, destination);
             LastSpotCheck.SetValue(state, Time.timeSinceLevelLoad);
         }
     }

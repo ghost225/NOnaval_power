@@ -54,6 +54,7 @@ namespace NavalPower
         public bool Airdrop;
         public float LastCargoPlan;
         internal bool CargoSeeded;          // the transport state knows this zone
+        internal Ship SupplyShip;           // a naval supply run: the ship the container is for
         public GlobalPosition EgressPoint;
         public float EgressUntil;
         public float NextEgressPlan;
@@ -267,7 +268,8 @@ namespace NavalPower
                 case FlightMode.Strike: return Target != null && !Target.disabled
                     ? "Strike · " + (Target.definition?.unitName ?? Target.name) : "Strike · target gone";
                 case FlightMode.Egress: return "Egressing · weapons away";
-                case FlightMode.Cargo: return (Airdrop ? "Airdrop" : "Delivery") + " · inbound to the zone";
+                case FlightMode.Cargo: return SupplyShip != null ? "Naval supply · " + ShipNames.Of(SupplyShip)
+                    : (Airdrop ? "Airdrop" : "Delivery") + " · inbound to the zone";
                 case FlightMode.Jam: return Target != null && !Target.disabled
                     ? "Jamming · " + (Target.definition?.unitName ?? Target.name) : "Jamming · target gone";
                 case FlightMode.Engage: return "Weapons free · AI engaging";
@@ -628,6 +630,11 @@ namespace NavalPower
                 // handoff never happened once we already had the aircraft.
                 if (flight.Mode == FlightMode.Cargo)
                 {
+                    // Not while it is still getting off the deck, and not once
+                    // a supply run has dropped its container: that one is
+                    // being sent home.
+                    if (StillLeaving(pilot)) continue;
+                    if (flight.SupplyShip != null && Replenishment.Delivered(flight)) continue;
                     // The game builds this state lazily, inside the helo combat
                     // state, the first time an aircraft notices cargo aboard.
                     // A flight we took under command on the climb-out has never

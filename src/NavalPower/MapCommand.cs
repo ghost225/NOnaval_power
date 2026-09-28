@@ -386,6 +386,7 @@ namespace NavalPower
             // missions must not also stop damage control from running.
             Guard.Run("Flight orders", FlightOrders.Tick);
             Guard.Run("Launch queue", LaunchQueue.Tick);
+            Guard.Run("Supply runs", Replenishment.Tick);
             Guard.Run("Wings", Wings.Tick);
             Guard.Run("Ship names", ShipNames.Tick);
             Guard.Run("Task forces", TaskForces.Tick);
