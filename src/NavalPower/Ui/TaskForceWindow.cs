@@ -136,10 +136,10 @@ namespace NavalPower
         private void ShipRow(Surface s, Ship ship, string label, Color colour)
         {
             Ship shown = ship;
-            Button row = s.Row(label, () =>
+            Button row = CameraRow(s, label, () =>
             {
                 if (shown != CommandState.Ship) CameraGlide.SwitchTo(shown);
-            });
+            }, ship, ShipNames.Of(ship));
             row.GetComponentInChildren<Text>().color = colour;
             if (ship == CommandState.Ship) row.image.color = Theme.AccentFill;
         }

@@ -54,7 +54,8 @@ namespace NavalPower
         // wheel over it can zoom that camera rather than scroll the window.
         internal RectTransform ViewRect { get; private set; }
 
-        private enum Kind { Button, Info, Group, Slider, Field, View, Spacer }
+        private enum Kind { Button, Info, Group, Slider, Field, View, Spacer, Split }
+        private const float SideWidth = 34f;
 
         private sealed class RowView
         {
@@ -257,6 +258,25 @@ namespace NavalPower
             return view.Button;
         }
 
+        // A row with a small button at its right-hand end -- a camera on a
+        // list of ships or flights -- that does something of its own.
+        internal Button Row(string label, Action action, string side, Action sideAction, out Button sideButton)
+        {
+            RowView view = Take(Kind.Split, 2);
+            view.Text.text = label;
+            UiKit.Fit(view.Text, 15);
+            view.Action = action;
+            view.Button.image.color = Theme.Control;
+            view.Text.color = Theme.Text;
+            view.Button.interactable = true;
+            view.Texts[0].text = side;
+            view.Texts[0].color = Theme.TextMuted;
+            view.Buttons[0].image.color = Theme.Control;
+            view.GroupAction = _ => sideAction?.Invoke();
+            sideButton = view.Buttons[0];
+            return view.Button;
+        }
+
         internal void Info(string text) => Info(text, Theme.TextFaint);
 
         internal void Info(string text, Color color)
@@ -372,6 +392,32 @@ namespace NavalPower
                     view.Text = view.Button.GetComponentInChildren<Text>();
                     view.Text.supportRichText = true;
                     break;
+
+                case Kind.Split:
+                {
+                    view.Rect = UiKit.Box("Split", content, new Color(0, 0, 0, 0));
+                    UiKit.Place(view.Rect, 8, y, inner, RowHeight);
+                    view.Rect.GetComponent<Image>().raycastTarget = false;
+                    view.Button = UiKit.Button(view.Rect, "", 0, 0, inner - SideWidth - 4f, RowHeight, () => view.Action?.Invoke(),
+                        TextAnchor.MiddleLeft);
+                    // Anchored to the row's edges, so a change of width moves
+                    // the side button with the right-hand edge.
+                    var main = (RectTransform)view.Button.transform;
+                    main.anchorMin = Vector2.zero; main.anchorMax = Vector2.one;
+                    main.offsetMin = Vector2.zero; main.offsetMax = new Vector2(-(SideWidth + 4f), 0f);
+                    view.Text = view.Button.GetComponentInChildren<Text>();
+                    view.Text.supportRichText = true;
+                    Button sideButton = UiKit.Button(view.Rect, "", 0, 0, SideWidth, RowHeight, () => view.GroupAction?.Invoke(0));
+                    var side = (RectTransform)sideButton.transform;
+                    side.anchorMin = side.anchorMax = new Vector2(1f, 0.5f);
+                    side.pivot = new Vector2(1f, 0.5f);
+                    side.anchoredPosition = Vector2.zero;
+                    side.sizeDelta = new Vector2(SideWidth, RowHeight);
+                    view.Buttons = new[] { sideButton };
+                    view.Texts = new[] { sideButton.GetComponentInChildren<Text>() };
+                    view.Texts[0].supportRichText = true;
+                    break;
+                }
 
                 case Kind.Info:
                     view.Rect = UiKit.Box("Info", content, new Color(0, 0, 0, 0));

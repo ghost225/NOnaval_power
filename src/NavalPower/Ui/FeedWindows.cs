@@ -18,6 +18,23 @@ namespace NavalPower
         private readonly System.Collections.Generic.Dictionary<string, Text> nightButtons =
             new System.Collections.Generic.Dictionary<string, Text>();
 
+        // A list row with a camera at its end: one click pins a feed on the
+        // unit, another takes it down. Lit while the feed is up.
+        private Button CameraRow(Surface s, string label, Action action, Unit unit, string who)
+        {
+            if (feedView == null || unit == null) return s.Row(label, action);
+            Button row = s.Row(label, action, "◉", () =>
+            {
+                feedView.Pin(unit, out string reason);
+                CommandState.Say(who + " · " + reason);
+            }, out Button camera);
+            bool pinned = feedView.IsPinned(unit);
+            Text glyph = camera.GetComponentInChildren<Text>();
+            glyph.color = pinned ? Theme.Accent : Theme.TextMuted;
+            camera.image.color = pinned ? Theme.AccentFill : Theme.Control;
+            return row;
+        }
+
         // Each feed has its own night vision, apart from the main view's.
         private void ToggleNight(string key)
         {
