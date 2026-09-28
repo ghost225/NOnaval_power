@@ -23,14 +23,14 @@ namespace NavalPower
         private Button CameraRow(Surface s, string label, Action action, Unit unit, string who)
         {
             if (feedView == null || unit == null) return s.Row(label, action);
-            Button row = s.Row(label, action, "◉", () =>
+            Button row = s.Row(label, action, null, () =>
             {
                 feedView.Pin(unit, out string reason);
                 CommandState.Say(who + " · " + reason);
             }, out Button camera);
             bool pinned = feedView.IsPinned(unit);
-            Text glyph = camera.GetComponentInChildren<Text>();
-            glyph.color = pinned ? Theme.Accent : Theme.TextMuted;
+            EyeGlyph eye = camera.GetComponentInChildren<EyeGlyph>();
+            if (eye != null) eye.color = pinned ? Theme.Accent : Theme.TextMuted;
             camera.image.color = pinned ? Theme.AccentFill : Theme.Control;
             return row;
         }

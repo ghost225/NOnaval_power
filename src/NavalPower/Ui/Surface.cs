@@ -264,13 +264,15 @@ namespace NavalPower
         {
             RowView view = Take(Kind.Split, 2);
             view.Text.text = label;
-            UiKit.Fit(view.Text, 15);
+            UiKit.Fit(view.Text, 15, 4);
             view.Action = action;
             view.Button.image.color = Theme.Control;
             view.Text.color = Theme.Text;
             view.Button.interactable = true;
-            view.Texts[0].text = side;
+            view.Texts[0].text = side ?? "";
             view.Texts[0].color = Theme.TextMuted;
+            EyeGlyph eye = view.Buttons[0].GetComponentInChildren<EyeGlyph>(true);
+            if (eye != null) { eye.enabled = string.IsNullOrEmpty(side); eye.color = Theme.TextMuted; }
             view.Buttons[0].image.color = Theme.Control;
             view.GroupAction = _ => sideAction?.Invoke();
             sideButton = view.Buttons[0];
@@ -407,6 +409,9 @@ namespace NavalPower
                     main.offsetMin = Vector2.zero; main.offsetMax = new Vector2(-(SideWidth + 4f), 0f);
                     view.Text = view.Button.GetComponentInChildren<Text>();
                     view.Text.supportRichText = true;
+                    // A long status is cut at the button's edge rather than
+                    // running on underneath the side button.
+                    main.gameObject.AddComponent<RectMask2D>();
                     Button sideButton = UiKit.Button(view.Rect, "", 0, 0, SideWidth, RowHeight, () => view.GroupAction?.Invoke(0));
                     var side = (RectTransform)sideButton.transform;
                     side.anchorMin = side.anchorMax = new Vector2(1f, 0.5f);
@@ -416,6 +421,12 @@ namespace NavalPower
                     view.Buttons = new[] { sideButton };
                     view.Texts = new[] { sideButton.GetComponentInChildren<Text>() };
                     view.Texts[0].supportRichText = true;
+                    // With no label, the side button shows an eye.
+                    var eye = new GameObject("Eye", typeof(RectTransform)).AddComponent<EyeGlyph>();
+                    eye.rectTransform.SetParent(side, false);
+                    eye.rectTransform.anchorMin = eye.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                    eye.rectTransform.sizeDelta = new Vector2(22f, 13f);
+                    eye.raycastTarget = false;
                     break;
                 }
 
