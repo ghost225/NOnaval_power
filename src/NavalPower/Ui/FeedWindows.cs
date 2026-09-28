@@ -120,6 +120,7 @@ namespace NavalPower
         {
             TargetFeed.Pane pane = feedView.Find(slot);
             if (pane == null) { s.Close(); return; }
+            if (pane.Unit != null && !pane.Lost) pane.Name = TargetFeed.NameOf(pane.Unit);   // follows renames
             s.Title(pane.Lost && pane.TrackedAtLoss ? UiKit.Tint("DESTROYED  ·  " + pane.Name, Theme.Bad)
                 : !pane.Showing ? UiKit.Tint("CONTACT LOST  ·  " + pane.Name + "  ·  no current track", Theme.Warn)
                 : UiKit.Tint("PINNED  ·  " + pane.Name, Theme.Passive));

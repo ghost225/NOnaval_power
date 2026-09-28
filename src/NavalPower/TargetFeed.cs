@@ -112,6 +112,15 @@ namespace NavalPower
             return null;
         }
 
+        // One of our flights goes by its callsign with its type beside it;
+        // anything else by its ship name or type.
+        internal static string NameOf(Unit unit)
+        {
+            Flight flight = unit is Aircraft aircraft ? FlightOrders.Of(aircraft) : null;
+            if (flight == null || string.IsNullOrEmpty(flight.Label)) return ShipNames.Of(unit);
+            return flight.Label + "  " + UiKit.Tint(flight.TypeName, Theme.Passive);
+        }
+
         internal bool Pin(Unit unit, out string reason)
         {
             if (unit == null) { reason = "Nothing to pin."; return false; }
@@ -121,7 +130,7 @@ namespace NavalPower
             int slot = FreeSlot();
             if (slot < 0) { reason = "All " + MaxPinned + " pinned feeds are in use."; return false; }
 
-            var pane = new Pane { Unit = unit, Slot = slot, Name = ShipNames.Of(unit) };
+            var pane = new Pane { Unit = unit, Slot = slot, Name = NameOf(unit) };
             Build(pane);
             pins.Add(pane);
             reason = "Watching " + pane.Name + ".";
