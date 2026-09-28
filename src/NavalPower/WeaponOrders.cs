@@ -11,6 +11,7 @@ namespace NavalPower
         public int Ammo;
         public float MinRange, MaxRange;
         public bool IsGun, IsBeam, Continuous;
+        public string Locked;               // why it may not be ordered: nuclear release not authorised
     }
 
     public static class WeaponOrders
@@ -41,6 +42,7 @@ namespace NavalPower
                     Continuous = g.Any(Continuous),
                     MinRange = g.Key.targetRequirements.minRange,
                     MaxRange = g.Key.targetRequirements.maxRange,
+                    Locked = NuclearRelease.Authorised(g.Key, out string why) ? null : why,
                     Readiness = g.All(s => s.Reloading) ? "Reloading"
                         : g.All(s => s.Ammo <= 0) && !g.Any(s => s.Weapons.Any(w => w is Laser)) ? "Empty"
                         : "Ready"
@@ -72,6 +74,7 @@ namespace NavalPower
             { reason = "No known position for that contact."; return false; }
 
             WeaponInfo info = fitted[0].WeaponInfo;
+            if (!NuclearRelease.Authorised(info, out reason)) return false;
             if (Opportunity(info, target) <= 0.01f)
             { reason = info.weaponName + " cannot engage that target type."; return false; }
 

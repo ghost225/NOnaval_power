@@ -888,6 +888,14 @@ namespace NavalPower
                 if (mount.radar) detail += "  ·  RADAR";
                 if (mount.countermeasure) detail += "  ·  CM";
                 if (mount.Cargo) detail += "  ·  CARGO";
+                if (!CarrierOps.NuclearAllowed(plan, station, mount, CommandState.Airfield))
+                {
+                    if (station.Selected == mount) station.Selected = null;
+                    Button locked = s.Row(mount.mountName + detail + "  ·  " + UiKit.Tint("NOT AUTHORISED", Theme.Bad),
+                        () => CommandState.Say(mount.mountName + " · nuclear release not authorised"));
+                    locked.GetComponentInChildren<Text>().color = Theme.TextFaint;
+                    continue;
+                }
                 Button row = s.Row(mount.mountName + detail, () => { station.Selected = mount; s.Show(LoadoutPage); });
                 if (station.Selected == mount) row.image.color = Theme.AccentFill;
             }

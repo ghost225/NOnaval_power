@@ -45,16 +45,18 @@ namespace NavalPower
         internal static void HandBack(Ship ship, Turret turret)
         {
             if (turret == null) return;
+            // Clear the target it was just given in every mode, or it goes on
+            // firing at it the moment it is no longer held: an order for a
+            // single round, under weapons free, emptied the launcher at the
+            // same target.
+            if (NativeBindings.TurretChooseTarget != null && turret.GetTarget() != null)
+                NativeBindings.TurretChooseTarget.Invoke(turret, new object[] { true });
             var state = ship != null ? ship.GetComponent<ShipEngagement>() : null;
             if (state == null || state.Mode == EngagementMode.WeaponsFree)
             {
                 turret.SetManual(false);
                 return;
             }
-            // Clear the target it was just given, or it re-engages the moment
-            // it is no longer held.
-            if (NativeBindings.TurretChooseTarget != null && turret.GetTarget() != null)
-                NativeBindings.TurretChooseTarget.Invoke(turret, new object[] { true });
             turret.SetManual(true);
         }
 
@@ -105,10 +107,10 @@ namespace NavalPower
         // calls the first one firingUnit, not owner -- and Harmony binds
         // prefix arguments by name, so naming them fails on exactly the
         // subclasses this patch exists to catch.
-        private static bool Prefix(Unit __0, Unit __1)
+        private static bool Prefix(Weapon __instance, Unit __0, Unit __1)
         {
             if (!Guard.Ok(Name)) return true;                 // never hold fire on a broken rule
-            try { return EngagementPolicy.Allows(__0, __1); }
+            try { return NuclearRelease.Allows(__instance, __0) && EngagementPolicy.Allows(__0, __1); }
             catch (Exception ex) { Guard.Failed(Name, ex); return true; }
         }
 

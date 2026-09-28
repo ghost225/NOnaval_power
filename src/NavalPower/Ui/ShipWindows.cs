@@ -73,6 +73,16 @@ namespace NavalPower
             foreach (WeaponCommandInfo weapon in weapons)
             {
                 string key = weapon.Key;
+                if (weapon.Locked != null)
+                {
+                    // Nuclear, and not released: shown, so it is known to be
+                    // aboard, but it cannot be armed.
+                    if (CommandState.SelectedKey == key) CommandState.SelectedKey = null;
+                    Button locked = s.Row(weapon.Name + "   ·   " + UiKit.Tint("NOT AUTHORISED", Theme.Bad) + "  ·  " + weapon.Ammo,
+                        () => CommandState.Say(weapon.Name + " · " + weapon.Locked));
+                    locked.GetComponentInChildren<Text>().color = Theme.TextFaint;
+                    continue;
+                }
                 bool armed = key == CommandState.SelectedKey;
                 Button row = s.Row((armed ? "▸ " : "") + weapon.Name + "   ·   " + weapon.Readiness +
                     (weapon.Continuous ? "  ·  continuous" : "  ·  " + weapon.Ammo), () =>

@@ -390,6 +390,13 @@ namespace NavalPower
             foreach (WeaponCommandInfo weapon in WeaponOrders.GetWeapons(ship))
             {
                 string key = weapon.Key;
+                if (weapon.Locked != null)
+                {
+                    Button locked = s.Row(weapon.Name + "  ·  " + UiKit.Tint("NOT AUTHORISED", Theme.Bad),
+                        () => CommandState.Say(weapon.Name + " · " + weapon.Locked));
+                    locked.GetComponentInChildren<Text>().color = Theme.TextFaint;
+                    continue;
+                }
                 bool capable = target == null || WeaponOrders.Opportunity(
                     WeaponOrders.StationsFor(ship, key).FirstOrDefault()?.WeaponInfo, target) > 0.01f;
                 string reach = target == null ? ""

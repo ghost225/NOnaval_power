@@ -208,6 +208,18 @@ namespace NavalPower
 
         // One aircraft, now, from a hangar that is free. Called by the launch
         // queue, which waits for the hangar; a wing is several of these.
+        // The game's own rule for loading a nuclear store: escalation past the
+        // threshold, the player's rank, and warheads held at this base.
+        internal static bool NuclearAllowed(LoadoutPlan plan, LoadoutStation station, WeaponMount mount, Airbase deck)
+        {
+            if (mount?.info == null || !mount.info.nuclear) return true;
+            var prefab = plan?.Definition?.unitPrefab != null ? plan.Definition.unitPrefab.GetComponent<Aircraft>() : null;
+            HardpointSet[] sets = prefab?.weaponManager?.hardpointSets;
+            if (sets == null || station == null || station.Index >= sets.Length) return false;
+            GameManager.GetLocalPlayer<Player>(out Player player);
+            return WeaponChecker.MountAllowedNuclear(mount, sets[station.Index], deck, player, deck?.CurrentHQ);
+        }
+
         public static bool Launch(Airbase deck, LoadoutPlan plan, string callsign, string wing, out string reason)
         {
             if (deck == null || deck.disabled) { reason = "No flight deck or field."; return false; }
@@ -225,6 +237,10 @@ namespace NavalPower
 
             if (!deck.CanSpawnAircraft(plan.Definition))
             { reason = "The deck cannot launch that airframe right now."; return false; }
+
+            foreach (LoadoutStation station in plan.Stations)
+                if (!NuclearAllowed(plan, station, station.Selected, deck))
+                { reason = station.SelectedName + " · nuclear release not authorised"; return false; }
 
             Loadout loadout = plan.Build();
             var prefab = plan.Definition.unitPrefab != null ? plan.Definition.unitPrefab.GetComponent<Aircraft>() : null;
