@@ -67,10 +67,12 @@ namespace NavalPower
 
         // ---- changing size ---------------------------------------------------
 
+        // The MAP tool opens the map full screen, as M does; docking it beside
+        // the world is the full-screen bar's DOCK MAP.
         private void ToggleMap()
         {
             if (DynamicMap.mapMaximized) CloseMap();
-            else DockMap();
+            else SceneSingleton<DynamicMap>.i?.Maximize();
         }
 
         private void DockMap()
@@ -127,8 +129,6 @@ namespace NavalPower
             if (!docked) return;
             docked = false;
             RestoreBackdrop();
-            foreach (GameObject panel in hiddenPanels) if (panel != null) panel.SetActive(true);
-            hiddenPanels.Clear();
             var map = SceneSingleton<DynamicMap>.i;
             if (map != null) map.transform.localScale = Vector3.one;
             if (mapWindow != null && mapWindow.IsOpen)
@@ -157,6 +157,7 @@ namespace NavalPower
             if (docked && !DynamicMap.mapMaximized) Undock();
             if (docked && map != null) FitMap(map);
             RefreshFullBar();
+            CommandChrome();
         }
 
         // Scale and move the native map so its square exactly fills the hole
@@ -188,10 +189,38 @@ namespace NavalPower
         {
             foreach (VirtualMFD panel in Resources.FindObjectsOfTypeAll<VirtualMFD>())
             {
-                if (!panel.gameObject.scene.IsValid()) continue;
+                if (!panel.gameObject.scene.IsValid() || !panel.gameObject.activeSelf) continue;
                 panel.VirtualMFD_onMapMinimized();
-                if (panel.gameObject.activeSelf) { panel.gameObject.SetActive(false); hiddenPanels.Add(panel.gameObject); }
+                panel.gameObject.SetActive(false);
+                hiddenPanels.Add(panel.gameObject);
             }
+        }
+
+        private void RestoreSidePanels()
+        {
+            foreach (GameObject panel in hiddenPanels) if (panel != null) panel.SetActive(true);
+            hiddenPanels.Clear();
+        }
+
+        // In command mode the game's own map chrome belongs to a pilot, not a
+        // commander: the option panels down either side of the map (VirtualMFD)
+        // and the "select aircraft" panel at the bottom are kept away, however
+        // the map was opened -- M, the MAP tool, or docked. They come back when
+        // command ends, as the game left them.
+        private float nextChromeSweep;
+
+        private void CommandChrome()
+        {
+            bool commanding = CommandState.Active && !PilotSeat.Active;
+            if (!commanding)
+            {
+                if (hiddenPanels.Count > 0) RestoreSidePanels();
+                return;
+            }
+            if (Time.unscaledTime < nextChromeSweep) return;
+            nextChromeSweep = Time.unscaledTime + 0.25f;
+            if (DynamicMap.mapMaximized) HideSidePanels();
+            SceneSingleton<GameplayUI>.i?.HideSelectAirbase();
         }
 
         // ---- the backdrop --------------------------------------------------------

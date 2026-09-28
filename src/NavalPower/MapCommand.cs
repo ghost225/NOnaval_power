@@ -79,6 +79,7 @@ namespace NavalPower
         // menu or a look at something else, rather than having to be re-found.
         private Ship lastCommanded;
         private Airbase lastField;
+        private Ship dismissed;
         private readonly PointerGesture leftGesture = new PointerGesture();
         private readonly CameraGesture cameraGesture = new CameraGesture();
         private readonly List<RaycastResult> uiHits = new List<RaycastResult>(32);
@@ -151,12 +152,14 @@ namespace NavalPower
                 lastField = null;
                 Leave();
                 // Same rule when the camera moves by some other route.
-                if (unit is Ship next && CommandableShip.CanCommand(next, out _)) { Enter(next); return; }
+                if (unit is Ship next && CommandableShip.CanCommand(next, out _)) { Enter(next, fresh: false); return; }
                 suppressEntryFrame = Time.frameCount;
                 return;
             }
             if (Time.frameCount == suppressEntryFrame) return;
+            if (unit != dismissed) dismissed = null;
             if (!(unit is Ship ship)) return;
+            if (ship == dismissed) return;
 
             string blocked = WhyNotReady();
             if (blocked != null)
@@ -181,9 +184,15 @@ namespace NavalPower
             CommandState.Say(line);
         }
 
-        internal void Enter(Ship ship)
+        // Fresh is taking command from outside it: that starts on the world,
+        // so the map closes. Moving between ships, or coming back from the
+        // pause menu, leaves the map as it was.
+        internal void Enter(Ship ship, bool fresh = true)
         {
             if (!GameplayReady()) return;
+            dismissed = null;
+            Plugin.Log.LogInfo("[command] taking command of " + ShipNames.Of(ship) + (fresh ? "" : " · switching"));
+            if (fresh) SceneSingleton<DynamicMap>.i?.Minimize();
             CommandState.Base = null;
             CommandState.Ship = ship;
             lastCommanded = ship;
@@ -214,6 +223,8 @@ namespace NavalPower
                 return;
             }
             Leave();
+            dismissed = null;
+            SceneSingleton<DynamicMap>.i?.Minimize();
             // The camera first: moving it to a free view fires the follow
             // event, and that must not find a half-entered field.
             FrameAirfield(field);
@@ -266,6 +277,13 @@ namespace NavalPower
         // back on its own afterwards. Resuming is for the pause menu.
         internal void Dismiss()
         {
+            // The camera still follows the ship, and the game's spectator UI
+            // re-follows it a moment later -- which is a follow of a
+            // commandable ship, and took command straight back, so EXIT seemed
+            // to do nothing. Remember it and don't re-enter on it until asked:
+            // its icon clicked, F10, or the camera sent elsewhere first.
+            dismissed = CommandState.Ship;
+            Plugin.Log.LogInfo("[command] leaving command" + (dismissed != null ? " of " + ShipNames.Of(dismissed) : ""));
             lastCommanded = null;
             lastField = null;
             LeaveForNativeFlow();
@@ -435,6 +453,7 @@ namespace NavalPower
                 var cameras = SceneSingleton<CameraStateManager>.i;
                 string why = "Follow a ship you can command, then press " +
                     Settings.ResumeCommand.Value.MainKey + ".";
+                dismissed = null;           // F10 is an explicit ask
                 if (GameplayReady() && cameras != null && cameras.followingUnit is Ship followed)
                 {
                     if (CommandableShip.CanCommand(followed, out string reason)) { Enter(followed); return; }
@@ -466,12 +485,14 @@ namespace NavalPower
             if (lastCommanded == null) return;
             if (camera == null || camera.followingUnit != lastCommanded) return;
             if (!GameplayReady() || !CommandableShip.CanCommand(lastCommanded, out _)) return;
-            Enter(lastCommanded);
+            Enter(lastCommanded, fresh: false);
         }
 
         internal bool HandleSelection(Unit unit)
         {
             if (unit == null) return true;
+            // Clicking the ship left with EXIT is asking for it back.
+            if (unit == dismissed) dismissed = null;
             UpdateGesture();
             if (leftGesture.Claimed) return false;
             bool eligible = unit is Ship ship && CommandableShip.CanCommand(ship, out _);
