@@ -133,6 +133,7 @@ namespace NavalPower
             entry.Name = Saved(ship) ?? Pick(ship, pool, entry.Pool);
             named[ship] = entry;
             Apply(ship, entry);
+            Plugin.Log.LogInfo("[ships] " + Identity(ship) + " -> " + Full(entry));
         }
 
         // Nothing aboard scores against anything: a merchant.
@@ -159,25 +160,48 @@ namespace NavalPower
             return primeva ? Primeva : Boscali;
         }
 
-        // Stable: the same mission and the same ship start the search at the
-        // same place, and step past names already afloat.
+        // Stable: the same mission and the same ship always get the same name.
+        // Each mission deals the pool into its own order first, so a clash
+        // steps on to a name at random rather than to the next one in the
+        // list, and two missions do not share a run of names.
         private static string Pick(Ship ship, string[] pool, string poolKey)
         {
             var taken = new HashSet<string>();
             foreach (Entry entry in named.Values) if (entry.Pool == poolKey) taken.Add(entry.Name);
-            int start = (int)(Hash(MissionName() + "/" + (ship.UniqueName ?? ship.name)) % (uint)pool.Length);
-            for (int i = 0; i < pool.Length; i++)
+            string[] order = Dealt(pool, MissionName() + "/" + poolKey);
+            int start = (int)(Mix(Hash(MissionName() + "/" + Identity(ship))) % (uint)order.Length);
+            for (int i = 0; i < order.Length; i++)
             {
-                string candidate = pool[(start + i) % pool.Length];
+                string candidate = order[(start + i) % order.Length];
                 if (!taken.Contains(candidate) && !Reserved.Contains(candidate)) return candidate;
             }
             // More ships than names: the second of the name.
             for (int n = 2; ; n++)
             {
-                string candidate = pool[start] + " " + Roman(n);
+                string candidate = order[start] + " " + Roman(n);
                 if (!taken.Contains(candidate)) return candidate;
             }
         }
+
+        // The pool shuffled by a seed: the same seed, the same order.
+        private static string[] Dealt(string[] pool, string seed)
+        {
+            var order = (string[])pool.Clone();
+            uint state = Mix(Hash(seed)) | 1u;
+            for (int i = order.Length - 1; i > 0; i--)
+            {
+                state ^= state << 13; state ^= state >> 17; state ^= state << 5;   // xorshift
+                int j = (int)(state % (uint)(i + 1));
+                (order[i], order[j]) = (order[j], order[i]);
+            }
+            return order;
+        }
+
+        // What tells this ship apart in its mission, the same every load: its
+        // mission name, or failing that its type and place in the spawn order.
+        private static string Identity(Ship ship) =>
+            !string.IsNullOrEmpty(ship.UniqueName) ? ship.UniqueName
+                : (ship.definition?.unitName ?? ship.name) + "#" + ship.persistentID.Id;
 
         internal static bool Rename(Ship ship, string name, out string reason)
         {
@@ -215,7 +239,7 @@ namespace NavalPower
             catch { return null; }
         }
 
-        private static string Key(Ship ship) => "NavalPower.ship." + MissionName() + "." + (ship.UniqueName ?? ship.name);
+        private static string Key(Ship ship) => "NavalPower.ship." + MissionName() + "." + (ship.UniqueName ?? ship.name);   // unchanged, so renames already saved still apply
 
         private static string MissionName() => MissionManager.CurrentMission?.Name ?? "mission";
 
@@ -225,6 +249,16 @@ namespace NavalPower
             uint hash = 2166136261;
             foreach (char c in text) { hash ^= c; hash *= 16777619; }
             return hash;
+        }
+
+        // Spreads FNV's low bits, which barely change between "Ship 1" and
+        // "Ship 2" (the murmur3 finaliser).
+        private static uint Mix(uint h)
+        {
+            h ^= h >> 16; h *= 0x85ebca6b;
+            h ^= h >> 13; h *= 0xc2b2ae35;
+            h ^= h >> 16;
+            return h;
         }
 
         private static string Roman(int n)
