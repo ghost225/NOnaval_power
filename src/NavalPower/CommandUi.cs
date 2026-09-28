@@ -76,6 +76,7 @@ namespace NavalPower
             if (strip != null && strip.gameObject.activeSelf &&
                 RectTransformUtility.RectangleContainsScreenPoint(strip, point)) return true;
             if (context != null && context.Contains(point)) return true;
+            if (OverResizeGrip(point)) return true;
             foreach (Surface window in windows.Values)
                 if (window.Contains(point)) return true;
             return fullBar != null && fullBar.gameObject.activeSelf &&

@@ -30,7 +30,7 @@ namespace NavalPower
 
         internal readonly string Key;
         internal readonly RectTransform Panel;
-        internal readonly float Width;
+        internal float Width { get; private set; }
         internal Action OnClosed;
 
         private readonly RectTransform parent, content;
@@ -454,6 +454,19 @@ namespace NavalPower
 
         private float Scale => canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
         private Vector2 Room => parent.rect.size;
+
+        // A new width for the window and its rows, keeping its top-left
+        // corner where it is -- for the docked map's resize grip.
+        internal void SetWidth(float width)
+        {
+            float top = growUp ? Panel.anchoredPosition.y + Panel.sizeDelta.y : Panel.anchoredPosition.y;
+            Width = width;
+            foreach (RowView row in rows)
+                if (row.Rect != null) row.Rect.sizeDelta = new Vector2(width - 16f, row.Rect.sizeDelta.y);
+            Render();
+            if (growUp) Panel.anchoredPosition = new Vector2(Panel.anchoredPosition.x, top - Panel.sizeDelta.y);
+            Clamp();
+        }
 
         private void Size()
         {

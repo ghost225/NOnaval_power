@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace NavalPower
@@ -55,15 +56,44 @@ namespace NavalPower
             return over || mapDrag;
         }
 
+        private RectTransform resizeGrip;
+
+        internal bool OverResizeGrip(Vector2 point) =>
+            resizeGrip != null && resizeGrip.gameObject.activeInHierarchy &&
+            RectTransformUtility.RectangleContainsScreenPoint(resizeGrip, point);
+
         private bool OverOurWindows(Vector2 point)
         {
+            if (OverResizeGrip(point)) return true;
             if (context != null && context.Contains(point)) return true;
             foreach (Surface window in windows.Values)
                 if (window != mapWindow && window.Contains(point)) return true;
             return strip != null && RectTransformUtility.RectangleContainsScreenPoint(strip, point);
         }
 
-        private static float MapSide => Settings.FeedWidth.Value;
+        // The docked map's size, set with its resize grip and remembered.
+        private float dockSide = -1f;
+        private float MapSide
+        {
+            get
+            {
+                if (dockSide < 0f)
+                {
+                    try { dockSide = PlayerPrefs.GetFloat("NavalPower.mapDock", Settings.FeedWidth.Value); }
+                    catch { dockSide = Settings.FeedWidth.Value; }
+                }
+                return dockSide;
+            }
+        }
+
+        internal void ResizeDock(float change, bool done)
+        {
+            if (mapWindow == null) return;
+            float most = Mathf.Max(300f, windowLayer.rect.height - Surface.ReservedBottom - Surface.ReservedTop - 60f);
+            dockSide = Mathf.Clamp(MapSide + change, 240f, most);
+            mapWindow.SetWidth(dockSide + 16f);
+            if (done) try { PlayerPrefs.SetFloat("NavalPower.mapDock", dockSide); PlayerPrefs.Save(); } catch { }
+        }
 
         // ---- changing size ---------------------------------------------------
 
@@ -95,6 +125,7 @@ namespace NavalPower
                     minimizable: false);
                 mapWindow.PassThrough();
                 mapWindow.AddTitleButton("⛶", MaximizeMap);
+                AddResizeGrip(mapWindow.Panel);
                 mapWindow.OnClosed = () => { if (docked) CloseMap(); };
                 windows["map"] = mapWindow;
             }
@@ -148,14 +179,25 @@ namespace NavalPower
 
         // ---- every frame -----------------------------------------------------
 
+        private bool fullFitted;
+
         private void LateUpdate()
         {
-            if (root == null || !root.activeSelf) return;
             var map = SceneSingleton<DynamicMap>.i;
+            // Out of command with the map still stretched to the screen: put it
+            // back to the game's own layout.
+            if ((root == null || !root.activeSelf) && fullFitted) ReleaseFull(map);
+            if (root == null || !root.activeSelf) return;
 
             // The game's own map key, or anything else, can take the map away.
             if (docked && !DynamicMap.mapMaximized) Undock();
-            if (docked && map != null) FitMap(map);
+            if (docked && map != null) { FitMap(map); fullFitted = false; }
+
+            // Undocked in command, the map fills the screen edge to edge rather
+            // than the game's centred square; its top and bottom run off-screen.
+            bool full = MapFull && CommandState.Active && !PilotSeat.Active;
+            if (full && map != null) { FitToScreen(map); fullFitted = true; }
+            else if (fullFitted && !docked) ReleaseFull(map);
             RefreshFullBar();
             CommandChrome();
         }
@@ -170,7 +212,28 @@ namespace NavalPower
             mapWindow.ViewRect.GetWorldCorners(corners);
             float want = Mathf.Min(corners[2].x - corners[0].x, corners[2].y - corners[0].y);
             Vector3 centre = (corners[0] + corners[2]) * 0.5f;
+            Fit(map, centre, want);
+        }
 
+        // Cover the whole screen: the map's square as wide as the screen's
+        // longer side, centred.
+        private static void FitToScreen(DynamicMap map)
+        {
+            if (map.mapBackground == null) return;
+            Fit(map, new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f), Mathf.Max(Screen.width, Screen.height));
+        }
+
+        private void ReleaseFull(DynamicMap map)
+        {
+            fullFitted = false;
+            if (map == null) return;
+            // Minimizing and maximizing is how the map lays itself out afresh.
+            if (DynamicMap.mapMaximized) { map.Minimize(); map.Maximize(); }
+            else map.transform.localScale = Vector3.one;
+        }
+
+        private static void Fit(DynamicMap map, Vector3 centre, float want)
+        {
             RectTransform background = map.mapBackground.rectTransform;
             Transform frame = map.transform;
             float have = background.rect.width * background.lossyScale.x;
@@ -278,6 +341,32 @@ namespace NavalPower
             hiddenObjects.Clear();
         }
 
+        // A grip in the docked map's bottom-right corner: drag it to resize.
+        private void AddResizeGrip(RectTransform panel)
+        {
+            var go = new GameObject("Resize grip", typeof(RectTransform), typeof(Image), typeof(MapResizeGrip));
+            go.transform.SetParent(panel, false);
+            var grip = resizeGrip = (RectTransform)go.transform;
+            grip.anchorMin = grip.anchorMax = new Vector2(1f, 0f);
+            grip.pivot = new Vector2(1f, 0f);
+            grip.sizeDelta = new Vector2(22f, 22f);
+            grip.anchoredPosition = Vector2.zero;
+            go.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.004f);   // catches the drag, draws nothing
+            go.GetComponent<MapResizeGrip>().Owner = this;
+            // Three diagonal ticks, the usual corner-grip mark.
+            for (int i = 0; i < 3; i++)
+            {
+                RectTransform tick = UiKit.Box("tick", grip, Theme.Dim(Theme.Accent, 0.9f));
+                tick.anchorMin = tick.anchorMax = new Vector2(1f, 0f);
+                tick.pivot = new Vector2(0.5f, 0.5f);
+                float length = 6f + i * 5f;
+                tick.sizeDelta = new Vector2(length, 2f);
+                tick.anchoredPosition = new Vector2(-4f - length * 0.35f, 4f + length * 0.35f);
+                tick.localRotation = Quaternion.Euler(0f, 0f, 45f);
+                tick.GetComponent<Image>().raycastTarget = false;
+            }
+        }
+
         // ---- full screen: the way back to the window ---------------------------
 
         private void BuildFullBar()
@@ -299,5 +388,22 @@ namespace NavalPower
             fullBar.gameObject.SetActive(show);
             if (show) fullBar.SetAsLastSibling();
         }
+    }
+
+    internal sealed class MapResizeGrip : MonoBehaviour, IDragHandler, IEndDragHandler
+    {
+        internal CommandUi Owner;
+
+        public void OnDrag(PointerEventData data)
+        {
+            if (Owner == null) return;
+            Canvas canvas = GetComponentInParent<Canvas>();
+            float scale = canvas != null && canvas.scaleFactor > 0.01f ? canvas.scaleFactor : 1f;
+            // Right and down both grow it: a square map follows the larger pull.
+            float change = (data.delta.x - data.delta.y) * 0.5f / scale;
+            Owner.ResizeDock(change, done: false);
+        }
+
+        public void OnEndDrag(PointerEventData data) => Owner?.ResizeDock(0f, done: true);
     }
 }
