@@ -56,6 +56,14 @@ namespace NavalPower
         private static readonly FieldInfo Doors = AccessTools.Field(typeof(UnitStorage), "doors");
         private static readonly FieldInfo LastDeployed = AccessTools.Field(typeof(UnitStorage), "lastDeployedUnit");
         private static readonly FieldInfo Rail = AccessTools.Field(typeof(UnitStorage), "deployRail");
+        private static readonly FieldInfo DeployTransform = AccessTools.Field(typeof(UnitStorage), "deployTransform");
+
+        // Where the game spawns what the hold deploys. Not GetDoorTransform:
+        // with a door fitted that returns the stern gate itself -- ten metres
+        // up and turned 120 degrees from the deck's axis -- and a craft spawned
+        // there started inside the structure, facing the wrong way.
+        internal static Transform DeployPoint(UnitStorage storage) =>
+            DeployTransform?.GetValue(storage) as Transform ?? storage.GetDoorTransform();
 
         // What the game's own deploy does after spawning: the hold steers the
         // new unit out along its rail each physics step -- centred, squared
@@ -125,7 +133,7 @@ namespace NavalPower
             }
             Log("into the hold · " + (loaded.Length > 0 ? loaded.ToString() : "nothing: no convoy vehicles for this faction"));
 
-            Transform door = hold.GetDoorTransform();
+            Transform door = AmphibSurveyAccess.DeployPoint(hold);
             UnitStorage cargo = null;
             if (method == LaunchMethod.GameDeploy)
             {
