@@ -13,6 +13,8 @@ namespace NavalPower
     // the nearest beach the survey found, and log each stage -- launch,
     // transit, beaching, unloading, return, docking -- so we learn whether
     // the game's own landing craft AI does the job before building on it.
+    internal enum LaunchMethod { OurSpawn, GameDeploy, Astern }
+
     internal static class AmphibTest
     {
         internal static bool Available(Ship ship, out UnitStorage hold, out UnitDefinition craft)
@@ -26,7 +28,7 @@ namespace NavalPower
             return false;
         }
 
-        internal static void Start(Ship carrier)
+        internal static void Start(Ship carrier, LaunchMethod method = LaunchMethod.OurSpawn)
         {
             if (!Available(carrier, out UnitStorage hold, out UnitDefinition craft))
             { CommandState.Say("This ship has no well deck"); return; }
@@ -42,8 +44,8 @@ namespace NavalPower
             if (beach == null) { CommandState.Say("No beach found on this map"); return; }
 
             var run = carrier.gameObject.AddComponent<AmphibTestRun>();
-            run.Begin(carrier, hold, craft, beach);
-            CommandState.Say("Landing craft test started · watch the log");
+            run.Begin(carrier, hold, craft, beach, method);
+            CommandState.Say("Landing craft test started (" + method + ") · watch the log");
         }
     }
 
@@ -70,6 +72,8 @@ namespace NavalPower
         internal static List<UnitDefinition> Deployable(UnitStorage storage) =>
             DeployableTypes?.GetValue(storage) as List<UnitDefinition> ?? new List<UnitDefinition>();
 
+        internal static Unit LastDeployedUnit(UnitStorage storage) => LastDeployed?.GetValue(storage) as Unit;
+
         internal static int DoorCount(UnitStorage storage) =>
             Doors?.GetValue(storage) is System.Array doors ? doors.Length : -1;
     }
@@ -82,10 +86,11 @@ namespace NavalPower
         private UnitStorage hold;
         private UnitDefinition craftType;
         private AmphibSurvey.Beach beach;
+        private LaunchMethod method;
 
-        internal void Begin(Ship carrier, UnitStorage hold, UnitDefinition craftType, AmphibSurvey.Beach beach)
+        internal void Begin(Ship carrier, UnitStorage hold, UnitDefinition craftType, AmphibSurvey.Beach beach, LaunchMethod method)
         {
-            this.carrier = carrier; this.hold = hold; this.craftType = craftType; this.beach = beach;
+            this.carrier = carrier; this.hold = hold; this.craftType = craftType; this.beach = beach; this.method = method;
             StartCoroutine(Run());
         }
 
@@ -101,7 +106,7 @@ namespace NavalPower
 
         private IEnumerator Run()
         {
-            Log("start · " + ShipNames.Of(carrier) + " · craft " + craftType.unitName + " · doors " +
+            Log("start · method " + method + " · " + ShipNames.Of(carrier) + " · craft " + craftType.unitName + " · doors " +
                 AmphibSurveyAccess.DoorCount(hold) + " · beach " + Where(beach.Inland) + " · inland " +
                 beach.Height.ToString("0.0") + " m up, slope " + beach.Slope.ToString("0") + "°");
 
@@ -120,27 +125,63 @@ namespace NavalPower
             }
             Log("into the hold · " + (loaded.Length > 0 ? loaded.ToString() : "nothing: no convoy vehicles for this faction"));
 
-            // The well deck, the way the game opens it.
-            float waited = 0f;
-            while (!hold.DoorsOpen() && waited < 30f)
-            {
-                hold.OpenDoors();
-                waited += 0.5f;
-                yield return new WaitForSeconds(0.5f);
-            }
-            Log(hold.DoorsOpen() ? "doors open after " + waited.ToString("0.0") + " s" : "doors never reported open; launching anyway");
-
             Transform door = hold.GetDoorTransform();
-            Unit spawned = NetworkSceneSingleton<Spawner>.i.SpawnUnit(craftType, door.position, door.rotation,
-                carrier.rb != null ? carrier.rb.GetPointVelocity(door.position) : Vector3.zero, carrier, null);
-            craft = spawned as Ship;
-            if (craft == null) { Log("spawn failed"); Destroy(this); yield break; }
-            bool rail = AmphibSurveyAccess.GuideOut(hold, craft);
-            UnitStorage cargo = craft.GetComponentInChildren<UnitStorage>(true);
-            if (cargo != null) cargo.TryFillFromStorage(hold);
-            Log("guided out along the deck rail: " + rail);
-            Log("spawned " + ShipNames.Of(craft) + " · its hold: " + Contents(cargo) + " · left in the carrier: " + Contents(hold));
-            craft.Launch();
+            UnitStorage cargo = null;
+            if (method == LaunchMethod.GameDeploy)
+            {
+                // Exactly what the Annex's own AI does: the craft into the
+                // hold, then the hold's own deploy -- doors, spawn, rail, fill,
+                // launch, all the game's.
+                hold.AddOrRemoveUnit(craftType, 1);
+                Unit before = AmphibSurveyAccess.LastDeployedUnit(hold);
+                hold.DeployUnits();
+                Log("game deploy called · waiting for the craft");
+                float waitedFor = 0f;
+                while (waitedFor < 60f)
+                {
+                    Unit latest = AmphibSurveyAccess.LastDeployedUnit(hold);
+                    if (latest != null && latest != before && latest is Ship spawnedShip && spawnedShip.GetComponent<LandingCraftAI>() != null)
+                    { craft = spawnedShip; break; }
+                    waitedFor += 0.25f;
+                    yield return new WaitForSeconds(0.25f);
+                }
+                if (craft == null) { Log("the game's deploy produced no craft in 60 s · doors " + (hold.DoorsOpen() ? "open" : "closed")); Destroy(this); yield break; }
+                cargo = craft.GetComponentInChildren<UnitStorage>(true);
+                Log("game deployed " + ShipNames.Of(craft) + " after " + waitedFor.ToString("0.0") + " s · its hold: " + Contents(cargo) + " · left in the carrier: " + Contents(hold));
+            }
+            else
+            {
+                // The well deck, the way the game opens it.
+                float waited = 0f;
+                while (!hold.DoorsOpen() && waited < 30f)
+                {
+                    hold.OpenDoors();
+                    waited += 0.5f;
+                    yield return new WaitForSeconds(0.5f);
+                }
+                Log(hold.DoorsOpen() ? "doors open after " + waited.ToString("0.0") + " s" : "doors never reported open; launching anyway");
+
+                Vector3 at = door.position;
+                Quaternion facing = door.rotation;
+                if (method == LaunchMethod.Astern)
+                {
+                    // On open water just past the stern gate, facing away.
+                    float length = craftType.length > 1f ? craftType.length : 30f;
+                    Vector3 out_ = door.forward; out_.y = 0f; out_.Normalize();
+                    at = door.position + out_ * (length * 0.5f + carrier.definition.length * 0.1f + 40f);
+                    at.y = Datum.LocalSeaY + 1f;
+                    facing = Quaternion.LookRotation(out_, Vector3.up);
+                }
+                Unit spawned = NetworkSceneSingleton<Spawner>.i.SpawnUnit(craftType, at, facing,
+                    carrier.rb != null ? carrier.rb.GetPointVelocity(door.position) : Vector3.zero, carrier, null);
+                craft = spawned as Ship;
+                if (craft == null) { Log("spawn failed"); Destroy(this); yield break; }
+                if (method == LaunchMethod.OurSpawn) Log("guided out along the deck rail: " + AmphibSurveyAccess.GuideOut(hold, craft));
+                cargo = craft.GetComponentInChildren<UnitStorage>(true);
+                if (cargo != null) cargo.TryFillFromStorage(hold);
+                Log("spawned " + ShipNames.Of(craft) + " · its hold: " + Contents(cargo) + " · left in the carrier: " + Contents(hold));
+            }
+            if (method != LaunchMethod.GameDeploy) craft.Launch();      // the game's deploy launches it itself
             float launched = Time.timeSinceLevelLoad;
 
             // Keep the gate open while it clears the deck, as the game does,

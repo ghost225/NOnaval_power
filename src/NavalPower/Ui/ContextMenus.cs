@@ -139,11 +139,11 @@ namespace NavalPower
 
             s.Row("Speed…", () => s.Show(SpeedPage));
             if (AmphibTest.Available(ship, out _, out _))
-                s.Row("TEST  ·  launch a landing craft to the nearest beach (free)", () =>
-                {
-                    AmphibTest.Start(ship);
-                    s.Close();
-                });
+            {
+                s.Row("TEST 1  ·  landing craft · our spawn with the deck rail", () => { AmphibTest.Start(ship, LaunchMethod.OurSpawn); s.Close(); });
+                s.Row("TEST 2  ·  landing craft · the game's own deploy", () => { AmphibTest.Start(ship, LaunchMethod.GameDeploy); s.Close(); });
+                s.Row("TEST 3  ·  landing craft · spawned astern, on open water", () => { AmphibTest.Start(ship, LaunchMethod.Astern); s.Close(); });
+            }
             s.Row("Hold position  ·  all stop, clear the route", () =>
             {
                 NavigationOrders.ClearWaypoints(ship, out _);
