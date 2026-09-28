@@ -673,6 +673,7 @@ namespace NavalPower
 
                 if (flight.Mode == FlightMode.Strike || flight.Mode == FlightMode.Engage)
                 {
+                    if (StillLeaving(pilot)) continue;          // it goes to combat by itself once clear
                     PilotBaseState combat = CombatStateFor(pilot);
                     if (combat != null && !ReferenceEquals(pilot.currentState, combat))
                         pilot.SwitchStateNew(combat);
@@ -726,7 +727,22 @@ namespace NavalPower
             pilot.currentState is PilotParkedState ||
             pilot.currentState is AIPilotTaxiState ||
             pilot.currentState is AIPilotTakeoffState ||
-            pilot.currentState is AIHeloTakeoffState;
+            pilot.currentState is AIHeloTakeoffState ||
+            ModdedDeparture(pilot.currentState);
+
+        // Another mod's own way off the deck -- Aryx's catapult has
+        // AryxAIPilotCatapultTaxiState and AryxAIPilotCatapultTakeoffState,
+        // which hold the aircraft on the shuttle by its nose wheel. Taken over
+        // mid-stroke, the gear came up on the catapult and was torn off.
+        // Those states hand over to the combat state themselves once clear.
+        internal static bool ModdedDeparture(PilotBaseState state)
+        {
+            if (state == null) return false;
+            string name = state.GetType().Name;
+            return name.IndexOf("Takeoff", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   name.IndexOf("Taxi", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   name.IndexOf("Catapult", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
 
         internal static bool IsRotary(Pilot pilot) => pilot != null && pilot.AIHeloCombatState != null;
 

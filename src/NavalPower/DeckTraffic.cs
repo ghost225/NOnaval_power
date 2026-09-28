@@ -103,15 +103,15 @@ namespace NavalPower
 
                 // Getting off the deck: this deck specifically, recorded when
                 // the hangar built the aircraft.
-                if (pilot.currentState is AIPilotTaxiState || pilot.currentState is AIPilotTakeoffState ||
-                    pilot.currentState is AIHeloTakeoffState)
+                if (FlightOrders.StillLeaving(pilot) && !(pilot.currentState is PilotParkedState))
                 {
                     if (!CameFrom(deck, aircraft)) continue;
                     rows.Add(new DeckMovement
                     {
                         Phase = TrafficPhase.Launching,
                         Name = name,
-                        Detail = pilot.currentState is AIPilotTaxiState ? "taxiing" : "rolling",
+                        Detail = pilot.currentState is AIPilotTaxiState || pilot.currentState.GetType().Name.Contains("Taxi") ? "taxiing"
+                            : pilot.currentState.GetType().Name.Contains("Catapult") ? "on the catapult" : "rolling",
                         Aircraft = aircraft,
                         RangeMetres = range,
                         Ours = ours
