@@ -63,6 +63,8 @@ Needs the .NET SDK and a Nuclear Option install with BepInEx 5.
 
 ```bash
 NUCLEAR_OPTION_GAME="/path/to/Nuclear Option" ./build.sh --install
+# or, with the game running: build now, install when it closes
+NUCLEAR_OPTION_GAME="/path/to/Nuclear Option" ./build.sh --when-closed
 ```
 
 `./package.sh` builds the release DLL. [RELEASING.md](docs/RELEASING.md) covers

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Builds NavalPower.dll and, with --install, copies it into BepInEx/plugins.
+# With --when-closed as well, an install refused because the game is running
+# waits for the game to exit and then installs the newest build. One waiter at
+# a time: a later build while one is waiting needs nothing more, since the
+# waiter copies whatever the newest DLL is when the game closes.
 set -euo pipefail
 export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export PATH="$DOTNET_ROOT:$PATH"
@@ -9,9 +13,14 @@ export NUCLEAR_OPTION_GAME
 cd "$(dirname "$0")"
 
 install=0
+wait_for_close=0
 args=()
 for arg in "$@"; do
-    if [[ "$arg" == "--install" ]]; then install=1; else args+=("$arg"); fi
+    case "$arg" in
+        --install) install=1 ;;
+        --when-closed) install=1; wait_for_close=1 ;;
+        *) args+=("$arg") ;;
+    esac
 done
 
 dotnet build -c Release --nologo ${args[@]+"${args[@]}"}
@@ -24,9 +33,20 @@ if (( install )); then
     # this -- and refused installs with the game closed. The bracket keeps this
     # pattern from matching its own text.
     if pgrep -f 'NuclearOption[.]exe' >/dev/null 2>&1; then
-        echo "REFUSING TO INSTALL: Nuclear Option is running." >&2
-        echo "Close the game first, then re-run with --install." >&2
-        exit 1
+        if (( ! wait_for_close )); then
+            echo "REFUSING TO INSTALL: Nuclear Option is running." >&2
+            echo "Close the game first, then re-run with --install (or use --when-closed)." >&2
+            exit 1
+        fi
+        lock="${TMPDIR:-/tmp}/navalpower-install.lock"
+        exec 9>"$lock"
+        if ! flock -n 9; then
+            echo "install already queued for when the game closes; it will take this build"
+            exit 0
+        fi
+        echo "game running: install queued for when it closes"
+        while pgrep -f 'NuclearOption[.]exe' >/dev/null 2>&1; do sleep 5; done
+        sleep 3          # let the process let go of its files
     fi
     dest="$NUCLEAR_OPTION_GAME/BepInEx/plugins/NavalPower"
     mkdir -p "$dest"
