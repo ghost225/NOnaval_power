@@ -235,3 +235,21 @@ radar shot should now flare and evade as the native pilot does.
 ## 2026-09-28 · NOrders d8c95ba: `FlightOrders.Adopt`
 
 `FlightOrders.Adopt(Aircraft, Airbase home, string callsign, string wing = null)` registers an aircraft that already exists (mission-placed, save-restored, event-spawned) as a flight of the calling mod. It goes through `Ownership.Claim`, so an aircraft Naval Power already owns is returned untouched (null). High Command uses it from a postfix on `Pilot.SetStartingAiState` to park or adopt every AI aircraft of a commanded faction; it skips hangar launches and the player's own carrier deck, so your launches and deck are not affected. Nothing else in the tree changed. Bump the submodule when convenient.
+
+### Fix needed in High Command: pull NOrders (2026-09-28)
+
+With High Command 0.0.1 loaded, the player was getting kill credit, rank
+and sortie bonuses for High Command's AI flights. The log showed "Sfyra
+recovered · sortie bonus 23". The cause was shared code that assumed the
+local player directs every flight. NOrders now gates player crediting and
+charging behind **`Host.PlayerDirected`**, which defaults to `false`:
+
+- no kill credit to the local player (`FlightOrders.CreditKills`);
+- no sortie bonus to the local player (`SortieBonusPatch`);
+- launches drawn from reserve or faction funds, never the player's
+  allocation (`CarrierOps.Launch`).
+
+Naval Power sets it `true`. High Command should leave it `false` and pull
+NOrders ≥ the commit that adds it. `Amphib.Buy` still charges the local
+player's allocation; it's an explicit player action in Naval Power, so High
+Command shouldn't call it (or should gate it) if it ever buys for the hold.

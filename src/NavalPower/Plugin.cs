@@ -25,6 +25,7 @@ namespace NavalPower
             // The shared execution code (NOrders) reaches this mod only
             // through these.
             Host.ModId = "NavalPower";
+            Host.PlayerDirected = true;                // the player commands everything this mod runs
             Host.LogInfo = line => Log.LogInfo(line);
             Host.LogWarning = line => Log.LogWarning(line);
             Host.LogError = line => Log.LogError(line);
