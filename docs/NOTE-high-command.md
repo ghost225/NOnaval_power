@@ -212,3 +212,12 @@ Differences from the brief:
   control.
 - Ship renames still use the PlayerPrefs key `NavalPower.ship.*`, so
   existing renames survive; both mods would share them.
+
+---
+
+**2026-09-29, from High Command:** NOrders gained `Host.CreditKillsToPlayer`
+(default `true`, so Naval Power's behaviour is unchanged) and
+`FlightOrders.CreditKills` now also refuses to credit a flight of another
+faction. Reason: High Command adopts enemy flights through the same code
+and their kills were being paid to the player. Bump the submodule when
+convenient; nothing to wire.
