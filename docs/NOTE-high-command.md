@@ -231,3 +231,7 @@ evaded again. This affects Naval Power's flights too (yield on missile,
 Reclaim, run-in hand-over); the calls are already in the shared code, so a
 submodule bump picks it up. Worth a test: a strike flight that yields to a
 radar shot should now flare and evade as the native pilot does.
+
+## 2026-09-28 · NOrders d8c95ba: `FlightOrders.Adopt`
+
+`FlightOrders.Adopt(Aircraft, Airbase home, string callsign, string wing = null)` registers an aircraft that already exists (mission-placed, save-restored, event-spawned) as a flight of the calling mod. It goes through `Ownership.Claim`, so an aircraft Naval Power already owns is returned untouched (null). High Command uses it from a postfix on `Pilot.SetStartingAiState` to park or adopt every AI aircraft of a commanded faction; it skips hangar launches and the player's own carrier deck, so your launches and deck are not affected. Nothing else in the tree changed. Bump the submodule when convenient.
