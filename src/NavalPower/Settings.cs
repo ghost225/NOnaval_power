@@ -1,5 +1,6 @@
 using BepInEx.Configuration;
 using UnityEngine;
+using NOrders;
 
 namespace NavalPower
 {
@@ -315,6 +316,54 @@ namespace NavalPower
                 Advanced("Cease fire on the followed ship."));
             WaypointKey = config.Bind("Diagnostics", "Waypoint ahead key", new KeyboardShortcut(KeyCode.F9),
                 Advanced("Set a waypoint five kilometres off the bow."));
+
+            // The shared code reads plain values; keep them in step.
+            Sync();
+            config.SettingChanged += (_, __) => Sync();
+        }
+
+        // Copies every entry the shared execution code (NOrders) reads into
+        // its Tuning values.
+        private static void Sync()
+        {
+            Tuning.DefaultFuel = DefaultFuel.Value;
+            Tuning.DefaultAltitude = DefaultAltitude.Value;
+            Tuning.DefaultAreaRadius = DefaultAreaRadius.Value;
+            Tuning.MinimumClearance = MinimumClearance.Value;
+            Tuning.ThreatSettleSeconds = ThreatSettleSeconds.Value;
+            Tuning.StandoffMetres = StandoffMetres.Value;
+            Tuning.EgressSeconds = EgressSeconds.Value;
+            Tuning.ReattackAfterEgress = ReattackAfterEgress.Value;
+            Tuning.LaunchCostFromAllocation = LaunchCostFromAllocation.Value;
+            Tuning.SortieBonusOnRecovery = SortieBonusOnRecovery.Value;
+            Tuning.CarrierApproachFix = CarrierApproachFix.Value;
+            Tuning.CarrierApproachFactor = CarrierApproachFactor.Value;
+            Tuning.StrikePatience = StrikePatience.Value;
+            Tuning.JammingStandoff = JammingStandoff.Value;
+            Tuning.EgressAltitude = EgressAltitude.Value;
+            Tuning.RadarHandover = RadarHandover.Value;
+            Tuning.InfraredHandover = InfraredHandover.Value;
+            Tuning.LowFuelAlert = LowFuelAlert.Value;
+            Tuning.BombingHeight = BombingHeight.Value;
+            Tuning.CruiseThrottle = CruiseThrottle.Value;
+            Tuning.IrBurstRange = IrBurstRange.Value;
+            Tuning.IrBurstFlares = IrBurstFlares.Value;
+            Tuning.PreFlare = PreFlare.Value;
+            Tuning.PreFlareInterval = PreFlareInterval.Value;
+            Tuning.FlareReserve = FlareReserve.Value;
+            Tuning.FlareInterval = FlareInterval.Value;
+            Tuning.CloseSpacing = CloseSpacing.Value;
+            Tuning.CombatSpacing = CombatSpacing.Value;
+            Tuning.EscortRetaliate = EscortRetaliate.Value;
+            Tuning.EscortIntercept = EscortIntercept.Value;
+            Tuning.DamageControlRate = DamageControlRate.Value;
+            Tuning.DamageControlPreserveCapacity = DamageControlPreserveCapacity.Value;
+            Tuning.DamageControlConcentration = DamageControlConcentration.Value;
+            Tuning.NameShips = NameShips.Value;
+            Tuning.DeckTrace = DeckTrace.Value;
+            Tuning.FlightTrace = FlightTrace.Value;
+            Tuning.NavigationTrace = NavigationTrace.Value;
+            Tuning.InterfaceTrace = InterfaceTrace.Value;
         }
     }
 }

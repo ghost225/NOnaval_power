@@ -3,6 +3,7 @@ using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
+using NOrders;
 
 namespace NavalPower
 {
@@ -21,6 +22,16 @@ namespace NavalPower
         {
             Instance = this;
             Log = Logger;
+            // The shared execution code (NOrders) reaches this mod only
+            // through these.
+            Host.ModId = "NavalPower";
+            Host.LogInfo = line => Log.LogInfo(line);
+            Host.LogWarning = line => Log.LogWarning(line);
+            Host.LogError = line => Log.LogError(line);
+            Host.Say = CommandState.Say;
+            Host.CommandedShip = () => CommandState.Ship;
+            Host.CommandedBase = () => CommandState.Base;
+            Host.IsFlownByPlayer = flight => flight != null && PilotSeat.Flying == flight;
             try
             {
                 Settings.Bind(Config);

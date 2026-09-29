@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using NOrders;
 
 namespace NavalPower
 {
@@ -804,7 +805,7 @@ namespace NavalPower
             // a second can be sent straight after the first.
             // Whether this load gets off this deck, before anything is spent.
             TakeoffEstimate takeoff = TakeoffCheck.Estimate(plan, CommandState.Airfield);
-            if (!string.IsNullOrEmpty(takeoff.Line)) s.Info(takeoff.Line, TakeoffCheck.ColourOf(takeoff.Verdict));
+            if (!string.IsNullOrEmpty(takeoff.Line)) s.Info(takeoff.Line, TakeoffColour(takeoff.Verdict));
             bool heavy = takeoff.Verdict == TakeoffVerdict.TooHeavy || takeoff.Verdict == TakeoffVerdict.OverMax;
             Button launch = s.Row((plan.Count > 1 ? "LAUNCH " + plan.Count + " × " + plan.Definition.unitName : "LAUNCH") +
                 (heavy ? "  ·  anyway" : ""), () =>
@@ -901,5 +902,10 @@ namespace NavalPower
             }
             s.Row("Back", () => s.Show(LoadoutPage));
         }
+
+        private static Color TakeoffColour(TakeoffVerdict verdict) =>
+            verdict == TakeoffVerdict.Ok ? Theme.Good
+            : verdict == TakeoffVerdict.Marginal ? Theme.Warn
+            : verdict == TakeoffVerdict.Unknown ? Theme.TextMuted : Theme.Bad;
     }
 }

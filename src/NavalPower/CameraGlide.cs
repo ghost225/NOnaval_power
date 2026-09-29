@@ -1,6 +1,7 @@
 using System;
 using HarmonyLib;
 using UnityEngine;
+using NOrders;
 
 namespace NavalPower
 {

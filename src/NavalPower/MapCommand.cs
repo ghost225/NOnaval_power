@@ -7,6 +7,7 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using NOrders;
 
 namespace NavalPower
 {
@@ -194,6 +195,7 @@ namespace NavalPower
         {
             if (!GameplayReady()) return;
             dismissed = null;
+            Ownership.Claim(ship);
             Plugin.Log.LogInfo("[command] taking command of " + ShipNames.Of(ship) + (fresh ? "" : " · switching"));
             if (fresh) SceneSingleton<DynamicMap>.i?.Minimize();
             CommandState.Base = null;
@@ -271,7 +273,9 @@ namespace NavalPower
             ReleaseKillCredit();
             // lastCommanded deliberately survives, so command can be resumed.
             if (!keepNativeBarHidden) RestoreNativeBar();
+            Ship left = CommandState.Ship;
             CommandState.Clear();
+            CommandableShip.ReleaseIfIdle(left);
             Ui?.Tidy();
             CursorManager.SetFlag(CommandCursor, false);
         }
@@ -411,6 +415,11 @@ namespace NavalPower
             // Independent subsystems, independently retired. A fault in cargo
             // missions must not also stop damage control from running.
             Guard.Run("Flight orders", FlightOrders.Tick);
+            // A request for a cargo zone that some other order has overtaken:
+            // the next map click would otherwise land a delivery on a flight
+            // that has been sent elsewhere since.
+            if (CommandState.AwaitingCargoZone != null && CommandState.AwaitingCargoZone.Mode != CommandState.AwaitingFromMode)
+                CommandState.AwaitingCargoZone = null;
             Guard.Run("Launch queue", LaunchQueue.Tick);
             Guard.Run("Supply runs", Replenishment.Tick);
             Guard.Run("Amphibious survey", AmphibSurvey.Tick);
