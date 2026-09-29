@@ -38,6 +38,19 @@ namespace NavalPower
             return true;
         }
 
+        // Under Naval Power's control: the ship being commanded, a ship in one
+        // of our task forces, or one we are steering or firing for. Behaviour
+        // changes to the game's own AI apply to these only, so another mod
+        // running the same faction's ships is left alone.
+        internal static bool Controlled(Ship ship)
+        {
+            if (ship == null) return false;
+            if (ship == CommandState.Ship || TaskForces.Of(ship) != null) return true;
+            ShipRoute route = ship.GetComponent<ShipRoute>();
+            if (route != null && (route.OwnsNavigation || route.HasSpeedOrder)) return true;
+            return ship.GetComponent<ShipWeapons>() != null || ship.GetComponent<ShipEngagement>() != null;
+        }
+
         internal static bool HasPermission(Ship ship, Player player)
         {
             if (ship == null || player == null) return false;

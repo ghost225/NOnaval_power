@@ -1,6 +1,6 @@
 namespace NavalPower
 {
-    // Nuclear weapons fitted to our ships -- an SLND's warheads come aboard
+    // Nuclear weapons fitted to the ships we control -- an SLND's warheads come aboard
     // with the ship, not from an airbase -- answer to the same release rules
     // the game applies to an aircraft loading them: the mission's escalation
     // past the tactical threshold (strategic for a strategic weapon), and the
@@ -32,13 +32,13 @@ namespace NavalPower
 
         private static string Level(MissionManager mission) => mission.currentEscalation.ToString("0");
 
-        // Checked on every shot. Our faction's ships only; everyone else is
-        // the game's business.
+        // Checked on every shot. Only ships Naval Power controls; the rest of
+        // the faction, and anything another mod runs, is left to the game.
         internal static bool Allows(Weapon weapon, Unit owner)
         {
             WeaponInfo info = weapon != null ? weapon.info : null;
             if (info == null || !info.nuclear || !(owner is Ship ship)) return true;
-            if (!GameManager.GetLocalHQ(out FactionHQ hq) || hq == null || ship.NetworkHQ != hq) return true;
+            if (!CommandableShip.Controlled(ship)) return true;
             if (!ShipWeapons.Firing) return false;             // never automatic
             return Authorised(info, out _);
         }
