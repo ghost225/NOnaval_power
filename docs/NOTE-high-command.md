@@ -238,18 +238,23 @@ radar shot should now flare and evade as the native pilot does.
 
 ### Fix needed in High Command: pull NOrders (2026-09-28)
 
-With High Command 0.0.1 loaded, the player was getting kill credit, rank
-and sortie bonuses for High Command's AI flights. The log showed "Sfyra
-recovered · sortie bonus 23". The cause was shared code that assumed the
-local player directs every flight. NOrders now gates player crediting and
-charging behind **`Host.PlayerDirected`**, which defaults to `false`:
+With High Command 0.0.1 loaded, the player was getting credit, rank and
+sortie bonuses for High Command's AI flights. The log showed "Sfyra
+recovered · sortie bonus 23". Kill credit is already covered by your
+`Host.CreditKillsToPlayer` (bb71957). The rest is now gated behind
+**`Host.PlayerDirected`**, which defaults to `false` (NOrders cd0eeb7):
 
-- no kill credit to the local player (`FlightOrders.CreditKills`);
 - no sortie bonus to the local player (`SortieBonusPatch`);
 - launches drawn from reserve or faction funds, never the player's
   allocation (`CarrierOps.Launch`).
 
-Naval Power sets it `true`. High Command should leave it `false` and pull
-NOrders ≥ the commit that adds it. `Amphib.Buy` still charges the local
+Naval Power sets it `true`. High Command should leave it `false`, and
+set `CreditKillsToPlayer = false`. `Amphib.Buy` still charges the local
 player's allocation; it's an explicit player action in Naval Power, so High
 Command shouldn't call it (or should gate it) if it ever buys for the hold.
+
+Two of the NOrders commits (7c8b636, 730c56f) are authored as the
+`caleb-tinyeye` work identity. This repo should use
+`ghost225 <5922297+ghost225@users.noreply.github.com>`: pin it in your
+clone's local git config. Whether to rewrite those two commits is the
+user's call.
