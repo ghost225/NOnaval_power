@@ -262,3 +262,9 @@ user's call.
 ## 2026-09-28 · NOrders history rewritten (identity only)
 
 The two commits authored as caleb-tinyeye were rewritten to ghost225 at the user's request; every commit from bb71957 on has a new SHA (7646dea is now 9b6827f), trees unchanged. NOrders master was force-pushed. Both submodule checkouts here and in high-command are realigned and both gitlinks point at 9b6827f. If your clone still shows 7646dea, run `git fetch origin && git checkout -B master origin/master` in it. The ghost225 identity is now pinned in the local config of every NOrders clone and submodule.
+
+## 2026-09-28 · NOrders: heat-seeker defence rewritten (behaviour change for your flights too)
+
+From the seeker's code: a flare decoys it when accumulated glare exceeds `engine IR × (1 + aspect)`, where aspect is 2 from dead astern and 0 from abeam, and each flare's glare scales with its angular separation from the aircraft as seen by the missile (near zero when trailing straight back at a tail shot). The afterburner adds its own IR on top. The native EvadeModeIR waited out the reaction time at full throttle, then idled and held the flare button with no turn.
+
+NOrders now: on any IR missile, throttle to idle at once (`ThrottleCutUntil` refreshed every threat scan), strings of `IrBurstFlares` at 0.3 s, repeated after `Tuning.IrBurstPause` (1.5 s) while the shot keeps coming and flares last, and `NavalPilotState.FlyBeam` turns to put the missile on the beam at the current height. A run-in is still held. `ShouldYield` no longer hands IR shots to the native pilot in any mode (`Tuning.InfraredHandover` is now unused); radar shots go to native as before. `NativeIrEvasionPatch` (was StrikeIrEvasionPatch) applies to every flight of ours the native pilot has. New `Flight` fields: `ThreatMissile`, `LastBurstAt`, `EvadingInfrared`. Bump when convenient and watch your carrier flights against IR SAMs.
