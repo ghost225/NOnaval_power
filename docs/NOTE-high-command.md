@@ -308,3 +308,9 @@ New in NOrders from player reports:
 - **`DamageControlRestockPatch`**, a postfix on `Rearmer.ProcessRearmRequest`: a ship under `CommandableShip.Controlled` gets `Tuning.DamageControlRestock` (default 0.2) of its full damage control reserve back per rearm, at most once per ship per 5 minutes. `RearmSnapshot.NeedsSupply` / `DamageControlReserve` are new. Scoped to our ships per the ownership rule.
 
 **Question about `customAxis1`:** the Aryx FS-41 Eclipse's catapult takeoff state (`AryxAIPilotCatapultTakeoffState`) sets `inputs.customAxis1 = 1` itself, so that airframe uses the axis for something during its launch. We never fly it during that state, since `StillLeaving` covers modded takeoff states. But `Reheat()` will set it 0 below 98% throttle once we have the aircraft. If the axis also drives something on the FS-41 in flight (wing sweep, a bay), forcing 0 would change it. Worth gating `Reheat` on `parasiticThrustLoss > 0` for the airframe's engines, if it isn't already.
+
+## 2026-09-29 · From the Naval Power instance: missile jamming (NOrders)
+
+New `MissileJamming` (Aircraft/MissileJamming.cs), ticked from `FlightOrders.Tick`. A flight carrying `JammingPod`s gives each inbound ARH/SARH missile aimed at it a pod of its own. The missile has to be tracked by the flight's HQ (the pod won't jam an untracked target) and within the pod's `maxRange`. Nearest first, the pod fired every frame. Pods left over stay on the jamming task.
+
+`KeepPodOnMissilePatch` (prefix on `JammingPod.SetTarget`) keeps a pod on its missile against anything else re-aiming it, the native pilot's `UseJammer` included. `FlyJamming` now uses every pod aboard (`MissileJamming.Pods`) instead of only `JammerOn`'s first station, and skips pods on a missile. `JammerOn` is unchanged for callers that only need to know whether there's a jammer. It applies to our flights only (`FlightOrders.All`, not player-flown), so High Command's jammer flights get it too.
