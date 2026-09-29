@@ -29,16 +29,14 @@ namespace NavalPower
         internal static ConfigEntry<float> JammingStandoff;
         internal static ConfigEntry<float> EgressAltitude;
         internal static ConfigEntry<float> RadarHandover;
-        internal static ConfigEntry<float> InfraredHandover;
         internal static ConfigEntry<KeyboardShortcut> NextInForce, PreviousInForce;
         internal static ConfigEntry<float> CloseSpacing, CombatSpacing;
         internal static ConfigEntry<bool> EscortRetaliate, EscortIntercept;
         internal static ConfigEntry<float> BombingHeight;
         internal static ConfigEntry<float> CruiseThrottle;
         internal static ConfigEntry<bool> PreFlare;
-        internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange;
+        internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange, IrBurstPause;
         internal static ConfigEntry<int> IrBurstFlares;
-        internal static ConfigEntry<float> FlareInterval;
 
         internal static ConfigEntry<int> DamageControlConcentration;
         internal static ConfigEntry<int> DamageControlRate;
@@ -182,11 +180,6 @@ namespace NavalPower
                     "this close, then hand the aircraft to native evasion.",
                     new AcceptableValueRange<float>(1000f, 60000f)));
 
-            InfraredHandover = config.Bind("Flights", "Heat-seeker handover", 2000f,
-                Advanced("The same for a heat-seeking shot, which is let in far closer: flares " +
-                    "work and the endgame is short.",
-                    new AcceptableValueRange<float>(200f, 20000f)));
-
             CloseSpacing = config.Bind("Wings", "Transit spacing", 200f,
                 "Metres between wingmen in the close route formation flown in transit.");
             // 120 m was the first default and proved too tight; move a config
@@ -212,10 +205,15 @@ namespace NavalPower
                 "power. A wing's lead cruises 5% below this so its wingmen can close up, and slows further while " +
                 "they are well behind.");
             IrBurstRange = config.Bind("Flights", "Heat-seeker flare range", 3000f,
-                "On an attack run, a heat-seeking shot inside this range is met with a burst of flares and a " +
-                "moment at idle throttle, without leaving the run.");
-            IrBurstFlares = config.Bind("Flights", "Flares per heat-seeker", 4,
-                "Flares released against each heat-seeking shot on an attack run.");
+                "A heat-seeking shot inside this range is met with strings of flares, whatever the flight is " +
+                "doing. The engine goes to idle and the aircraft turns the missile onto its beam as soon as " +
+                "one is fired; an attack run is held through it.");
+            IrBurstFlares = config.Bind("Flights", "Flares per string", 4,
+                "Flares in each string released against a heat-seeking shot. A string that does not shake it " +
+                "is followed by another after the flare string pause, while flares last.");
+            IrBurstPause = config.Bind("Flights", "Flare string pause", 1.5f,
+                Advanced("Seconds between strings of flares while a heat-seeker keeps coming.",
+                    new AcceptableValueRange<float>(0.3f, 10f)));
             PreFlare = config.Bind("Flights", "Pre-flare near IR launchers", true,
                 "On an attack run inside the reach of an IR launcher the faction knows about, release a flare " +
                 "every few seconds, so a shot fired without warning meets flares already in the air.");
@@ -223,11 +221,6 @@ namespace NavalPower
                 Advanced("Seconds between pre-emptive flares near known IR launchers."));
             FlareReserve = config.Bind("Flights", "Flare reserve", 0.3f,
                 Advanced("Pre-flaring stops when the flares left fall to this fraction, keeping them for actual shots."));
-            FlareInterval = config.Bind("Flights", "Flare interval", 1.5f,
-                Advanced("Seconds between flare releases while egressing with a heat-seeker " +
-                    "inbound. The native pilot runs its own countermeasures once it has the aircraft.",
-                    new AcceptableValueRange<float>(0.5f, 10f)));
-
             DamageControlRate = config.Bind("Damage control", "Work rate", 5,
                 new ConfigDescription("How much faster damage control works on ships you command. The game's " +
                     "own rate dewaters a compartment in something like a thousand seconds, which is far " +
@@ -342,7 +335,6 @@ namespace NavalPower
             Tuning.JammingStandoff = JammingStandoff.Value;
             Tuning.EgressAltitude = EgressAltitude.Value;
             Tuning.RadarHandover = RadarHandover.Value;
-            Tuning.InfraredHandover = InfraredHandover.Value;
             Tuning.LowFuelAlert = LowFuelAlert.Value;
             Tuning.BombingHeight = BombingHeight.Value;
             Tuning.CruiseThrottle = CruiseThrottle.Value;
@@ -351,7 +343,7 @@ namespace NavalPower
             Tuning.PreFlare = PreFlare.Value;
             Tuning.PreFlareInterval = PreFlareInterval.Value;
             Tuning.FlareReserve = FlareReserve.Value;
-            Tuning.FlareInterval = FlareInterval.Value;
+            Tuning.IrBurstPause = IrBurstPause.Value;
             Tuning.CloseSpacing = CloseSpacing.Value;
             Tuning.CombatSpacing = CombatSpacing.Value;
             Tuning.EscortRetaliate = EscortRetaliate.Value;
