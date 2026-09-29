@@ -274,3 +274,9 @@ Addendum (2026-09-29, NOrders after 6c90c7a): the first cut idled the engine thr
 ## 2026-09-29 · NOrders 341d373, 2548026: speed-scaled bank and afterburner under AI
 
 Soak runs showed F-16M (Aryx mod) flights under NavalPilotState mushing into the sea at full throttle from routine orbits. Two causes, both fixed in NOrders: (1) `FlyOrbit` banked 70° regardless of speed; bank is now `SafeBank()`, 25°–70° by margin over `cornerSpeed`, and the energy-recovery rule (0e34e6f) triggers below 1.25× corner. (2) The game lights the afterburner on engines with `parasiticThrustLoss > 0` only when `controlInputs.customAxis1 > 0.3`, which no AI pilot ever sets; `NavalPilotState.Reheat()` now sets the axis to 1 whenever our state asks for ≥98% throttle and 0 otherwise. Your carrier flights get both. If any Naval Power airframe uses customAxis1 for something else under AutopilotPlane, tell me and I will gate it.
+
+## 2026-09-29 · NOrders: `Host.DoglegHome`, reheat under the native pilot, cruise floor
+
+- `Host.DoglegHome : Func<Flight, GlobalPosition?>` (default null → straight home). `FlightOrders.ReturnToBase` asks it once per return; a point makes the flight fly a one-leg route there first (`Flight.HomingVia`), then land. High Command answers from its intel (known SAM/warship reach). Naval Power can leave the default or answer from its own picture.
+- `FlightOrders.Tick` sets `customAxis1` = 1 at ≥98 % throttle for our fixed-wing flights while the native pilot has them (`Interrupted`), so mod jets with parasitic thrust loss get their afterburner in a fight. `NavalPilotState.Reheat()` does the same under our state.
+- `NavalPilotState.CruiseThrottle()` returns full power below 1.3× `cornerSpeed`; the energy-recovery rule triggers at 1.05× corner and now covers wingmen; orbit bank is `SafeBank()`.
