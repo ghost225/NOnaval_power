@@ -644,15 +644,20 @@ namespace NavalPower
 
             // These ask for a zone; they do not order a delivery. The order is
             // placed by the map click that answers them.
-            Button land = s.Row("LAND AT A POINT  ·  troops and vehicles get out",
-                () => AskForZone(flight, airdrop: false));
-            if (Chosen(flight, false)) land.image.color = Theme.AccentFill;
+            bool plane = FixedWingDrops.CanAirdrop(flight.Aircraft);
+            if (!plane)
+            {
+                Button land = s.Row("LAND AT A POINT  ·  troops and vehicles get out",
+                    () => AskForZone(flight, airdrop: false));
+                if (Chosen(flight, false)) land.image.color = Theme.AccentFill;
+            }
             Button drop = s.Row("AIRDROP AT A POINT  ·  parachute pass, no landing",
                 () => AskForZone(flight, airdrop: true));
             if (Chosen(flight, true)) drop.image.color = Theme.AccentFill;
 
             s.Info(CommandState.AwaitingCargoZone == flight
                 ? UiKit.Tint("WAITING FOR A ZONE  ·  right-click the map", Theme.Accent)
+                : plane ? "A fixed-wing transport delivers by parachute"
                 : "Landing is what takes an objective: troops have to get out");
 
             s.Row("Deliver at " + flight.HomeName, () =>
@@ -680,9 +685,11 @@ namespace NavalPower
             // arrives before the work of picking a place for it.
             if (!FlightOrders.CanDeliver(flight.Aircraft))
             {
-                CommandState.Say(flight.Name + " · cannot fly a delivery; it has no hover");
+                CommandState.Say(flight.Name + " · " + FlightOrders.WhyNoDelivery(flight.Aircraft));
                 return;
             }
+            // An aeroplane can only drop.
+            if (FixedWingDrops.CanAirdrop(flight.Aircraft)) airdrop = true;
             CommandState.AskForCargoZone(flight, airdrop);
             CommandState.Say(flight.Name + (airdrop
                 ? " · right-click the map for the drop zone"

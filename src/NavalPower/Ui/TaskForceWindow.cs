@@ -25,12 +25,17 @@ namespace NavalPower
             s.Row("Edit formation…" + (force.Formation == Formation.Custom ? "  ·  custom stations" : ""),
                 () => Open("tfedit", FormationEditorPage));
             s.Info("Spacing ×" + force.Spacing.ToString("0.0") + "  ·  basic gap " +
-                UnitConverter.DistanceReading(TaskForces.Gap(force)) +
-                (force.Formation == Formation.Screen ? "  ·  pickets face the nearest known threat" : ""), Theme.TextMuted);
+                UnitConverter.DistanceReading(TaskForces.Gap(force)), Theme.TextMuted);
             s.SliderRow(0.5f, 3f, force.Spacing, value => TaskForces.SetSpacing(force, Mathf.Round(value * 10f) / 10f));
             Button north = s.Row(force.FixedNorth ? "Stations fixed to north" : "Stations turn with the guide's course",
                 () => force.FixedNorth = !force.FixedNorth);
             if (force.FixedNorth) north.image.color = Theme.AccentFill;
+            if (force.Formation == Formation.Screen)
+            {
+                Button pickets = s.Row(force.PicketsFaceThreat ? "Pickets face the nearest known threat" : "Pickets lead on the guide's course",
+                    () => force.PicketsFaceThreat = !force.PicketsFaceThreat);
+                if (force.PicketsFaceThreat) pickets.image.color = Theme.AccentFill;
+            }
 
             // Speed for the whole force, against what its slowest ship allows.
             float formation = TaskForces.FormationSpeed(force, out Ship slowest);
