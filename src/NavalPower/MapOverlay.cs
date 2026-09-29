@@ -62,7 +62,32 @@ namespace NavalPower
             if (ship != null) DrawTaskForce(vh, ship);
             if (ship != null) DrawLanding(vh, ship);
             DrawFlights(vh);
+            DrawDropLines(vh);
             DrawRuler(vh);
+        }
+
+        // Airdrop lines: the one being laid down, from its start to the
+        // cursor; and each aircraft's stretch of an ordered one, with a faint
+        // line back to where it leads in from while it is on its way there.
+        private void DrawDropLines(VertexHelper vh)
+        {
+            Color cargo = FlightIcons.Cargo;
+            if (CommandState.AwaitingDropLine != null && CommandState.DropLineStart.HasValue)
+            {
+                GlobalPosition start = CommandState.DropLineStart.Value;
+                Vector2 a = Project(start), b = Project(map.GetCursorCoordinates());
+                Line(vh, a, b, Theme.Dim(cargo, 0.7f), 2f);
+                Diamond(vh, a, 6f, cargo);
+            }
+            foreach (Flight flight in FlightOrders.All())
+            {
+                if (!flight.HasDropLine || (flight.Mode != FlightMode.Cargo && !(flight.LeadInPending && flight.Mode == FlightMode.Route))) continue;
+                Vector2 a = Project(flight.DropLineStart), b = Project(flight.DropLineEnd);
+                Line(vh, a, b, Theme.Dim(cargo, 0.95f), 2.4f);
+                Diamond(vh, a, 5f, cargo);
+                Diamond(vh, b, 5f, Theme.Dim(cargo, 0.6f));
+                if (flight.LeadInPending) Line(vh, Project(flight.LeadIn), a, Theme.Dim(cargo, 0.3f), 1.2f);
+            }
         }
 
         // The ruler: a line with ticks at a round interval, a ring at each end.

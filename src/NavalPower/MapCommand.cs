@@ -613,6 +613,26 @@ namespace NavalPower
 
             if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }
 
+            // An airdrop line being laid down: the first click is its start, the
+            // second its end, and the second places the order.
+            if (CommandState.AwaitingDropLine != null && onMap)
+            {
+                Flight dropping = CommandState.AwaitingDropLine;
+                GlobalPosition here = map.GetCursorCoordinates();
+                if (!CommandState.DropLineStart.HasValue)
+                {
+                    CommandState.DropLineStart = here;
+                    CommandState.Say(dropping.Name + " · now right-click the end of the drop line");
+                    return;
+                }
+                GlobalPosition start = CommandState.DropLineStart.Value;
+                CommandState.AwaitingDropLine = null;
+                CommandState.DropLineStart = null;
+                WingOrders.DeliverAlong(dropping, start, here);
+                CommandState.Say(dropping.Name + " · airdropping along the line · " + UnitConverter.DistanceReading(Ruler.Distance(start, here)));
+                return;
+            }
+
             // A landing point was asked for: this click is it, wherever it is.
             if (CommandState.AwaitingLanding != null && onMap)
             {

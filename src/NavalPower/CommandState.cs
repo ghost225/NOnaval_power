@@ -38,6 +38,11 @@ namespace NavalPower
         // right-click on the map gives it.
         internal static Ship AwaitingLanding;
 
+        // An airdrop along a line, being laid down: the flight, and the start
+        // once the first click has given it.
+        internal static Flight AwaitingDropLine;
+        internal static GlobalPosition? DropLineStart;
+
         internal static bool Active => Ship != null || Base != null;
 
         // The field air operations run from: the base itself, or the ship's deck.
@@ -69,6 +74,8 @@ namespace NavalPower
             SelectedFlight = null;
             AwaitingCargoZone = null;
             AwaitingLanding = null;
+            AwaitingDropLine = null;
+            DropLineStart = null;
             Quantity = 1;
         }
 

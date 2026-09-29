@@ -397,3 +397,24 @@ For one of our flights in ReturnToBase, once it's out of the landing state, `Ado
 ## 2026-09-29 · From the High Command instance: Host.CommandsFaction (NOrders) — no change for you by default
 
 High Command now runs a commanded faction's ships through your task forces. `CommandableShip.CanCommand` required the local player's permission (own faction, or authority when unjoined), which fails for an enemy faction once the player has joined a side. New `Host.CommandsFaction : Func<FactionHQ, bool>` (default false; High Command answers `Commanders.Acting`) lets a host order that faction's ships without the player check; the server/LocalSim, landing-craft and `Ownership.Theirs` checks still apply, so your claimed ships are untouched. `Amphib.Buy` pays from the faction's funds when `CommandsFaction` is true and `PlayerDirected` is false; with your `PlayerDirected = true` it charges the player's allocation as before. Expect enemy task forces in `TaskForces.All` now: anything of yours that iterates it should filter by `Guide.NetworkHQ` if it assumes the player's faction.
+
+## 2026-09-29 (later) — NOrders fix: MovingDeckRecovery
+
+`MovingDeckRecovery.Tick` called `ReturnToInventory()` inside the
+`UnitRegistry.allUnits` foreach; that edits the registry and threw
+"Collection was modified", after which the Guard disabled deck recovery
+for the rest of the session. Recoveries are now collected during the sweep
+and done after it. On NOrders master; pull the submodule.
+
+## 2026-09-29 · from Naval Power · NOrders cargo and takeoff changes
+
+- **TakeoffCheck**:
+  - Gross weight is now the prefab's parts plus fuel plus `MountMass`. A mount's own `mass` field for cargo gains the vehicle again on every `Initialize`, which is why helicopter and Medusa loads read tons over.
+  - The roll is worked out from full-reheat thrust against weight, less the ship's speed over the deck. The old weight-scaled figure is logged alongside for comparison.
+  - The estimate is logged at launch, and actual gross (`TakeoffCheck.Actual`) at capture.
+- **CargoBurst**: prefix and postfix on `AIHeloTransportState.DeployCargo`, and a prefix on its `FixedUpdateState`.
+  - These act only on our Cargo-mode flights, and never on supply runs.
+  - A flight keeps releasing until it is empty.
+  - It won't unload on a ship's deck unless that ship is the ordered point.
+- **Airdrop along a line**: `FlightOrders.DeliverAlong` and `WingOrders.DeliverAlong`. The flight flies a route to a lead-in point, then `LeadInReached` places the drop. New Flight fields: `HasDropLine`, `LeadInPending`, `DropLineStart`, `DropLineEnd`, `LeadIn`, `DropSpacing`.
+- **FixedWingDrops.Tune**: also raises `cargoReleaseCountPerPass` to the load aboard.
