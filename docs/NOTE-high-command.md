@@ -280,3 +280,7 @@ Soak runs showed F-16M (Aryx mod) flights under NavalPilotState mushing into the
 - `Host.DoglegHome : Func<Flight, GlobalPosition?>` (default null → straight home). `FlightOrders.ReturnToBase` asks it once per return; a point makes the flight fly a one-leg route there first (`Flight.HomingVia`), then land. High Command answers from its intel (known SAM/warship reach). Naval Power can leave the default or answer from its own picture.
 - `FlightOrders.Tick` sets `customAxis1` = 1 at ≥98 % throttle for our fixed-wing flights while the native pilot has them (`Interrupted`), so mod jets with parasitic thrust loss get their afterburner in a fight. `NavalPilotState.Reheat()` does the same under our state.
 - `NavalPilotState.CruiseThrottle()` returns full power below 1.3× `cornerSpeed`; the energy-recovery rule triggers at 1.05× corner and now covers wingmen; orbit bank is `SafeBank()`.
+
+## 2026-09-29 · NOrders: `Host.AvoidEngaging`
+
+`Host.AvoidEngaging : Func<Flight, Unit, bool>` (default false). `AssessThreats` skips a hostile it returns true for, so a weapons-free flight does not go and fight it. High Command answers true when the hostile sits inside known enemy air-defence reach (SAMs and warships). Naval Power can leave the default.
