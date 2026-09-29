@@ -126,6 +126,7 @@ namespace NavalPower
                     minimizable: false);
                 mapWindow.PassThrough();
                 mapWindow.AddTitleButton("⛶", MaximizeMap);
+                mapWindow.AddTitleButton("↔", Ruler.Toggle);
                 AddResizeGrip(mapWindow.Panel);
                 mapWindow.OnClosed = () => { if (docked) CloseMap(); };
                 windows["map"] = mapWindow;
@@ -402,10 +403,11 @@ namespace NavalPower
             fullBar = UiKit.Box("Map controls", (RectTransform)root.transform, Theme.Dim(Theme.Surface, 0.92f));
             fullBar.anchorMin = fullBar.anchorMax = new Vector2(0.5f, 1f);
             fullBar.pivot = new Vector2(0.5f, 1f);
-            fullBar.sizeDelta = new Vector2(212f, 36f);
+            fullBar.sizeDelta = new Vector2(316f, 36f);
             fullBar.anchoredPosition = new Vector2(0f, -8f);
-            UiKit.Button(fullBar, "▭  DOCK MAP", 4, 4, 150, 28, DockMap);
-            UiKit.Button(fullBar, "✕", 158, 4, 50, 28, CloseMap);
+            UiKit.Button(fullBar, "↔  RULER", 4, 4, 100, 28, Ruler.Toggle);
+            UiKit.Button(fullBar, "▭  DOCK MAP", 108, 4, 150, 28, DockMap);
+            UiKit.Button(fullBar, "✕", 262, 4, 50, 28, CloseMap);
             fullBar.gameObject.SetActive(false);
         }
 

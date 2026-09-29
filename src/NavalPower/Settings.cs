@@ -167,8 +167,8 @@ namespace NavalPower
                     new AcceptableValueRange<float>(20f, 600f)));
 
             JammingStandoff = config.Bind("Flights", "Jamming standoff", 18000f,
-                Advanced("How far a jamming aircraft holds off the emitter it is suppressing. " +
-                    "It never closes: the point of sending a jammer is that it works from outside.",
+                Advanced("A jamming flight works from as far off as its pods still jam well, on its own side " +
+                    "of the targets; this is the distance used only when the pods don't say how far they reach.",
                     new AcceptableValueRange<float>(2000f, 60000f)));
 
             EgressAltitude = config.Bind("Flights", "Egress altitude", 200f,

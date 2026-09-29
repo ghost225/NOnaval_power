@@ -62,6 +62,33 @@ namespace NavalPower
             if (ship != null) DrawTaskForce(vh, ship);
             if (ship != null) DrawLanding(vh, ship);
             DrawFlights(vh);
+            DrawRuler(vh);
+        }
+
+        // The ruler: a line with ticks at a round interval, a ring at each end.
+        private void DrawRuler(VertexHelper vh)
+        {
+            if (!Ruler.Line(map, out GlobalPosition from, out GlobalPosition to)) return;
+            Color colour = Theme.Dim(Theme.Text, 0.95f);
+            Vector2 a = Project(from), b = Project(to);
+            Line(vh, a, b, colour, 2f);
+            Circle(vh, from, 150f, colour);
+            Circle(vh, to, 150f, colour);
+            float length = Ruler.Distance(from, to);
+            if (length < 1f) return;
+            float step = 1000f;
+            foreach (float candidate in new[] { 1000f, 2000f, 5000f, 10000f, 20000f, 50000f })
+            {
+                step = candidate;
+                if (length / candidate <= 12f) break;
+            }
+            Vector2 along = (b - a).normalized, across = new Vector2(-along.y, along.x);
+            for (float d = step; d < length; d += step)
+            {
+                Vector2 at = Vector2.Lerp(a, b, d / length);
+                float size = Mathf.Approximately(d % (step * 5f), 0f) ? 7f : 4f;
+                Line(vh, at - across * size, at + across * size, colour, 1.6f);
+            }
         }
 
         // Landing craft: while a landing point is being chosen, where a craft

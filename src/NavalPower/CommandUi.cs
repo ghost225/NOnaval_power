@@ -145,6 +145,7 @@ namespace NavalPower
 
             if (!Mathf.Approximately(appliedScale, Settings.InterfaceScale.Value) || appliedHeight != Screen.height) ApplyScale();
             else if (reclamp) { reclamp = false; foreach (Surface window in windows.Values) if (window.IsOpen) window.Clamp(); }
+            RefreshRuler();
             WatchFeeds();
             CycleTaskForce();
             if (Time.unscaledTime >= nextRefresh)
@@ -628,6 +629,7 @@ namespace NavalPower
             go.transform.SetParent(root.transform, false);
             UiKit.Fill((RectTransform)go.transform);
             go.GetComponent<MapOverlay>().raycastTarget = false;
+            BuildRulerTag();
         }
 
         // ---- hover card ------------------------------------------------------

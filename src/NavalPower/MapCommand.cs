@@ -274,6 +274,7 @@ namespace NavalPower
             // lastCommanded deliberately survives, so command can be resumed.
             if (!keepNativeBarHidden) RestoreNativeBar();
             Ship left = CommandState.Ship;
+            if (!keepNativeBarHidden) Ruler.Stop();       // not across leaving command, only across a ship switch
             CommandState.Clear();
             CommandableShip.ReleaseIfIdle(left);
             Ui?.Tidy();
@@ -529,6 +530,7 @@ namespace NavalPower
         internal bool HandleSelection(Unit unit)
         {
             if (unit == null) return true;
+            if (Ruler.On && CommandState.Active) return false;      // measuring, not selecting
             // One of our flights, clicked on the map, full or docked: open its
             // orders as the air operations list does, instead of the game's own
             // selection, which would move the camera and end command.
@@ -577,6 +579,12 @@ namespace NavalPower
 
             var map = SceneSingleton<DynamicMap>.i;
             bool onMap = map != null && DynamicMap.mapMaximized && map.IsCursorInMapRectangle();
+            // The ruler out: clicks on the map measure; a right-click puts it away.
+            if (Ruler.On)
+            {
+                if (right) { Ruler.Stop(); return; }
+                if (left && onMap) { leftGesture.Claim(); Ruler.Click(map.GetCursorCoordinates()); return; }
+            }
             // Native left-drag orbits the world camera; do not pick there.
             if (left && !onMap)
             {
