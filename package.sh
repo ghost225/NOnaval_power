@@ -27,6 +27,18 @@ if [[ "$(git rev-parse HEAD)" != "$(git rev-parse '@{u}')" ]]; then
     echo "HEAD is not what GitHub has. Pull or push first, then package." >&2
     exit 1
 fi
+# The shared NOrders source is compiled in from the submodule: it has to be
+# checked out, and the pinned commit published, or the release's source
+# cannot be rebuilt from GitHub.
+if [[ ! -d norders/src ]]; then
+    echo "The norders submodule is not checked out: git submodule update --init" >&2
+    exit 1
+fi
+git -C norders fetch -q origin
+if [[ -z "$(git -C norders branch -r --contains HEAD 2>/dev/null)" ]]; then
+    echo "The pinned NOrders commit is not on GitHub. Push norders first, then package." >&2
+    exit 1
+fi
 
 ./build.sh
 

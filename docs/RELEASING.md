@@ -6,6 +6,14 @@ picked up automatically.
 
 ## Every release
 
+The shared execution code lives in the NOrders submodule (`norders/`,
+github.com/ghost225/NOrders); clone with `--recurse-submodules`, or run
+`git submodule update --init`. Commit and push any NOrders change there
+first, then commit Naval Power with the submodule pointer. After the
+release, tag the pinned NOrders commit with the same version
+(`git -C norders tag v<version> && git -C norders push origin v<version>`)
+so each mod pins a known commit.
+
 1. Bump the version in **both** `NavalPower.csproj` and `src/NavalPower/Plugin.cs`.
    NOMNOM requires the manifest version to match the DLL's.
 2. Pull (the README may have been edited on GitHub), commit, and push.
