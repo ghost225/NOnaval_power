@@ -41,6 +41,7 @@ namespace NavalPower
         internal static ConfigEntry<int> DamageControlConcentration;
         internal static ConfigEntry<int> DamageControlRate;
         internal static ConfigEntry<bool> DamageControlPreserveCapacity;
+        internal static ConfigEntry<float> DamageControlRestock;
         internal static ConfigEntry<float> ZoomSensitivity;
         internal static ConfigEntry<bool> TargetFeed;
         internal static ConfigEntry<int> FeedResolution;
@@ -232,6 +233,11 @@ namespace NavalPower
                 "of damage control, just sooner. Turn this off to make damage control genuinely more capable " +
                 "rather than merely quicker, at the cost of the game's own balance."));
 
+            DamageControlRestock = config.Bind("Damage control", "Restock on resupply", 0.2f,
+                new ConfigDescription("Share of a ship's full damage control reserve that each resupply delivered " +
+                    "to it restores (the game itself never replenishes the reserve). 0 turns restocking off.",
+                    new AcceptableValueRange<float>(0f, 1f)));
+
             DamageControlConcentration = config.Bind("Damage control", "Concentration limit", 6,
                 Advanced("How many extra shares of effort a prioritised compartment may take " +
                     "from the compartments being withheld. The ship's total capacity is unchanged either " +
@@ -351,6 +357,7 @@ namespace NavalPower
             Tuning.DamageControlRate = DamageControlRate.Value;
             Tuning.DamageControlPreserveCapacity = DamageControlPreserveCapacity.Value;
             Tuning.DamageControlConcentration = DamageControlConcentration.Value;
+            Tuning.DamageControlRestock = DamageControlRestock.Value;
             Tuning.NameShips = NameShips.Value;
             Tuning.DeckTrace = DeckTrace.Value;
             Tuning.FlightTrace = FlightTrace.Value;

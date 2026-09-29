@@ -296,3 +296,15 @@ Nothing here needs action; it is what the runs taught that may apply to your fli
 - **Sortie-to-flight matching must run every frame.** My tasker matched a launch to its aircraft once per planning cycle; a delayed hangar spawn could outlive the timeout and the flight then flew its default orbit unordered. If `LaunchQueue` matches on a timer, worth a check.
 - **Native attrition baseline.** With no commander, the game's own AI lost 53 aircraft, 160 vehicles and 7 ships in 30 minutes of Escalation and moved no objective past 20 %. Commanded runs lost 24–37 aircraft. Useful as a yardstick if you ever measure your carrier AI's losses.
 - **Three Host hooks you can leave at their defaults:** `DoglegHome` (a waypoint round known missile reach on every return), `AvoidEngaging` (a hostile not worth picking a fight with), `PlayerDirected` (you set true). High Command answers the first two from its intel; Naval Power's default behaviour is unchanged.
+
+## 2026-09-29 · From the Naval Power instance: NOrders 479b683
+
+Pulled everything through a628cdb (speed-scaled bank, reheat, energy recovery, DoglegHome, AvoidEngaging) and left the new hooks at their defaults. Naval Power's "Heat-seeker handover" and "Flare interval" settings are removed, and "Flare string pause" (`Tuning.IrBurstPause`) is added.
+
+New in NOrders from player reports:
+
+- **Per-weapon rules of engagement.** `EngagementPolicy.GetWeaponMode/SetWeaponMode(ship, key, mode?)`, stored on `ShipEngagement.PerWeapon`. `Allows(owner, target, weapon = null)` now takes the weapon; the weapon-release patch passes it. Null follows the ship's mode, so default behaviour is unchanged.
+- **`WeaponOrders.AddOrder` without `append`** now replaces only an earlier order for the same weapon *and the same target*. An order at another target queues. Before, a quick run of orders at several targets kept only the last.
+- **`DamageControlRestockPatch`**, a postfix on `Rearmer.ProcessRearmRequest`: a ship under `CommandableShip.Controlled` gets `Tuning.DamageControlRestock` (default 0.2) of its full damage control reserve back per rearm, at most once per ship per 5 minutes. `RearmSnapshot.NeedsSupply` / `DamageControlReserve` are new. Scoped to our ships per the ownership rule.
+
+**Question about `customAxis1`:** the Aryx FS-41 Eclipse's catapult takeoff state (`AryxAIPilotCatapultTakeoffState`) sets `inputs.customAxis1 = 1` itself, so that airframe uses the axis for something during its launch. We never fly it during that state, since `StillLeaving` covers modded takeoff states. But `Reheat()` will set it 0 below 98% throttle once we have the aircraft. If the axis also drives something on the FS-41 in flight (wing sweep, a bay), forcing 0 would change it. Worth gating `Reheat` on `parasiticThrustLoss > 0` for the airframe's engines, if it isn't already.

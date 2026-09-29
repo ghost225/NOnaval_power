@@ -638,8 +638,9 @@ namespace NavalPower
             // A weapon in hand shoots at contacts, not at our own side: a
             // friendly still gets its menu.
             bool friendly = pointed != null && pointed.NetworkHQ != null && pointed.NetworkHQ == CommandState.Hq;
+            // And while a flight is being tasked, its orders come first.
             RightClickAction action = InputPolicy.RightClick(CommandState.Active, onMap,
-                pointed != null, CommandState.Armed && !friendly, append);
+                pointed != null, CommandState.Armed && !friendly && tasking == null, append);
             // Ctrl on a bare point asks what to do there rather than sailing to it.
             bool ask = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             if (ask && onMap && pointed == null &&

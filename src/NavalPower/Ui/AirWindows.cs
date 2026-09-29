@@ -232,6 +232,15 @@ namespace NavalPower
         internal void OpenFlight(Flight flight)
         {
             Ensure();
+            // Tasking a flight: a weapon left armed in the weapons window would
+            // otherwise take every right-click -- a bearing shot for a click on
+            // the map, a ship's attack for a click on a contact -- and the
+            // flight never got its orders.
+            if (CommandState.SelectedKey != null)
+            {
+                CommandState.SelectedKey = null;
+                CommandState.Say("Weapon released · tasking " + flight.Name);
+            }
             Surface window = Window("flight");
             bool wasOpen = window.IsOpen;
             window.Show(s => FlightPage(s, flight));

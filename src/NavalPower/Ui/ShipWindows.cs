@@ -71,6 +71,7 @@ namespace NavalPower
             s.Title("WEAPONS  ·  manual fire");
 
             if (weapons.Length == 0) s.Info("No weapons under command.");
+            else s.Info("Button on the right: this weapon's own rules · follows the ship, F free, T tight, H hold", Theme.TextFaint);
             foreach (WeaponCommandInfo weapon in weapons)
             {
                 string key = weapon.Key;
@@ -85,13 +86,30 @@ namespace NavalPower
                     continue;
                 }
                 bool armed = key == CommandState.SelectedKey;
+                // Its own rules of engagement, cycled from the side button:
+                // following the ship, then free, tight, hold, and back.
+                EngagementMode? own = EngagementPolicy.GetWeaponMode(ship, key);
+                string rules = own == null ? "·" : own == EngagementMode.WeaponsFree ? "F"
+                    : own == EngagementMode.WeaponsTight ? "T" : "H";
                 Button row = s.Row((armed ? "▸ " : "") + weapon.Name + "   ·   " + weapon.Readiness +
-                    (weapon.Continuous ? "  ·  continuous" : "  ·  " + weapon.Ammo), () =>
+                    (weapon.Continuous ? "  ·  continuous" : "  ·  " + weapon.Ammo) +
+                    (own != null ? "  ·  " + EngagementPolicy.Describe(own.Value).ToLowerInvariant() : ""), () =>
                 {
                     CommandState.SelectedKey = CommandState.SelectedKey == key ? null : key;
                     CommandState.Say(CommandState.SelectedKey == null
                         ? "Weapon released" : "Right-click a contact to engage");
-                });
+                }, rules, () =>
+                {
+                    EngagementMode? next = own == null ? EngagementMode.WeaponsFree
+                        : own == EngagementMode.WeaponsFree ? EngagementMode.WeaponsTight
+                        : own == EngagementMode.WeaponsTight ? EngagementMode.WeaponsHold
+                        : (EngagementMode?)null;
+                    EngagementPolicy.SetWeaponMode(CommandState.Ship, key, next, out string said);
+                    CommandState.Say(weapon.Name + " · " + said);
+                }, out Button rulesButton);
+                Text rulesText = rulesButton.GetComponentInChildren<Text>();
+                rulesText.color = own == null ? Theme.TextMuted : own == EngagementMode.WeaponsFree ? Theme.Good
+                    : own == EngagementMode.WeaponsTight ? Theme.Warn : Theme.Bad;
                 if (armed) row.image.color = Theme.AccentFill;
                 row.GetComponentInChildren<Text>().color =
                     weapon.Readiness == "Ready" ? Theme.Text
@@ -293,6 +311,9 @@ namespace NavalPower
             s.Title("REPLENISHMENT");
             s.Info(status.StationsShort == 0 ? "Magazines full." : status.StationsShort + " station(s) below capacity",
                 status.StationsShort == 0 ? Theme.TextMuted : Theme.Text);
+            s.Info("Damage control stores " + (status.DamageControlReserve * 100f).ToString("0") + "%" +
+                (Tuning.DamageControlRestock > 0f ? "  ·  each resupply restocks " + (Tuning.DamageControlRestock * 100f).ToString("0") + "%" : ""),
+                status.DamageControlReserve < 0.5f ? Theme.Warn : status.DamageControlReserve < 0.95f ? Theme.Text : Theme.TextMuted);
 
             string inbound = Replenishment.InboundTo(ship);
             if (inbound != null)
@@ -306,7 +327,7 @@ namespace NavalPower
                 row.image.color = Theme.AccentFill;
                 s.Info("The ship asks for its rearm when the helicopter is 6 km out.", Theme.TextMuted);
             }
-            else if (status.StationsShort > 0)
+            else if (status.NeedsSupply)
             {
                 Replenishment.SupplySource source = Replenishment.BestSource(ship, out string why);
                 if (source == null) s.Info(why, Theme.Warn);
@@ -324,7 +345,7 @@ namespace NavalPower
             }
 
             // Alongside something that can rearm it: ask directly.
-            if (status.StationsShort > 0 && status.InRange && inbound == null)
+            if (status.NeedsSupply && status.InRange && inbound == null)
             {
                 Button request = s.Row(status.Requested ? "Rearming from " + status.NearestName + "  ·  waiting"
                     : "Rearm from " + status.NearestName + " alongside", () =>
@@ -334,7 +355,7 @@ namespace NavalPower
                     });
                 if (status.Requested) request.image.color = Theme.AccentFill;
             }
-            if (status.StationsShort > 0 && status.Moving)
+            if (status.NeedsSupply && status.Moving)
                 s.Info("A rearm is only taken aboard below " + UnitConverter.SpeedReadingGround(25f) + ".", Theme.TextMuted);
         }
     }
