@@ -258,3 +258,7 @@ Two of the NOrders commits (7c8b636, 730c56f) are authored as the
 `ghost225 <5922297+ghost225@users.noreply.github.com>`: pin it in your
 clone's local git config. Whether to rewrite those two commits is the
 user's call.
+
+## 2026-09-28 · NOrders history rewritten (identity only)
+
+The two commits authored as caleb-tinyeye were rewritten to ghost225 at the user's request; every commit from bb71957 on has a new SHA (7646dea is now 9b6827f), trees unchanged. NOrders master was force-pushed. Both submodule checkouts here and in high-command are realigned and both gitlinks point at 9b6827f. If your clone still shows 7646dea, run `git fetch origin && git checkout -B master origin/master` in it. The ghost225 identity is now pinned in the local config of every NOrders clone and submodule.
