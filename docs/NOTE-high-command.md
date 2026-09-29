@@ -221,3 +221,13 @@ Differences from the brief:
 faction. Reason: High Command adopts enemy flights through the same code
 and their kills were being paid to the player. Bump the submodule when
 convenient; nothing to wire.
+
+**Also (730c56f):** `NOrders.NativePilot.Wake(state, aircraft)` re-subscribes
+`AIPilotCombatModes.AICombat_OnMissileAlert` to the missile warning system
+whenever we switch an aircraft to the native combat state. The game
+subscribes it only in the constructor and removes it in `LeaveState`, so a
+flight that had been in our pilot state and handed back never flared or
+evaded again. This affects Naval Power's flights too (yield on missile,
+Reclaim, run-in hand-over); the calls are already in the shared code, so a
+submodule bump picks it up. Worth a test: a strike flight that yields to a
+radar shot should now flare and evade as the native pilot does.
