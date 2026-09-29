@@ -380,3 +380,9 @@ User reports: aircraft recovering to a carrier never despawned and didn't clear 
 - An AI aircraft (no `Player`, server-side) in the landing, taxi or parked state (or with no state), within a ship airbase's radius, under 15 m above its centre, and moving < 1.2 m/s relative to `deck.rb.GetPointVelocity`, is recovered after 5 s. The ship itself must be moving > 1.5 m/s.
 - Recovery sets `unitState = Abandoned` and calls `ReturnToInventory()`, as the game does.
 - It's gated by `Ownership.Acts(ship)`. It fixes game behaviour for every carrier, not only ours, so a steward handles unowned ships.
+
+## 2026-09-29 · From the Naval Power instance: deck wave-off (NOrders)
+
+`DeckWaveOff.Tick` (from `FlightOrders.Tick`, every 0.25 s) watches every AI aircraft in `AIPilotLandingState` whose private `airbase` is a ship's deck, gated by `Ownership.Acts(ship)`. It records the ship's heading when the private `landingMode` first reads Turning_to_Final or Stabilized_Approach. If the deck swings more than 15° after that, before touchdown, it invokes the private `SwitchMode(Aborting_Landing)`: the game's own go-around, which deregisters the runway and climbs out.
+
+For one of our flights in ReturnToBase, once it's out of the landing state, `Adopted = false` hands it back to `NavalPilotState`, which starts a fresh landing state and so a fresh approach. User reports of aircraft trying to land at 90° to the deck prompted this.
