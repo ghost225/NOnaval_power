@@ -1,35 +1,178 @@
-# Note from the High Command project (2026-09-28)
+# Brief for the Naval Power instance: the NOrders split
 
-A second mod, **High Command**, is being built in a separate private repo:
-`~/personal_projects/high-command` (github.com/ghost225/NOhigh_command,
-private). It is a per-faction AI commander that directs a faction's forces
-at the mission's objectives. Its plan is in that repo's `docs/PLAN.md`.
+From the High Command project (2026-09-28). High Command is a per-faction
+AI commander in its own private repo (`~/personal_projects/high-command`,
+github.com/ghost225/NOhigh_command). Its plan is that repo's
+`docs/PLAN.md`; the phase 0 findings are `docs/research/instrumentation.md`.
 
-What it means for Naval Power:
+**Ask:** split Naval Power's execution code out of its command UI into a
+shared source tree, **NOrders**, that both mods compile into their own DLL.
+Neither mod depends on the other at run time; a player can install either
+alone or both. Naval Power's behaviour must not change.
 
-1. **No run-time dependency either way.** High Command must work without
-   Naval Power installed, and Naval Power without High Command. Don't
-   reference the other's DLL.
-2. **A planned split of Naval Power's execution code.** High Command wants
-   to reuse (not rewrite) the execution layer: `FlightOrders`, `Wings`,
-   `NavalPilotState`, strikes and run-ins, `EscortDefence`, `IrDefence`,
-   `Evasion`, `NavigationOrders`, `TaskForces`, `CarrierOps`, `LaunchQueue`,
-   `Replenishment`, `Amphib`, `BearingLaunch`, `StrikeDesignation`. The plan
-   is to move those into a shared source tree (working name **NOrders**)
-   that both mods compile into their own DLL, leaving the command UI
-   (`CommandUi`, `MapCommand`, `Ui/*`, `MapDock`, feeds, compass) in Naval
-   Power. Nothing has been moved yet. If you're restructuring anything on
-   that list, keeping UI and execution separable helps; ask before merging
-   the two further.
-3. **Ownership rule.** When both mods are installed, each touches only units
-   it owns. Naval Power's patches mostly already check
-   `FlightOrders.Of(aircraft)` / `CommandableShip.Is(ship)` before acting;
-   please keep that pattern for any new patch (weapon release, evasion,
-   catapult, pilot states). Global, unconditional behaviour changes are the
-   thing that would clash.
-4. **Faction-scoped, not player-scoped.** Anything new that assumes "the
-   local player's HQ" (e.g. `GameManager.GetLocalHQ`) is fine for Naval
-   Power, but if it's cheap to take a `FactionHQ` parameter instead, that
-   makes the later split easier.
+The empty repo exists: **github.com/ghost225/NOrders** (private; local clone
+at `~/personal_projects/norders`, credentials pinned to ghost225). Use it
+as a git submodule at `norders/` in Naval Power (and High Command will do
+the same).
 
-Nothing here needs action now. It's so the split doesn't surprise anyone.
+## 1. What moves to NOrders (namespace `NOrders`)
+
+Everything that *executes* an order or *reads the game* for one, with no
+UI in it:
+
+- Aircraft: `FlightOrders` (Flight, FlightMode, orders, adoption, egress,
+  break-off), `Wings` (+ `WingOrders`), `NavalPilotState`, `Callsigns`,
+  `StrikeDesignation`, `IrDefence`, `Evasion`, `EscortDefence`,
+  `BearingLaunch`, `TakeoffCheck`, `CargoMissions`, `LaunchCapture`,
+  `LaunchQueue`, `DeckTraffic`, `CarrierRecovery` (and the approach patch),
+  `DeckClearance`, `KeepTargetCam`, `TargetCamTrace`.
+- Launching: `CarrierOps` (DeckAircraft, LoadoutStation, LoadoutPlan,
+  Available, PlanFor, Launch, Remember, Releasable, NuclearAllowed).
+- Ships: `CommandableShip`, `NavigationOrders` (+ `ShipRoute`),
+  `TaskForces` (TaskForce, Escort, Formation, layout, station keeping),
+  `WeaponOrders` (+ `ShipWeapons`), `EngagementPolicy` (+ `ShipEngagement`,
+  the weapon-release patch), `NuclearRelease`, `DamageControl`, `Esm`,
+  `Sensors`, `Replenishment` (status, request, supply runs), `Amphib`
+  (well decks, waves, lanes, sorties), `AmphibSurvey` (Predict, Assess,
+  Profile; the survey logging can stay or go).
+- Common: `CommandPost` (Airfields), `NativeBindings`, `Guard`, `Naming`,
+  `MapGeometry` (if it is pure geometry), `ShipNames` (registry and renames;
+  its PlayerPrefs use is fine).
+
+## 2. What stays in Naval Power
+
+`Plugin`, `Settings`, `CommandState`, `CommandUi` and everything in `Ui/`
+(`Surface`, `UiKit`, `Theme`, windows, menus, `MapDock`, `Compass`,
+`EyeGlyph`, `FormationEditor`, feeds), `MapCommand`, `MapOverlay`,
+`FlightIcons`, `TargetFeed`, `NightSight`, `CameraGlide`, `PilotSeat`,
+`TrackReadout`, `TrackPicture`, `TestHarness`, `Diag`.
+
+If `Theme`/`UiKit`/`Surface` turn out to be cleanly separable later, High
+Command would like them too (it needs a window kit for the mission board);
+not required for this split.
+
+## 3. Three seams the shared code needs
+
+Shared code currently reaches into Naval Power's UI and plugin in a few
+places. Replace those with three small static hooks in NOrders that each
+mod's Plugin sets at startup:
+
+```csharp
+namespace NOrders
+{
+    public static class Host
+    {
+        public static Action<string> LogInfo = _ => { };
+        public static Action<string> LogWarning = _ => { };
+        public static Action<string> LogError = _ => { };
+        public static Action<string> Say = _ => { };          // CommandState.Say
+        public static Func<Ship> CommandedShip = () => null;  // CommandState.Ship
+        public static Func<Airbase> CommandedBase = () => null;
+        public static Func<Flight, bool> IsFlownByPlayer = _ => false;  // PilotSeat.Flying == flight
+        public static string ModId = "NOrders";               // "NavalPower" / "HighCommand"
+    }
+}
+```
+
+- `Plugin.Log.LogInfo(...)` in moved code → `Host.LogInfo(...)`; same for
+  warnings/errors. `Diag.*` calls → `Host.LogInfo` behind
+  `Tuning.*Trace` (below), or a `Host.Trace(kind, line)` delegate.
+- `CommandState.Say` → `Host.Say`; `CommandState.Ship`/`Base` →
+  `Host.CommandedShip()`/`CommandedBase()`; `PilotSeat.Flying == flight` →
+  `Host.IsFlownByPlayer(flight)`.
+
+Settings: moved code reads `Settings.X.Value` in many places. Give NOrders
+a `Tuning` static class with plain fields and the current defaults
+(BombingHeight, CruiseThrottle, CloseSpacing, CombatSpacing, IrBurstRange,
+IrBurstFlares, PreFlare, PreFlareInterval, FlareReserve, FlareInterval,
+EgressStandoff, EgressSeconds, ReattackAfterEgress, StrikePatience,
+JammingStandoff, EgressAltitude, RadarHandover, InfraredHandover,
+ThreatSettleSeconds, MinimumClearance, DefaultFuel, DefaultAltitude,
+DefaultAreaRadius, LaunchCostFromAllocation, SortieBonusOnRecovery,
+CarrierApproachFix, CarrierApproachFactor, DamageControlRate/Preserve/
+Concentration, EscortRetaliate, EscortIntercept, LowFuelAlert, NameShips,
+ClaimAuthority, and the trace flags). Naval Power's `Settings.Bind` keeps
+its ConfigEntries and copies them into `Tuning` (and re-copies on
+`SettingChanged`). High Command will bind its own.
+
+## 4. Ownership, so both mods can be installed at once
+
+Each DLL carries its own copy of every class and every Harmony patch, so
+with both installed, every shared patch runs twice: once from each
+assembly. That is safe only if each copy acts solely on units its own mod
+owns. Most patches already check `FlightOrders.Of(aircraft) != null` or
+`CommandableShip.Is(ship)`; make that universal, and make the registry
+visible across assemblies:
+
+```csharp
+namespace NOrders
+{
+    // Cross-assembly: two copies of this class cannot share statics, so the
+    // claim lives in the scene, as a marker child on the unit.
+    public static class Ownership
+    {
+        public static bool Claim(Unit unit);      // false if another mod owns it
+        public static void Release(Unit unit);
+        public static string OwnerOf(Unit unit);  // Host.ModId of the owner, or null
+        public static bool Mine(Unit unit) => OwnerOf(unit) == Host.ModId;
+    }
+}
+```
+
+Implementation: a child `GameObject` on the unit named
+`"__NOrders.Owner:" + Host.ModId`; `OwnerOf` reads it with
+`transform.Find` over children by prefix. Claim on adoption (flights,
+ships taken under command, task force members, landing craft sorties),
+release on hand-back/leave. Every shared Harmony prefix/postfix that
+changes behaviour begins with `if (!Ownership.Mine(unit)) return;` (or
+`return true;`). Patches that are pure reads (traces) may run twice
+harmlessly.
+
+Global patches to look at specifically: `WeaponReleasePatch` (weapon
+release rules: scope to ships we command), `EvadeTowardFriendsPatch`,
+`StrikeIrEvasionPatch`, the catapult/takeoff-state checks, `BearingSeedPatch`,
+`CargoTargetPatch`, `HoldOwnCargoPatch`, `SortieBonusPatch`,
+`CarrierApproachPatch`, `FollowingPatch`/selection patches (those are UI:
+they stay).
+
+## 5. Build wiring
+
+In NOrders: `src/**/*.cs` only, no csproj (it is compiled by whoever
+includes it). In Naval Power's csproj:
+
+```xml
+<ItemGroup>
+  <Compile Include="norders/src/**/*.cs" />
+</ItemGroup>
+```
+
+and `git submodule add https://github.com/ghost225/NOrders.git norders`.
+`build.sh` unchanged. Tag NOrders when Naval Power ships (`v1.0.2` etc.) so
+each mod pins a known commit.
+
+## 6. Acceptance
+
+Naval Power at the end of the split behaves exactly as before. The
+regression list: take command of a ship; launch a flight and a wing with
+per-station loadouts; strike a ground target (run-in, IR flare burst,
+egress, return to area); escort a wing and see it retaliate/intercept;
+form a task force in each formation and switch with `[` `]`; a supply
+helicopter run; an amphibious wave; nuclear weapons greyed until
+authorised; ship names and renames; the spectator strip hidden on
+switching; the camera feeds and night vision. Then install both Naval
+Power and a High Command build together and confirm Naval Power still
+works with a second copy of the patches loaded (High Command will provide
+that build).
+
+## 7. Sequencing
+
+1. Create `Host`, `Tuning`, `Ownership` in NOrders; wire `Host` in Naval
+   Power's Plugin.
+2. Move the common and ship code first (fewer UI ties), build, test.
+3. Move the aircraft and launching code, build, test.
+4. Add ownership checks to every behaviour-changing shared patch.
+5. Tag NOrders; commit Naval Power with the submodule pinned.
+
+Ask the High Command instance (via this file, or the user) for anything
+unclear; nothing here needs to be perfect on the first pass, only
+separable and ownership-safe.
