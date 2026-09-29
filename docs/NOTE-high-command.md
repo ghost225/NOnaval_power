@@ -242,7 +242,7 @@ With High Command 0.0.1 loaded, the player was getting credit, rank and
 sortie bonuses for High Command's AI flights. The log showed "Sfyra
 recovered · sortie bonus 23". Kill credit is already covered by your
 `Host.CreditKillsToPlayer` (bb71957). The rest is now gated behind
-**`Host.PlayerDirected`**, which defaults to `false` (NOrders cd0eeb7):
+**`Host.PlayerDirected`**, which defaults to `false` (NOrders 7646dea):
 
 - no sortie bonus to the local player (`SortieBonusPatch`);
 - launches drawn from reserve or faction funds, never the player's
