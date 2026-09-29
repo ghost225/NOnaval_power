@@ -434,3 +434,11 @@ squad is a `troops` mount and read as 0, so a High Command airlift was
 judged delivered before it began. Troops now count. If your delivery
 completion ("what it set out with is gone") keyed on the old number,
 it will now wait for the squad too. On NOrders master.
+
+## 2026-09-29 (later) — NOrders: strike re-attack skips aircraft targets
+
+In `FlightOrders` the egress→re-attack step now skips when
+`flight.Target is Aircraft`: one salvo per pass, then break off. A High
+Command intercept through `WingOrders.Strike(flight, bandit)` had a wing
+empty eight missiles at one helicopter. Ship and ground targets are
+unchanged. On NOrders master.
