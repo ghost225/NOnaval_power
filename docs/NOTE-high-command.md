@@ -314,3 +314,9 @@ New in NOrders from player reports:
 New `MissileJamming` (Aircraft/MissileJamming.cs), ticked from `FlightOrders.Tick`. A flight carrying `JammingPod`s gives each inbound ARH/SARH missile aimed at it a pod of its own. The missile has to be tracked by the flight's HQ (the pod won't jam an untracked target) and within the pod's `maxRange`. Nearest first, the pod fired every frame. Pods left over stay on the jamming task.
 
 `KeepPodOnMissilePatch` (prefix on `JammingPod.SetTarget`) keeps a pod on its missile against anything else re-aiming it, the native pilot's `UseJammer` included. `FlyJamming` now uses every pod aboard (`MissileJamming.Pods`) instead of only `JammerOn`'s first station, and skips pods on a missile. `JammerOn` is unchanged for callers that only need to know whether there's a jammer. It applies to our flights only (`FlightOrders.All`, not player-flown), so High Command's jammer flights get it too.
+
+## 2026-09-29 · From the Naval Power instance: multi-target jamming (NOrders)
+
+`Flight.JamTargets` holds the targets in priority order. `Flight.Target` is kept equal to the first, so existing readers still work. `FlightOrders.Jam(flight, target, add = false)` returns a bool: `add` appends up to `FlightOrders.JamCapacity(flight)`, which is pods − 1 (pods, if only one). `WingOrders.Jam(flight, target, add)` matches.
+
+`MissileJamming` now aims every pod on our flights, task and missiles together. Missiles take pods from the last one back: the spare first, then pods borrowed from the lowest-priority targets. The remaining pods jam the targets in order, spares doubling up, and borrowed pods return when the missiles are gone. `FlyJamming` only flies the orbit now. `KeepPodOnMissilePatch` guards every pod it has aimed. A dead target drops from the list, and the task ends only when the list is empty.

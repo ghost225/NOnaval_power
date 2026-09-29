@@ -491,7 +491,19 @@ namespace NavalPower
             foreach (Flight flight in FlightOrders.Jammers())
             {
                 Flight shown = flight;
-                s.Row(flight.Name + "  ·  " + flight.TypeName, () =>
+                int capacity = FlightOrders.JamCapacity(flight);
+                int jamming = flight.Mode == FlightMode.Jam ? flight.JamTargets.Count : 0;
+                bool already = flight.Mode == FlightMode.Jam && flight.JamTargets.Contains(target);
+                // Already jamming, with a pod to spare: add this one to its list.
+                if (flight.Mode == FlightMode.Jam && !already && jamming < capacity)
+                    s.Row(flight.Name + "  ·  add to its jamming  (" + (jamming + 1) + "/" + capacity + ")", () =>
+                    {
+                        if (WingOrders.Jam(shown, target, add: true))
+                            CommandState.Say(shown.Name + " also jamming " + NameOf(target) + " · " + shown.JamTargets.Count + "/" + capacity);
+                        s.Close();
+                    });
+                s.Row(flight.Name + "  ·  " + flight.TypeName + (flight.Mode == FlightMode.Jam ? "  ·  jam only this" : "") +
+                    "  ·  " + capacity + " target(s)" + (MissileJamming.Pods(flight.Aircraft).Count >= 2 ? ", a pod kept for missiles" : ", its pod turns on missiles"), () =>
                 {
                     WingOrders.Jam(shown, target);
                     CommandState.Say(shown.Name + " jamming " + NameOf(target));
