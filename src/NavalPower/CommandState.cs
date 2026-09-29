@@ -38,6 +38,10 @@ namespace NavalPower
         // right-click on the map gives it.
         internal static Ship AwaitingLanding;
 
+        // A rolling-delivery survey wanted for this flight: the next
+        // right-click on the map is the point to survey round.
+        internal static Flight AwaitingStrip;
+
         internal static bool Active => Ship != null || Base != null;
 
         // The field air operations run from: the base itself, or the ship's deck.
@@ -69,6 +73,8 @@ namespace NavalPower
             SelectedFlight = null;
             AwaitingCargoZone = null;
             AwaitingLanding = null;
+            AwaitingStrip = null;
+            StripSurvey.Clear();
             Quantity = 1;
         }
 

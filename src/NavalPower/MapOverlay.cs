@@ -62,7 +62,32 @@ namespace NavalPower
             if (ship != null) DrawTaskForce(vh, ship);
             if (ship != null) DrawLanding(vh, ship);
             DrawFlights(vh);
+            DrawStrips(vh);
             DrawRuler(vh);
+        }
+
+        // The last rolling-delivery survey: the search ring, every usable
+        // strip faintly, the best one bright with its deploy point and a tick
+        // at the touchdown end.
+        private void DrawStrips(VertexHelper vh)
+        {
+            StripSurvey.Result survey = StripSurvey.Last;
+            if (survey == null) return;
+            Color ours = Theme.Dim(Theme.Accent, 0.95f);
+            Circle(vh, survey.Point, survey.Radius, Theme.Dim(ours, survey.Best == null ? 0.25f : 0.4f));
+            Diamond(vh, Project(survey.Point), 6f, Theme.Dim(Theme.Text, 0.8f));
+            for (int i = survey.Usable.Count - 1; i >= 0; i--)
+            {
+                StripSurvey.Strip strip = survey.Usable[i];
+                bool best = i == 0;
+                if (!best && i >= 40) continue;
+                Vector2 a = Project(strip.Touchdown), b = Project(strip.End);
+                Line(vh, a, b, Theme.Dim(ours, best ? 1f : 0.3f), best ? 3f : 1.2f);
+                if (!best) continue;
+                Vector2 across = new Vector2(-(b - a).normalized.y, (b - a).normalized.x);
+                Line(vh, a - across * 7f, a + across * 7f, ours, 2f);
+                Diamond(vh, Project(strip.Deploy), 7f, ours);
+            }
         }
 
         // The ruler: a line with ticks at a round interval, a ring at each end.
