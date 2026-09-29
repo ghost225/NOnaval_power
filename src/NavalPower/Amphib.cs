@@ -160,7 +160,8 @@ namespace NavalPower
 
         internal sealed class Plan
         {
-            internal readonly Dictionary<UnitDefinition, int> Load = new Dictionary<UnitDefinition, int>();
+            internal readonly Dictionary<UnitDefinition, int> Load = new Dictionary<UnitDefinition, int>();   // the craft being loaded
+            internal readonly List<Dictionary<UnitDefinition, int>> Wave = new List<Dictionary<UnitDefinition, int>>();   // readied
             internal bool HasPoint;
             internal Vector3 Point, Ashore;
             internal bool Predicted;
@@ -175,26 +176,55 @@ namespace NavalPower
             return plan;
         }
 
-        internal static float LoadMass(Plan plan)
+        internal static float LoadMass(Plan plan) => Mass(plan.Load);
+
+        internal static int LoadCount(Plan plan) => Vehicles(plan.Load);
+
+        internal static float Mass(Dictionary<UnitDefinition, int> load)
         {
             float mass = 0f;
-            foreach (var entry in plan.Load) mass += entry.Key.mass * entry.Value;
+            foreach (var entry in load) mass += entry.Key.mass * entry.Value;
             return mass;
         }
 
-        internal static int LoadCount(Plan plan)
+        internal static int Vehicles(Dictionary<UnitDefinition, int> load)
         {
             int count = 0;
-            foreach (var entry in plan.Load) count += entry.Value;
+            foreach (var entry in load) count += entry.Value;
             return count;
+        }
+
+        // The craft being loaded joins the wave; the next starts empty.
+        internal static bool Ready(Ship ship, out string reason)
+        {
+            WellDeck deck = Deck(ship);
+            Plan plan = PlanFor(ship);
+            if (deck == null) { reason = "This ship has no well deck."; return false; }
+            if (LoadCount(plan) == 0) { reason = "Load at least one vehicle."; return false; }
+            if (Free(deck, plan, deck.Craft) <= 0) { reason = "Every landing craft aboard is already in the wave · buy another."; return false; }
+            plan.Wave.Add(new Dictionary<UnitDefinition, int>(plan.Load));
+            plan.Load.Clear();
+            reason = "Craft " + plan.Wave.Count + " ready · " + Describe(plan.Wave[plan.Wave.Count - 1]);
+            return true;
         }
 
         // One more of this vehicle, if the hold has it and the craft can take
         // it; past either, back to none.
+        // Set aside for craft already readied in the wave.
+        internal static int Reserved(Plan plan, UnitDefinition type)
+        {
+            int count = 0;
+            foreach (var load in plan.Wave) if (load.TryGetValue(type, out int n)) count += n;
+            return count;
+        }
+
+        internal static int Free(WellDeck deck, Plan plan, UnitDefinition type) =>
+            Count(deck.Hold, type) - Reserved(plan, type) - (type == deck.Craft ? plan.Wave.Count : 0);
+
         internal static void Cycle(WellDeck deck, Plan plan, UnitDefinition type)
         {
             plan.Load.TryGetValue(type, out int loaded);
-            bool more = loaded < Count(deck.Hold, type) && LoadMass(plan) + type.mass <= CraftCapacity(deck) + 0.5f;
+            bool more = loaded < Free(deck, plan, type) && LoadMass(plan) + type.mass <= CraftCapacity(deck) + 0.5f;
             if (more) plan.Load[type] = loaded + 1;
             else plan.Load.Remove(type);
         }
@@ -239,6 +269,9 @@ namespace NavalPower
             internal bool Ordered, Unloaded, Recalled, Launching = true;
             internal int Orders;
             internal float NextOrder;
+            internal int Wave;                  // launched together; they go in together
+            internal Vector3 Muster;            // where it waits astern for the rest
+            internal bool Mustering, MusterOrdered;
         }
 
         private static readonly List<Sortie> sorties = new List<Sortie>();
@@ -263,26 +296,73 @@ namespace NavalPower
 
         private static readonly HashSet<Ship> bought = new HashSet<Ship>();
 
-        internal static bool Launch(Ship ship, out string reason)
+        private static int waves;
+        private static readonly Dictionary<int, bool> waveLaunching = new Dictionary<int, bool>();
+
+        // The whole wave: doors open once, every readied craft out in turn,
+        // each waiting for the one before to clear the rail, doors closing
+        // after the last. They form up abreast astern and go in together,
+        // each to its own landing spot along the beach.
+        internal static bool LaunchWave(Ship ship, out string reason)
         {
             WellDeck deck = Deck(ship);
             if (deck == null) { reason = "This ship has no well deck."; return false; }
             if (!CommandableShip.CanCommand(ship, out reason)) return false;
             Plan plan = PlanFor(ship);
-            if (Count(deck.Hold, deck.Craft) <= 0) { reason = "No landing craft in the hold · buy one first."; return false; }
-            if (LoadCount(plan) == 0) { reason = "Load at least one vehicle."; return false; }
+            if (plan.Wave.Count == 0) { reason = "Ready at least one craft first."; return false; }
             if (!plan.HasPoint) { reason = "Choose a landing point on the map first."; return false; }
-            if (deckBusy.Contains(ship)) { reason = "The well deck is still clearing the last craft."; return false; }
-            foreach (var entry in plan.Load)
+            if (deckBusy.Contains(ship)) { reason = "The well deck is still launching."; return false; }
+            if (Count(deck.Hold, deck.Craft) < plan.Wave.Count) { reason = "Only " + Count(deck.Hold, deck.Craft) + " landing craft aboard for " + plan.Wave.Count + " readied."; return false; }
+            var totals = new Dictionary<UnitDefinition, int>();
+            foreach (var load in plan.Wave)
+                foreach (var entry in load) { totals.TryGetValue(entry.Key, out int n); totals[entry.Key] = n + entry.Value; }
+            foreach (var entry in totals)
                 if (Count(deck.Hold, entry.Key) < entry.Value) { reason = "The hold no longer has " + entry.Value + " × " + entry.Key.unitName + "."; return false; }
 
-            var load = new Dictionary<UnitDefinition, int>(plan.Load);
+            var loads = new List<Dictionary<UnitDefinition, int>>(plan.Wave);
+            List<Vector3> landings = Spread(plan.Point, loads.Count, deck);
+            int wave = ++waves;
+            waveLaunching[wave] = true;
             deckBusy.Add(ship);
             var runner = ship.gameObject.GetComponent<AmphibRunner>() ?? ship.gameObject.AddComponent<AmphibRunner>();
-            runner.StartCoroutine(LaunchCraft(deck, load, plan.Point, plan.Predicted ? plan.Ashore : plan.Point));
-            plan.Load.Clear();
-            reason = deck.Craft.unitName + " launching · " + Describe(load);
+            runner.StartCoroutine(LaunchCraft(deck, loads, landings, wave));
+            plan.Wave.Clear();
+            reason = loads.Count + " landing craft launching";
             return true;
+        }
+
+        // A landing point for each craft: the chosen one first, then points
+        // along the coast either side until each comes ashore (by the game's
+        // own snap) at least 150 m from every other -- otherwise they all run
+        // for the same patch of sand. If the coast will not give distinct
+        // spots, they share.
+        private static List<Vector3> Spread(Vector3 point, int count, WellDeck deck)
+        {
+            var orders = new List<Vector3> { point };
+            var ashore = new List<Vector3>();
+            AmphibSurvey.Assess(point, out Vector3 first, out _);
+            ashore.Add(first);
+            Vector3 across = Vector3.Cross(Vector3.up, (point - deck.Ship.transform.position).normalized);
+            across.y = 0f;
+            across = across.sqrMagnitude > 0.01f ? across.normalized : Vector3.right;
+            for (int i = 1; i < count; i++)
+            {
+                Vector3 chosen = point;
+                for (int step = 1; step <= 12; step++)
+                {
+                    float offset = ((step + 1) / 2) * 150f * (step % 2 == 1 ? 1f : -1f);
+                    Vector3 candidate = point + across * offset;
+                    if (!AmphibSurvey.Assess(candidate, out Vector3 lands, out _)) continue;
+                    bool clear = true;
+                    foreach (Vector3 other in ashore) if ((other - lands).sqrMagnitude < 150f * 150f) { clear = false; break; }
+                    if (!clear) continue;
+                    chosen = candidate;
+                    ashore.Add(lands);
+                    break;
+                }
+                orders.Add(chosen);
+            }
+            return orders;
         }
 
         internal static string Describe(Dictionary<UnitDefinition, int> load)
@@ -293,12 +373,9 @@ namespace NavalPower
             return text.Length > 0 ? text.ToString() : "empty";
         }
 
-        // The game's own deploy, one craft at a time and with a load we chose:
-        // gate open, the craft spawned at the hold's deploy point (not the
-        // stern gate, which GetDoorTransform returns) and handed to the rail,
-        // its load put aboard, launched, then sent to the point once its own
-        // launch run has cleared the ship.
-        private static IEnumerator LaunchCraft(WellDeck deck, Dictionary<UnitDefinition, int> load, Vector3 point, Vector3 ashore)
+        private const float MusterAstern = 700f, MusterSpacing = 200f, ClearOfDeck = 60f;
+
+        private static IEnumerator LaunchCraft(WellDeck deck, List<Dictionary<UnitDefinition, int>> loads, List<Vector3> landings, int wave)
         {
             Ship carrier = deck.Ship;
             UnitStorage hold = deck.Hold;
@@ -308,56 +385,84 @@ namespace NavalPower
                 hold.OpenDoors();
                 waited += 0.5f;
                 yield return new WaitForSeconds(0.5f);
-                if (carrier == null || carrier.disabled) { deckBusy.Remove(carrier); yield break; }
+                if (carrier == null || carrier.disabled) { deckBusy.Remove(carrier); waveLaunching.Remove(wave); yield break; }
             }
-
-            // Out of the hold only now it is really going.
-            foreach (var entry in load)
-                if (Count(hold, entry.Key) < entry.Value)
-                {
-                    CommandState.Say("Launch stopped · the hold no longer has " + entry.Value + " × " + entry.Key.unitName);
-                    deckBusy.Remove(carrier);
-                    yield break;
-                }
-            hold.AddOrRemoveUnit(deck.Craft, -1);
-            foreach (var entry in load) hold.AddOrRemoveUnit(entry.Key, -entry.Value);
 
             Transform at = DeployTransform?.GetValue(hold) as Transform ?? hold.GetDoorTransform();
-            Unit spawned = NetworkSceneSingleton<Spawner>.i.SpawnUnit(deck.Craft, at.position, at.rotation,
-                carrier.rb != null ? carrier.rb.GetPointVelocity(at.position) : Vector3.zero, carrier, null);
-            var craft = spawned as Ship;
-            if (craft == null)
+            Vector3 outward = at.forward; outward.y = 0f; outward.Normalize();
+            Vector3 across = Vector3.Cross(Vector3.up, outward);
+            Ship previous = null;
+            for (int i = 0; i < loads.Count; i++)
             {
-                // Nothing went: put it all back.
-                hold.AddOrRemoveUnit(deck.Craft, 1);
-                foreach (var entry in load) hold.AddOrRemoveUnit(entry.Key, entry.Value);
-                CommandState.Say("The landing craft could not be launched");
-                deckBusy.Remove(carrier);
-                yield break;
+                // The one before clear of the rail first, gate held open meanwhile.
+                float since = 0f;
+                while (previous != null && !previous.disabled && since < 20f &&
+                       Vector3.Distance(previous.transform.position, at.position) < ClearOfDeck)
+                {
+                    hold.OpenDoors();
+                    since += 0.5f;
+                    yield return new WaitForSeconds(0.5f);
+                }
+                if (carrier == null || carrier.disabled) break;
+                hold.OpenDoors();
+
+                Dictionary<UnitDefinition, int> load = loads[i];
+                bool stocked = Count(hold, deck.Craft) > 0;
+                foreach (var entry in load) if (Count(hold, entry.Key) < entry.Value) stocked = false;
+                if (!stocked) { CommandState.Say("Craft " + (i + 1) + " not launched · the hold no longer has its load"); continue; }
+                hold.AddOrRemoveUnit(deck.Craft, -1);
+                foreach (var entry in load) hold.AddOrRemoveUnit(entry.Key, -entry.Value);
+
+                Unit spawned = NetworkSceneSingleton<Spawner>.i.SpawnUnit(deck.Craft, at.position, at.rotation,
+                    carrier.rb != null ? carrier.rb.GetPointVelocity(at.position) : Vector3.zero, carrier, null);
+                var craft = spawned as Ship;
+                if (craft == null)
+                {
+                    hold.AddOrRemoveUnit(deck.Craft, 1);
+                    foreach (var entry in load) hold.AddOrRemoveUnit(entry.Key, entry.Value);
+                    CommandState.Say("Craft " + (i + 1) + " could not be launched");
+                    continue;
+                }
+                LastDeployed?.SetValue(hold, craft);
+                hold.enabled = true;                               // the rail runs while the craft is close
+                UnitStorage cargo = craft.GetComponentInChildren<UnitStorage>(true);
+                if (cargo != null) foreach (var entry in load) cargo.AddOrRemoveUnit(entry.Key, entry.Value);
+                craft.Launch();
+
+                // Its place in the line abreast astern -- on open water: sent
+                // to a point on land, a landing craft lands there.
+                float lateral = (i - (loads.Count - 1) * 0.5f) * MusterSpacing;
+                Vector3 muster = Vector3.zero;
+                bool muster_ok = false;
+                foreach (float astern in new[] { MusterAstern, 450f, 300f })
+                {
+                    muster = at.position + outward * astern + across * lateral;
+                    muster.y = Datum.LocalSeaY;
+                    if (OnWater(muster)) { muster_ok = true; break; }
+                }
+                Vector3 landing = landings[i];
+                sorties.Add(new Sortie
+                {
+                    Carrier = carrier, Craft = craft, Ai = craft.GetComponent<LandingCraftAI>(), Hold = hold,
+                    Name = ShipNames.Of(craft), Load = Describe(load), Point = landing,
+                    Ashore = AmphibSurvey.Assess(landing, out Vector3 lands, out _) ? lands : landing,
+                    LaunchedAt = Time.timeSinceLevelLoad, Wave = wave, Muster = muster, Mustering = loads.Count > 1 && muster_ok
+                });
+                Plugin.Log.LogInfo("[amphib] " + ShipNames.Of(carrier) + " launched craft " + (i + 1) + "/" + loads.Count + " of wave " + wave + " · " + Describe(load));
+                previous = craft;
             }
-            LastDeployed?.SetValue(hold, craft);
-            hold.enabled = true;                                   // the rail runs while the craft is close
-            UnitStorage cargo = craft.GetComponentInChildren<UnitStorage>(true);
-            if (cargo != null) foreach (var entry in load) cargo.AddOrRemoveUnit(entry.Key, entry.Value);
-            craft.Launch();
 
-            var sortie = new Sortie
-            {
-                Carrier = carrier, Craft = craft, Ai = craft.GetComponent<LandingCraftAI>(), Hold = hold,
-                Name = ShipNames.Of(craft), Load = Describe(load), Point = point, Ashore = ashore,
-                LaunchedAt = Time.timeSinceLevelLoad
-            };
-            sorties.Add(sortie);
-            Plugin.Log.LogInfo("[amphib] " + ShipNames.Of(carrier) + " launched " + sortie.Name + " · " + sortie.Load);
-
-            // The gate stays open while it clears, as the game keeps it.
-            while (Time.timeSinceLevelLoad - sortie.LaunchedAt < 12f && craft != null && !craft.disabled)
+            // The last one clear, then the gate is let close.
+            float clearing = 0f;
+            while (previous != null && !previous.disabled && clearing < 12f)
             {
                 hold.OpenDoors();
+                clearing += 1f;
                 yield return new WaitForSeconds(1f);
             }
             deckBusy.Remove(carrier);
-            sortie.Launching = false;
+            waveLaunching.Remove(wave);
+            foreach (Sortie sortie in sorties) if (sortie.Wave == wave) sortie.Launching = false;
         }
 
         internal static void Recall(Sortie sortie)
@@ -373,6 +478,8 @@ namespace NavalPower
         internal static string Status(Sortie sortie)
         {
             if (sortie.Craft == null || sortie.Craft.disabled) return "gone";
+            if (!sortie.Ordered && sortie.Mustering && Time.timeSinceLevelLoad - sortie.LaunchedAt > 12f)
+                return "forming up astern · waiting for the wave";
             if (sortie.Launching && !sortie.Ordered) return "leaving the well deck";
             float toBeach = Vector3.Distance(sortie.Craft.transform.position, sortie.Ashore);
             float toShip = sortie.Carrier != null ? Vector3.Distance(sortie.Craft.transform.position, sortie.Carrier.transform.position) : 0f;
@@ -407,6 +514,28 @@ namespace NavalPower
             GlobalPosition goal = (GlobalPosition)Destination.GetValue(sortie.Ai);
             Destination.SetValue(sortie.Ai, goal + inward.normalized * (craft.maxRadius + PushInland));
         }
+
+        // A wave goes in once all of it is out and formed up -- each at its
+        // place astern, or a minute after the last left the deck, whichever
+        // comes first, so one slow craft cannot hold the rest for ever.
+        private static bool GoTogether(int wave)
+        {
+            if (waveLaunching.ContainsKey(wave)) return false;
+            float lastLaunch = 0f;
+            bool formed = true;
+            foreach (Sortie sortie in sorties)
+            {
+                if (sortie.Wave != wave || sortie.Craft == null || sortie.Craft.disabled) continue;
+                lastLaunch = Mathf.Max(lastLaunch, sortie.LaunchedAt);
+                if (Time.timeSinceLevelLoad - sortie.LaunchedAt < 12f) formed = false;
+                else if (Vector3.Distance(sortie.Craft.transform.position, sortie.Muster) > sortie.Craft.maxRadius + 250f) formed = false;
+            }
+            return formed || Time.timeSinceLevelLoad - lastLaunch > 60f;
+        }
+
+        private static bool OnWater(Vector3 point) =>
+            !(Physics.Linecast(point + Vector3.up * 500f, point - Vector3.up * 5f, out RaycastHit hit, PhysicsLayers.StaticsMask)
+              && hit.point.y > Datum.LocalSeaY);
 
         private static bool OnLand(Sortie sortie) =>
             sortie.Ai != null && Cushion?.GetValue(sortie.Ai) is AirCushion cushion && cushion.Landed();
@@ -469,10 +598,19 @@ namespace NavalPower
                 // this ship, whatever else is nearer when it looks for one.
                 if (!sortie.Ordered && !sortie.Recalled && age > 12f)
                 {
-                    sortie.Ordered = true;
-                    sortie.Orders = 1;
                     HomeDock?.SetValue(sortie.Ai, sortie.Hold);
-                    Order(sortie);
+                    if (!sortie.Mustering || GoTogether(sortie.Wave))
+                    {
+                        sortie.Ordered = true;
+                        sortie.Orders = 1;
+                        Order(sortie);
+                    }
+                    else if (!sortie.MusterOrdered)
+                    {
+                        // Out of its launch run: wait abreast astern for the rest.
+                        sortie.MusterOrdered = true;
+                        craft.UnitCommand.SetDestination(sortie.Muster.ToGlobalPosition(), true);
+                    }
                 }
                 // Holding without having unloaded. On land already: land it,
                 // the way the game does when it beaches properly. Short of the

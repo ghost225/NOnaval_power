@@ -11,7 +11,8 @@ namespace NavalPower
     internal static class CommandableShip
     {
         internal static bool Is(Unit unit) =>
-            unit is Ship ship && ship.GetComponent<ShipAI>() != null && ship.UnitCommand != null;
+            unit is Ship ship && ship.GetComponent<ShipAI>() != null && ship.UnitCommand != null &&
+            ship.GetComponent<LandingCraftAI>() == null;
 
         internal static bool CanCommand(Unit unit, out string reason)
         {
@@ -20,6 +21,11 @@ namespace NavalPower
             if (ship == null) { reason = "Only ships can be commanded."; return false; }
             if (ship.GetComponent<ShipAI>() == null || ship.UnitCommand == null)
             { reason = "This hull has no native navigation controller."; return false; }
+            // A landing craft runs its own landing -- beach, unload, home --
+            // and taking the helm mid-run leaves it unable to finish. It is
+            // sent and recalled from its carrier's Amphibious window.
+            if (ship.GetComponent<LandingCraftAI>() != null)
+            { reason = "Landing craft are run from their carrier's Amphibious window."; return false; }
             if (!MissionManager.IsRunning || ship.disabled || !ship.gameObject.activeInHierarchy)
             { reason = "This ship is not available in a running mission."; return false; }
             if (!GameManager.GetLocalPlayer<Player>(out var player) || player == null)
