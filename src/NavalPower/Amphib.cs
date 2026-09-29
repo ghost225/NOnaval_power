@@ -369,12 +369,19 @@ namespace NavalPower
                     (sortie.Ai == null || (sortie.Ai.state != ShipAI.ShipAIState.returning && sortie.Ai.state != ShipAI.ShipAIState.docking)))
                     taken.Add(sortie.LaneAshore);
 
+            // Along the shore itself, both ways from the chosen spot, nearest
+            // first: 0, +1, -1, +2, -2 ...
             var candidates = new List<Lane>();
-            for (int step = 0; step <= 16; step++)
+            Lane centre = LaneAt(shore.point, way);
+            if (centre != null)
             {
-                float offset = ((step + 1) / 2) * LaneSpacing * (step % 2 == 1 ? 1f : -1f);
-                Lane lane = LaneAt(shore.point + side * offset, way);
-                if (lane != null) candidates.Add(lane);
+                candidates.Add(centre);
+                List<Lane> right = WalkShore(centre, side, 8), left = WalkShore(centre, -side, 8);
+                for (int i = 0; i < Mathf.Max(right.Count, left.Count); i++)
+                {
+                    if (i < right.Count) candidates.Add(right[i]);
+                    if (i < left.Count) candidates.Add(left[i]);
+                }
             }
             // Clean first, then the rest, nearest the chosen point within each.
             foreach (bool clean in new[] { true, false })
@@ -390,15 +397,61 @@ namespace NavalPower
             return chosen;
         }
 
-        // Where a line on this bearing, through this spot, comes ashore from
-        // open water -- or null if it starts on land or never reaches it.
+        // A lane square to the shoreline at this spot. The shore's run here
+        // comes from two short casts either side along the given bearing; the
+        // lane then runs straight up the beach across it, so on a curving
+        // beach each craft still meets the sand head on. Null if the lane
+        // would start on land or never reach it.
         private static Lane LaneAt(Vector3 near, Vector3 way)
+        {
+            if (!ShoreHit(near, way, out RaycastHit hit)) return null;
+            Vector3 side = Vector3.Cross(Vector3.up, way);
+            Vector3 inland = way;
+            if (ShoreHit(hit.point + side * 20f, way, out RaycastHit a) && ShoreHit(hit.point - side * 20f, way, out RaycastHit b))
+            {
+                Vector3 run = a.point - b.point;
+                run.y = 0f;
+                if (run.sqrMagnitude > 1f)
+                {
+                    inland = Vector3.Cross(run.normalized, Vector3.up);
+                    if (Vector3.Dot(inland, way) < 0f) inland = -inland;
+                    // Square to the shore, but never so far round that it
+                    // would come in along the beach rather than onto it.
+                    if (Vector3.Dot(inland, way) < 0.3f) inland = way;
+                    if (!ShoreHit(hit.point, inland, out hit)) return null;
+                }
+            }
+            return new Lane { Ashore = hit.point, Way = inland, Hint = AmphibSurvey.Profile(hit.point, hit.normal, inland) };
+        }
+
+        // Where a line on this bearing through this spot comes ashore, coming
+        // in from open water a metre above the sea.
+        private static bool ShoreHit(Vector3 near, Vector3 way, out RaycastHit hit)
         {
             Vector3 start = near - way * 400f, end = near + way * 300f;
             start.y = end.y = Datum.LocalSeaY + 1f;
-            if (!OnWater(start)) return null;
-            if (!Physics.Linecast(start, end, out RaycastHit hit, PhysicsLayers.StaticsMask)) return null;
-            return new Lane { Ashore = hit.point, Way = way, Hint = AmphibSurvey.Profile(hit.point, hit.normal, way) };
+            hit = default;
+            return OnWater(start) && Physics.Linecast(start, end, out hit, PhysicsLayers.StaticsMask);
+        }
+
+        // Spots every 120 m along the waterline from a lane, one way: step
+        // along the local run of the shore, then find the shore again square
+        // to it, and repeat -- so the spacing follows the curve of the beach.
+        private static List<Lane> WalkShore(Lane from, Vector3 along, int count)
+        {
+            var lanes = new List<Lane>();
+            Lane here = from;
+            for (int i = 0; i < count && here != null; i++)
+            {
+                Vector3 run = Vector3.Cross(here.Way, Vector3.up);           // along the shore at this spot
+                if (Vector3.Dot(run, along) < 0f) run = -run;
+                along = run;
+                Lane next = LaneAt(here.Ashore + run * LaneSpacing, here.Way);
+                if (next == null) break;                                    // the beach ends here
+                lanes.Add(next);
+                here = next;
+            }
+            return lanes;
         }
 
         internal static string Describe(Dictionary<UnitDefinition, int> load)
