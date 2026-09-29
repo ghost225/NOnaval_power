@@ -282,29 +282,36 @@ namespace NavalPower
                 return false;
             }
             ashore = shore.point;
-            if (shore.normal.y < MinShoreUpright) { hint = "wall at the waterline"; return true; }
             Vector3 way = destination - sea;
             way.y = 0f;
-            way.Normalize();
+            hint = Profile(shore.point, shore.normal, way.normalized);
+            return true;
+        }
+
+        // What the way up the beach is like from where a line meets the
+        // shore: a warning word, or null when it looks fine.
+        internal static string Profile(Vector3 shorePoint, Vector3 shoreNormal, Vector3 way)
+        {
+            if (shoreNormal.y < MinShoreUpright) return "wall at the waterline";
             float steepest = 0f, previous = float.NaN, rise = 0f;
             for (float d = -ProfileOut; d <= ProfileIn; d += ProfileStep)
             {
-                Vector3 at = shore.point + way * d;
+                Vector3 at = shorePoint + way * d;
                 float height = Datum.LocalSeaY;
                 if (Physics.Linecast(at + Vector3.up * 300f, at - Vector3.up * 100f, out RaycastHit hit, PhysicsLayers.StaticsMask))
                 {
                     height = Mathf.Max(hit.point.y, Datum.LocalSeaY);
                     if (d >= 0f && d <= 20f && hit.normal.y < MinShoreUpright && hit.point.y > Datum.LocalSeaY)
-                    { hint = "wall just past the waterline"; return true; }
+                        return "wall just past the waterline";
                 }
                 if (!float.IsNaN(previous) && d > -ProfileStep)
                     steepest = Mathf.Max(steepest, Mathf.Atan2(height - previous, ProfileStep) * Mathf.Rad2Deg);
                 previous = height;
                 if (d >= ProfileIn - 0.01f) rise = height - Datum.LocalSeaY;
             }
-            if (steepest > MaxClimb) hint = "steep · " + steepest.ToString("0") + "°";
-            else if (rise > MaxRise) hint = "high · " + rise.ToString("0") + " m up";
-            return true;
+            if (steepest > MaxClimb) return "steep · " + steepest.ToString("0") + "°";
+            if (rise > MaxRise) return "high · " + rise.ToString("0") + " m up";
+            return null;
         }
 
         private const float ProfileStep = 4f, ProfileIn = 60f, ProfileOut = 40f;

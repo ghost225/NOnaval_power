@@ -50,6 +50,8 @@ namespace NavalPower
         private static readonly FieldInfo ShoreDirection = AccessTools.Field(typeof(LandingCraftAI), "shoreDirection");
         private static readonly FieldInfo Cushion = AccessTools.Field(typeof(LandingCraftAI), "airCushion");
         private static readonly MethodInfo WaitDeployUnits = AccessTools.Method(typeof(LandingCraftAI), "WaitDeployUnits");
+        private static readonly FieldInfo Pathfinder = AccessTools.Field(typeof(ShipAI), "pathfinder");
+        private static readonly FieldInfo Keel = AccessTools.Field(typeof(ShipAI), "keel");
 
         internal static WellDeck Deck(Ship ship)
         {
@@ -270,6 +272,8 @@ namespace NavalPower
             internal int Orders;
             internal float NextOrder;
             internal int Wave;                  // launched together; they go in together
+            internal bool HasLane;              // its own line up the beach
+            internal Vector3 LaneAshore, LaneWay;
             internal Vector3 Muster;            // where it waits astern for the rest
             internal bool Mustering, MusterOrdered;
         }
@@ -320,49 +324,81 @@ namespace NavalPower
                 if (Count(deck.Hold, entry.Key) < entry.Value) { reason = "The hold no longer has " + entry.Value + " × " + entry.Key.unitName + "."; return false; }
 
             var loads = new List<Dictionary<UnitDefinition, int>>(plan.Wave);
-            List<Vector3> landings = Spread(plan.Point, loads.Count, deck);
+            List<Lane> lanes = Lanes(plan.Point, loads.Count);
+            if (lanes.Count > 0 && lanes.Count < loads.Count)
+                CommandState.Say("Only " + lanes.Count + " landing lane(s) free on that beach · the rest will share");
             int wave = ++waves;
             waveLaunching[wave] = true;
             deckBusy.Add(ship);
             var runner = ship.gameObject.GetComponent<AmphibRunner>() ?? ship.gameObject.AddComponent<AmphibRunner>();
-            runner.StartCoroutine(LaunchCraft(deck, loads, landings, wave));
+            runner.StartCoroutine(LaunchCraft(deck, loads, plan.Point, lanes, wave));
             plan.Wave.Clear();
             reason = loads.Count + " landing craft launching";
             return true;
         }
 
-        // A landing point for each craft: the chosen one first, then points
-        // along the coast either side until each comes ashore (by the game's
-        // own snap) at least 150 m from every other -- otherwise they all run
-        // for the same patch of sand. If the coast will not give distinct
-        // spots, they share.
-        private static List<Vector3> Spread(Vector3 point, int count, WellDeck deck)
+        // A lane up the beach for each craft. Left to itself every craft sent
+        // near one point snaps to the same sea lane and road and runs for the
+        // same patch of sand: they arrived in a ring, shoved one another, rode
+        // up on each other, and one held at the waterline unloaded into the
+        // sea. So each gets its own line, parallel to the chosen one and 120 m
+        // from its neighbours, judged the way the preview judges a beach --
+        // clean lanes nearest the chosen point first, lanes already taken by
+        // craft still on the beach skipped.
+        internal sealed class Lane
         {
-            var orders = new List<Vector3> { point };
-            var ashore = new List<Vector3>();
-            AmphibSurvey.Assess(point, out Vector3 first, out _);
-            ashore.Add(first);
-            Vector3 across = Vector3.Cross(Vector3.up, (point - deck.Ship.transform.position).normalized);
-            across.y = 0f;
-            across = across.sqrMagnitude > 0.01f ? across.normalized : Vector3.right;
-            for (int i = 1; i < count; i++)
+            internal Vector3 Ashore, Way;
+            internal string Hint;
+        }
+
+        private const float LaneSpacing = 120f;
+
+        private static List<Lane> Lanes(Vector3 point, int count)
+        {
+            var chosen = new List<Lane>();
+            if (!AmphibSurvey.Predict(point, out Vector3 sea, out Vector3 destination, out RaycastHit shore))
+                return chosen;                                       // on water: no lanes, it just sails there
+            Vector3 way = destination - sea;
+            way.y = 0f;
+            way.Normalize();
+            Vector3 side = Vector3.Cross(Vector3.up, way);
+
+            var taken = new List<Vector3>();
+            foreach (Sortie sortie in sorties)
+                if (sortie.HasLane && sortie.Craft != null && !sortie.Craft.disabled && !sortie.Recalled &&
+                    (sortie.Ai == null || (sortie.Ai.state != ShipAI.ShipAIState.returning && sortie.Ai.state != ShipAI.ShipAIState.docking)))
+                    taken.Add(sortie.LaneAshore);
+
+            var candidates = new List<Lane>();
+            for (int step = 0; step <= 16; step++)
             {
-                Vector3 chosen = point;
-                for (int step = 1; step <= 12; step++)
-                {
-                    float offset = ((step + 1) / 2) * 150f * (step % 2 == 1 ? 1f : -1f);
-                    Vector3 candidate = point + across * offset;
-                    if (!AmphibSurvey.Assess(candidate, out Vector3 lands, out _)) continue;
-                    bool clear = true;
-                    foreach (Vector3 other in ashore) if ((other - lands).sqrMagnitude < 150f * 150f) { clear = false; break; }
-                    if (!clear) continue;
-                    chosen = candidate;
-                    ashore.Add(lands);
-                    break;
-                }
-                orders.Add(chosen);
+                float offset = ((step + 1) / 2) * LaneSpacing * (step % 2 == 1 ? 1f : -1f);
+                Lane lane = LaneAt(shore.point + side * offset, way);
+                if (lane != null) candidates.Add(lane);
             }
-            return orders;
+            // Clean first, then the rest, nearest the chosen point within each.
+            foreach (bool clean in new[] { true, false })
+                foreach (Lane lane in candidates)
+                {
+                    if (chosen.Count >= count) break;
+                    if ((lane.Hint == null) != clean || chosen.Contains(lane)) continue;
+                    bool free = true;
+                    foreach (Vector3 other in taken) if ((other - lane.Ashore).sqrMagnitude < 100f * 100f) { free = false; break; }
+                    foreach (Lane other in chosen) if ((other.Ashore - lane.Ashore).sqrMagnitude < 100f * 100f) { free = false; break; }
+                    if (free) chosen.Add(lane);
+                }
+            return chosen;
+        }
+
+        // Where a line on this bearing, through this spot, comes ashore from
+        // open water -- or null if it starts on land or never reaches it.
+        private static Lane LaneAt(Vector3 near, Vector3 way)
+        {
+            Vector3 start = near - way * 400f, end = near + way * 300f;
+            start.y = end.y = Datum.LocalSeaY + 1f;
+            if (!OnWater(start)) return null;
+            if (!Physics.Linecast(start, end, out RaycastHit hit, PhysicsLayers.StaticsMask)) return null;
+            return new Lane { Ashore = hit.point, Way = way, Hint = AmphibSurvey.Profile(hit.point, hit.normal, way) };
         }
 
         internal static string Describe(Dictionary<UnitDefinition, int> load)
@@ -375,7 +411,7 @@ namespace NavalPower
 
         private const float MusterAstern = 700f, MusterSpacing = 200f, ClearOfDeck = 60f;
 
-        private static IEnumerator LaunchCraft(WellDeck deck, List<Dictionary<UnitDefinition, int>> loads, List<Vector3> landings, int wave)
+        private static IEnumerator LaunchCraft(WellDeck deck, List<Dictionary<UnitDefinition, int>> loads, Vector3 point, List<Lane> lanes, int wave)
         {
             Ship carrier = deck.Ship;
             UnitStorage hold = deck.Hold;
@@ -440,12 +476,13 @@ namespace NavalPower
                     muster.y = Datum.LocalSeaY;
                     if (OnWater(muster)) { muster_ok = true; break; }
                 }
-                Vector3 landing = landings[i];
+                Lane lane = lanes.Count > 0 ? lanes[i % lanes.Count] : null;
                 sorties.Add(new Sortie
                 {
                     Carrier = carrier, Craft = craft, Ai = craft.GetComponent<LandingCraftAI>(), Hold = hold,
-                    Name = ShipNames.Of(craft), Load = Describe(load), Point = landing,
-                    Ashore = AmphibSurvey.Assess(landing, out Vector3 lands, out _) ? lands : landing,
+                    Name = ShipNames.Of(craft), Load = Describe(load), Point = point,
+                    HasLane = lane != null, LaneAshore = lane != null ? lane.Ashore : point, LaneWay = lane != null ? lane.Way : Vector3.zero,
+                    Ashore = lane != null ? lane.Ashore : (AmphibSurvey.Assess(point, out Vector3 lands, out _) ? lands : point),
                     LaunchedAt = Time.timeSinceLevelLoad, Wave = wave, Muster = muster, Mustering = loads.Count > 1 && muster_ok
                 });
                 Plugin.Log.LogInfo("[amphib] " + ShipNames.Of(carrier) + " launched craft " + (i + 1) + "/" + loads.Count + " of wave " + wave + " · " + Describe(load));
@@ -507,8 +544,18 @@ namespace NavalPower
         private static void Order(Sortie sortie)
         {
             Ship craft = sortie.Craft;
-            craft.UnitCommand.SetDestination(sortie.Point.ToGlobalPosition(), true);
+            craft.UnitCommand.SetDestination(sortie.Point.ToGlobalPosition(), true);   // into its landing run
             if (sortie.Ai == null || sortie.Ai.state != ShipAI.ShipAIState.landing || Destination == null || ShoreDirection == null) return;
+            if (sortie.HasLane && Pathfinder != null)
+            {
+                // Its own lane: the route to its own spot on the shore, its
+                // run-in along the lane, and its stopping point well inland.
+                ShoreDirection.SetValue(sortie.Ai, sortie.LaneWay * 100f);
+                if (Pathfinder.GetValue(sortie.Ai) is PathfindingAgent agent)
+                    agent.Pathfind(NetworkSceneSingleton<LevelInfo>.i.seaLanes, sortie.LaneAshore.ToGlobalPosition(), Keel?.GetValue(sortie.Ai) as Transform);
+                Destination.SetValue(sortie.Ai, (sortie.LaneAshore + sortie.LaneWay * (craft.maxRadius + PushInland)).ToGlobalPosition());
+                return;
+            }
             if (!(ShoreDirection.GetValue(sortie.Ai) is Vector3 inward) || inward.sqrMagnitude < 1f) return;
             inward.y = 0f;
             GlobalPosition goal = (GlobalPosition)Destination.GetValue(sortie.Ai);
@@ -537,8 +584,12 @@ namespace NavalPower
             !(Physics.Linecast(point + Vector3.up * 500f, point - Vector3.up * 5f, out RaycastHit hit, PhysicsLayers.StaticsMask)
               && hit.point.y > Datum.LocalSeaY);
 
+        // Really up the beach: its cushion over land, and dry ground under the
+        // middle of the hull too, not just its bow -- vehicles unloaded from a
+        // craft half in the water drive out into the sea.
         private static bool OnLand(Sortie sortie) =>
-            sortie.Ai != null && Cushion?.GetValue(sortie.Ai) is AirCushion cushion && cushion.Landed();
+            sortie.Ai != null && Cushion?.GetValue(sortie.Ai) is AirCushion cushion && cushion.Landed() &&
+            !OnWater(sortie.Craft.transform.position);
 
         // What LandingCraftAI does itself when it touches down in its landing
         // run: let the cushion down, unload, and go home when done.
