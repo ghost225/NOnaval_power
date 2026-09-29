@@ -426,3 +426,11 @@ Target validity in FlightOrders/NavalPilotState now goes through
 had fired all its missiles at an aircraft that was destroyed but still
 falling. If Naval Power validates ship or missile targets anywhere, the
 same helper applies. On NOrders master.
+
+## 2026-09-29 (later) — NOrders: CargoAboard counts troop mounts
+
+`FlightOrders.CargoAboard` counted only `cargo` stations; an infantry
+squad is a `troops` mount and read as 0, so a High Command airlift was
+judged delivered before it began. Troops now count. If your delivery
+completion ("what it set out with is gone") keyed on the old number,
+it will now wait for the squad too. On NOrders master.
