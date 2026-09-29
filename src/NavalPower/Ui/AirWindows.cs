@@ -654,16 +654,6 @@ namespace NavalPower
             Button drop = s.Row("AIRDROP AT A POINT  ·  parachute pass, no landing",
                 () => AskForZone(flight, airdrop: true));
             if (Chosen(flight, true)) drop.image.color = Theme.AccentFill;
-            if (plane)
-            {
-                Button roll = s.Row("ROLLING DELIVERY  ·  survey the ground only, for now", () =>
-                {
-                    CommandState.AwaitingStrip = flight;
-                    CommandState.Say(flight.Name + " · right-click the map where the cargo should roll out");
-                    s.Show(x => CargoPage(x, flight));
-                });
-                if (CommandState.AwaitingStrip == flight) roll.image.color = Theme.AccentFill;
-            }
 
             s.Info(CommandState.AwaitingCargoZone == flight
                 ? UiKit.Tint("WAITING FOR A ZONE  ·  right-click the map", Theme.Accent)

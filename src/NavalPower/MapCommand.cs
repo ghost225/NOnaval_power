@@ -613,20 +613,6 @@ namespace NavalPower
 
             if (estimate != null) { Ui?.OpenEsmContext(Input.mousePosition, estimate); return; }
 
-            // A rolling-delivery survey was asked for: survey round this point.
-            if (CommandState.AwaitingStrip != null && onMap)
-            {
-                Flight surveyed = CommandState.AwaitingStrip;
-                CommandState.AwaitingStrip = null;
-                StripSurvey.Result result = StripSurvey.Survey(surveyed, map.GetCursorCoordinates());
-                StripSurvey.Strip best = result.Best;
-                CommandState.Say(surveyed.Name + " · " + (best == null
-                    ? "no strip found near the point · needs " + UnitConverter.DistanceReading(result.Needed) + " of flat, clear ground"
-                    : result.Usable.Count + " strips found · best heading " + best.Heading.ToString("000") + "°, " +
-                      UnitConverter.DistanceReading(best.FromPoint) + " from the point · survey only"));
-                return;
-            }
-
             // A landing point was asked for: this click is it, wherever it is.
             if (CommandState.AwaitingLanding != null && onMap)
             {
