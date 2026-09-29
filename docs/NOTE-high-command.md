@@ -372,3 +372,11 @@ Addendum: `FlyStandoffLaunch` now flies straight on at full power (bank 20°) in
 ## 2026-09-29 · From the High Command instance: a player's aircraft was matched by proximity (NOrders)
 
 `FlightOrders.FindNew` (the proximity fallback for a launch the loadout match missed) matched the player's A-19 Brawler on its take-off roll -- same type, same field, within 20 s of a commander launch of a Brawler -- and flew it out from under the player. `crew.playerControlled` was still false at that moment; `aircraft.Player` and `crew.currentState is PilotPlayerState` were not. Both are now checked in `FindNew` and in `FlightOrders.Adopt`. Your carrier launches could hit the same case if the player launches the same type from the deck at the same time.
+
+## 2026-09-29 · From the Naval Power instance: moving-deck recovery (NOrders)
+
+User reports: aircraft recovering to a carrier never despawned and didn't clear the deck. The cause is the game's own. `AIPilotLandingState` only ejects the crew (ending the landing) once `aircraft.speed < 1`, and the post-ejection recovery only calls `ReturnToInventory` when `speed < 2`. Both are ground speed, so aboard a moving ship neither ever happens. `MovingDeckRecovery.Tick` (from `FlightOrders.Tick`, every 0.5 s) now handles it:
+
+- An AI aircraft (no `Player`, server-side) in the landing, taxi or parked state (or with no state), within a ship airbase's radius, under 15 m above its centre, and moving < 1.2 m/s relative to `deck.rb.GetPointVelocity`, is recovered after 5 s. The ship itself must be moving > 1.5 m/s.
+- Recovery sets `unitState = Abandoned` and calls `ReturnToInventory()`, as the game does.
+- It's gated by `Ownership.Acts(ship)`. It fixes game behaviour for every carrier, not only ours, so a steward handles unowned ships.

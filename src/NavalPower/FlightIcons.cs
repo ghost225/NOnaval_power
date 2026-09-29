@@ -19,22 +19,30 @@ namespace NavalPower
         private static readonly Dictionary<UnitMapIcon, Tint> tinted = new Dictionary<UnitMapIcon, Tint>();
         private static readonly List<UnitMapIcon> stale = new List<UnitMapIcon>();
 
+        // A fixed palette, not the theme's, and never red: red on the map is
+        // the enemy, and an evading flight of ours drawn in the theme's alert
+        // colour was being mistaken for a contact and engaged.
+        internal static readonly Color Own = new Color(0.36f, 0.90f, 0.46f);         // green: on task
+        internal static readonly Color Attention = new Color(1.00f, 0.88f, 0.20f);   // yellow: evading, or needs you
+        internal static readonly Color Fighting = new Color(1.00f, 0.56f, 0.12f);    // orange: striking, engaging
+        internal static readonly Color Cargo = new Color(0.30f, 0.72f, 1.00f);       // bright blue
+        internal static readonly Color Jamming = new Color(0.76f, 0.52f, 1.00f);     // violet
+        internal static readonly Color Homeward = new Color(0.45f, 0.78f, 0.70f);    // muted teal: returning
+
         internal static Color For(Flight flight)
         {
-            if (flight == null) return Theme.Accent;
-            // Evading or fighting outranks the standing task on the map too.
-            if (flight.Threat == FlightThreat.Missile) return Theme.Bad;
-            if (flight.Interrupted) return Theme.Warn;
+            if (flight == null) return Own;
+            // Evading, or needing you, outranks the standing task on the map too.
+            if (flight.Threat == FlightThreat.Missile || flight.Attention != null) return Attention;
             switch (flight.Mode)
             {
-                case FlightMode.Strike: return Theme.Weapon;
-                case FlightMode.Jam: return Theme.Passive;
-                case FlightMode.Cargo: return Theme.Datalink;
-                case FlightMode.Egress: return Theme.Warn;
-                case FlightMode.Engage: return Theme.Bad;
-                case FlightMode.ReturnToBase: return Theme.Warn;
-                case FlightMode.Station: return Theme.OwnTrack;
-                default: return Theme.Accent;
+                case FlightMode.Strike:
+                case FlightMode.Engage:
+                case FlightMode.Egress: return Fighting;
+                case FlightMode.Cargo: return Cargo;
+                case FlightMode.Jam: return Jamming;
+                case FlightMode.ReturnToBase: return Homeward;
+                default: return flight.Interrupted ? Fighting : Own;
             }
         }
 
