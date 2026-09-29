@@ -331,6 +331,26 @@ namespace NavalPower
             s.Title(flight.Name.ToUpperInvariant() + "  ·  tasking  ·  " + ShortTask(flight));
             Back(s, flight);
 
+            // Jamming: offer the ideal area -- as far back as keeps every
+            // target in reach -- where the current one is not it. It shows on
+            // the map as the dimmer ring.
+            if (flight.Mode == FlightMode.Jam && JamPlanner.Ideal(flight, out Vector3 ideal, out _) is int covered && covered > 0 &&
+                FastMath.Distance(ideal.ToGlobalPosition(), flight.OrbitCentre) > 500f)
+            {
+                int all = JamPlanner.Targets(flight).Count;
+                Row(s, flight, "Move to ideal jamming range  ·  " + UnitConverter.DistanceReading(FastMath.Distance(ideal.ToGlobalPosition(), flight.OrbitCentre)) +
+                    " from its area" + (covered < all ? "  ·  covers " + covered + " of " + all : ""), () =>
+                    {
+                        JamPlanner.MoveToIdeal(flight);
+                        CommandState.Say(flight.Name + " · jamming from the ideal range");
+                    });
+            }
+            if (flight.JamTargets.Count > 0 && flight.Mode != FlightMode.Jam && FlightOrders.KeepsJamming(flight.Mode))
+                Row(s, flight, "Stop jamming  ·  " + flight.JamTargets.Count + " target(s)", () =>
+                {
+                    FlightOrders.StopJamming(flight);
+                    CommandState.Say(flight.Name + " · jamming stopped");
+                });
             Row(s, flight, "Hold here  ·  task area on the aircraft", () =>
             {
                 WingOrders.SetArea(flight, flight.Aircraft.GlobalPosition(), flight.OrbitRadius);

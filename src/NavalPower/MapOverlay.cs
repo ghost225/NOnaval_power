@@ -305,6 +305,27 @@ namespace NavalPower
                     Line(vh, middle + Vector2.left * 5f, middle + Vector2.right * 5f, Theme.Dim(color, 0.8f), 1.6f);
                     Line(vh, middle + Vector2.down * 5f, middle + Vector2.up * 5f, Theme.Dim(color, 0.8f), 1.6f);
                 }
+                else if (selected.Mode == FlightMode.Jam || (selected.JamTargets.Count > 0 && FlightOrders.KeepsJamming(selected.Mode)))
+                {
+                    // The area it jams from, a line to each target in priority
+                    // order (brightest first), and -- where it differs -- the
+                    // ideal area, as far back as keeps every target in reach,
+                    // with a line from here to there.
+                    if (selected.Mode == FlightMode.Jam)
+                    {
+                        Circle(vh, selected.OrbitCentre, selected.OrbitRadius, Theme.Dim(color, 0.6f));
+                        Line(vh, at, Project(selected.OrbitCentre), Theme.Dim(color, 0.3f), 1.2f);
+                    }
+                    List<Unit> jammed = JamPlanner.Targets(selected);
+                    for (int i = 0; i < jammed.Count; i++)
+                        Line(vh, at, Project(jammed[i].GlobalPosition()), Theme.Dim(Theme.Passive, 0.85f - 0.2f * Mathf.Min(i, 3)), 1.4f);
+                    if (selected.Mode == FlightMode.Jam && JamPlanner.Ideal(selected, out Vector3 ideal, out float idealRadius) > 0 &&
+                        FastMath.Distance(ideal.ToGlobalPosition(), selected.OrbitCentre) > 500f)
+                    {
+                        Circle(vh, ideal.ToGlobalPosition(), idealRadius, Theme.Dim(Theme.Passive, 0.45f));
+                        Line(vh, Project(selected.OrbitCentre), Project(ideal.ToGlobalPosition()), Theme.Dim(Theme.Passive, 0.35f), 1.2f);
+                    }
+                }
                 else if (selected.Mode == FlightMode.Cargo)
                 {
                     // The zone it is working to, and how it intends to arrive.
