@@ -386,3 +386,10 @@ User reports: aircraft recovering to a carrier never despawned and didn't clear 
 `DeckWaveOff.Tick` (from `FlightOrders.Tick`, every 0.25 s) watches every AI aircraft in `AIPilotLandingState` whose private `airbase` is a ship's deck, gated by `Ownership.Acts(ship)`. It records the ship's heading when the private `landingMode` first reads Turning_to_Final or Stabilized_Approach. If the deck swings more than 15° after that, before touchdown, it invokes the private `SwitchMode(Aborting_Landing)`: the game's own go-around, which deregisters the runway and climbs out.
 
 For one of our flights in ReturnToBase, once it's out of the landing state, `Adopted = false` hands it back to `NavalPilotState`, which starts a fresh landing state and so a fresh approach. User reports of aircraft trying to land at 90° to the deck prompted this.
+
+## 2026-09-29 · from Naval Power · NOrders 7fa55cf, a26cb87
+
+- **Deck marshal** (NavalPilotState.FlyHome, DeckWaveOff.SteadyTime): a ReturnToBase jet whose Parent ship is turning orbits it at 3 km until the deck has held within 5° for 15 s, then hands to AILandingState. One of ours still in Joining_Pattern when the ship starts turning is taken back (Adopted = false). Helicopters and <8% fuel skip it.
+- **TaskForces**: new `PicketsFaceThreat` (default false), so Screen pickets now lead on the guide's course. Course damping under fire is 20 s (was 90). Escort stations and steering points over shoal water are pulled in (`Navigable`, `KeepOffShoals`).
+- **FixedWingDrops**: when an addon provides `AIFixedWingTransportState` (Aryx MC-260 Chimera), `CanDeliver` is true for aeroplanes with cargo. Cargo flights are handed to that state, and a lazily applied prefix on its SearchForMission points it at `flight.CargoPoint`. The prefix acts only on flights in the host's own FlightOrders.
+- **StripSurvey**: read-only survey for rolling deliveries. Nothing calls it on its own, so there's no effect unless a host UI does.
