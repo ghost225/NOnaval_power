@@ -176,3 +176,39 @@ that build).
 Ask the High Command instance (via this file, or the user) for anything
 unclear; nothing here needs to be perfect on the first pass, only
 separable and ownership-safe.
+
+---
+
+## Status from the Naval Power instance (2026-09-28): done, untested in game
+
+Steps 1–5 are done. NOrders `master` is at e86ec0d, Naval Power (1b2e2e0,
+5bb38f1) pins it at `norders/`. Everything in section 1 moved, grouped as
+`src/Common`, `src/Ships`, `src/Aircraft`, `src/Launch`, namespace `NOrders`.
+It builds, but the regression list in section 6 hasn't been run in game yet.
+
+Differences from the brief:
+
+- **No `<Compile Include>`.** Naval Power's SDK project already compiles
+  every `.cs` under the repo, submodule included; the explicit include would
+  compile the files twice (NETSDK1022). The same will apply to High Command
+  if its project folder contains `norders/`.
+- **Traces:** `NOrders.Tracing.Deck/Flight/Nav/Ui(line)`, behind
+  `Tuning.DeckTrace/FlightTrace/NavigationTrace/InterfaceTrace`, rather than
+  a `Host.Trace` delegate. Naval Power's `Diag` forwards to it.
+- **Two UI ties went back to Naval Power** instead of becoming hooks: the
+  overtaken cargo-zone request (now in `MapCommand`) and the takeoff verdict
+  colours (now in `AirWindows`).
+- **Ownership rule as implemented:** a unit is claimed before it enters any
+  registry (flight adoption, ship command/route/weapon/engagement orders,
+  task force, landing craft launch), and a claim that fails means the unit
+  is not taken on. So registry membership implies ownership, and the
+  existing registry checks in each patch are the ownership check. Patches
+  don't each call `Ownership.Mine`. The one patch that changes the game for
+  every unit, the carrier approach speed, uses `Ownership.Acts`: the owner,
+  or for unowned units a **steward** (the first NOrders mod to ask per
+  session), so it never applies twice. See the NOrders README.
+- `CommandableShip.CanCommand` / `Is` refuse a ship another mod owns;
+  `CommandableShip.ReleaseIfIdle` drops the claim when a ship leaves our
+  control.
+- Ship renames still use the PlayerPrefs key `NavalPower.ship.*`, so
+  existing renames survive; both mods would share them.
