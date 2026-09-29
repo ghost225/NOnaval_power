@@ -418,3 +418,11 @@ and done after it. On NOrders master; pull the submodule.
   - It won't unload on a ship's deck unless that ship is the ordered point.
 - **Airdrop along a line**: `FlightOrders.DeliverAlong` and `WingOrders.DeliverAlong`. The flight flies a route to a lead-in point, then `LeadInReached` places the drop. New Flight fields: `HasDropLine`, `LeadInPending`, `DropLineStart`, `DropLineEnd`, `LeadIn`, `DropSpacing`.
 - **FixedWingDrops.Tune**: also raises `cargoReleaseCountPerPass` to the load aboard.
+
+## 2026-09-29 (later) — NOrders: Host.Dead(unit)
+
+Target validity in FlightOrders/NavalPilotState now goes through
+`Host.Dead(unit)` = null, disabled, or `unitState == Destroyed`. A wing
+had fired all its missiles at an aircraft that was destroyed but still
+falling. If Naval Power validates ship or missile targets anywhere, the
+same helper applies. On NOrders master.
