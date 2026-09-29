@@ -12,7 +12,7 @@ below. Their licences are reproduced as their terms require.
 Naval Power began from its code. Adapted from it: the map command layer in
 `MapCommand.cs` (input policy, pointer and camera gestures, the native map and
 camera input patches, command entry and exit), the map-orders overlay in
-`MapOverlay.cs`, the line clipping in `MapGeometry.cs`, and parts of the UI
+`MapOverlay.cs`, the line clipping in `norders/src/Common/MapGeometry.cs`, and parts of the UI
 building helpers in `CommandUi.cs` and `Ui/UiKit.cs`.
 
 ```
@@ -45,8 +45,8 @@ SOFTWARE.
 
 <https://github.com/qwerty1423/no-autopilot-mod>
 
-Approaches informed by it: carrier approach speed handling (`CarrierRecovery.cs`)
-and the patch circuit breaker (`Guard.cs`).
+Approaches informed by it: carrier approach speed handling (`norders/src/Aircraft/CarrierRecovery.cs`)
+and the patch circuit breaker (`norders/src/Common/Guard.cs`).
 
 ```
 MIT License
@@ -78,5 +78,5 @@ SOFTWARE.
 
 <https://github.com/DontKnowWhatImDoingHere/NOCommander>
 
-Approaches informed by it: AI transport and cargo missions (`CargoMissions.cs`).
+Approaches informed by it: AI transport and cargo missions (`norders/src/Aircraft/CargoMissions.cs`).
 Released into the public domain under the Unlicense; credited here with thanks.
