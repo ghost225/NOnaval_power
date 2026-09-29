@@ -189,6 +189,11 @@ namespace NavalPower
             // Out of command with the map still stretched to the screen: put it
             // back to the game's own layout.
             if ((root == null || !root.activeSelf) && fullFitted) ReleaseFull(map);
+            // Out of command: the side panels the command view put away come
+            // back. This has to run before the early return below -- leaving
+            // command switches the UI off, and restoring them only from inside
+            // the command frame meant they never came back.
+            if ((root == null || !root.activeSelf) && hiddenPanels.Count > 0) RestoreSidePanels();
             if (root == null || !root.activeSelf) return;
 
             // The game's own map key, or anything else, can take the map away.
@@ -288,9 +293,19 @@ namespace NavalPower
             }
         }
 
+        // Back as the game would have them: switched on, then told the map's
+        // present state -- they were last told it had closed.
         private void RestoreSidePanels()
         {
-            foreach (GameObject panel in hiddenPanels) if (panel != null) panel.SetActive(true);
+            foreach (GameObject panel in hiddenPanels)
+            {
+                if (panel == null) continue;
+                panel.SetActive(true);
+                var mfd = panel.GetComponent<VirtualMFD>();
+                if (mfd == null) continue;
+                if (DynamicMap.mapMaximized) mfd.VirtualMFD_onMapMaximized();
+                else mfd.VirtualMFD_onMapMinimized();
+            }
             hiddenPanels.Clear();
         }
 

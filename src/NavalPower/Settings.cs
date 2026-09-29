@@ -57,6 +57,8 @@ namespace NavalPower
         internal static ConfigEntry<bool> NavigationTrace;
         internal static ConfigEntry<bool> HarnessKeys;
         internal static ConfigEntry<bool> InterfaceTrace;
+        internal static ConfigEntry<bool> OwnRadarEvasion;
+        internal static ConfigEntry<float> RadarEvasionFloor;
         internal static ConfigEntry<float> InterfaceScale;
         internal static ConfigEntry<float> LowFuelAlert;
         internal static ConfigEntry<bool> NameShips;
@@ -205,6 +207,13 @@ namespace NavalPower
                 "Throttle for jets on area, route, station and jamming tasks. Strike run-ins and egress use full " +
                 "power. A wing's lead cruises 5% below this so its wingmen can close up, and slows further while " +
                 "they are well behind.");
+            OwnRadarEvasion = config.Bind("Flights", "Own radar evasion", true,
+                "A radar-guided shot at one of our flights is flown off by our own logic: full power, the shot put " +
+                "on the beam, chaff in bursts, and a gentle descent. Off leaves it to the game's own evasion, which " +
+                "dives for the deck -- too hard for heavily loaded aircraft, which went into the sea.");
+            RadarEvasionFloor = config.Bind("Flights", "Radar evasion floor", 250f,
+                Advanced("Height above ground that our radar evasion's descent stops at.",
+                    new AcceptableValueRange<float>(50f, 3000f)));
             IrBurstRange = config.Bind("Flights", "Heat-seeker flare range", 3000f,
                 "A heat-seeking shot inside this range is met with strings of flares, whatever the flight is " +
                 "doing. The engine goes to idle and the aircraft turns the missile onto its beam as soon as " +
@@ -350,6 +359,8 @@ namespace NavalPower
             Tuning.PreFlareInterval = PreFlareInterval.Value;
             Tuning.FlareReserve = FlareReserve.Value;
             Tuning.IrBurstPause = IrBurstPause.Value;
+            Tuning.OwnRadarEvasion = OwnRadarEvasion.Value;
+            Tuning.RadarEvasionFloor = RadarEvasionFloor.Value;
             Tuning.CloseSpacing = CloseSpacing.Value;
             Tuning.CombatSpacing = CombatSpacing.Value;
             Tuning.EscortRetaliate = EscortRetaliate.Value;
