@@ -115,7 +115,8 @@ namespace NavalPower
         private readonly List<GlobalPosition> route = new List<GlobalPosition>();
         private Ship ship;
         private ShipAI ai;
-        private bool ownsRoute, ownsHeading, sendingOwnOrder, hasSentLeg;
+        private bool ownsRoute, ownsHeading, sendingOwnOrder, hasSentLeg, reclaim;
+        private float nextReclaimNote;
         private GlobalPosition lastSent;
         private Vector3 orderedHeading;
         private GlobalPosition headingDestination;
@@ -159,6 +160,29 @@ namespace NavalPower
         {
             if (sendingOwnOrder) return;
             if (hasSentLeg && Same(command.position, lastSent)) return;
+
+            // Not a player's order -- the mission's scripting, the game's own
+            // AI, another mod -- while we hold the ship to a route: it does
+            // not supersede ours. Letting go here freed the ship's own AI,
+            // which sails for the nearest enemy: task-force escorts left
+            // station and beelined, because the force only re-sends a station
+            // when the station moves. The native controller has already taken
+            // the new point by the time we hear of it, so ours goes back next
+            // frame.
+            if (command.player == null && OwnsNavigation)
+            {
+                reclaim = true;
+                if (Time.timeSinceLevelLoad >= nextReclaimNote)
+                {
+                    nextReclaimNote = Time.timeSinceLevelLoad + 60f;
+                    Plugin.Log.LogInfo("[nav] " + ShipNames.Of(ship) + " was redirected by the game or another mod · keeping it on its orders");
+                }
+                return;
+            }
+            // A player's own order by another route (the game's map orders):
+            // theirs to give. A task-force escort so ordered leaves station,
+            // as it does for our own orders.
+            if (command.player != null) TaskForces.NoteOrder(ship);
             route.Clear();
             ownsRoute = false;
             ownsHeading = false;
@@ -299,6 +323,12 @@ namespace NavalPower
             }
 
             Trace();
+
+            if (reclaim)
+            {
+                reclaim = false;
+                if (OwnsNavigation && hasSentLeg) Send(lastSent);
+            }
 
             if (ownsHeading && FastMath.Distance(ship.GlobalPosition(), headingDestination) < 2000f)
                 ContinueHeading();
