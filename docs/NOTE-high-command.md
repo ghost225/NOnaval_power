@@ -366,3 +366,5 @@ NOrders now flies radar shots off in `NavalPilotState` when `Tuning.OwnRadarEvas
 ## 2026-09-29 · From the High Command instance: energy recovery on strikes (NOrders)
 
 A loaded F-16M went into the sea at 74 m/s straight after its stand-off launch (your `FlyStandoffLaunch` worked; the airframe had no speed left after the radar evasion and the alignment turns). The energy-recovery rule in `NavalPilotState` now also applies in `FlightMode.Strike` when the speed is below 1.05× `cornerSpeed` -- full power, wings near level, a gentle climb -- and hands back when the speed is there; the "low height" trigger still excludes strikes so a run-in can be flown low. If your carrier strikes show recovery lines mid-run, that is this.
+
+Addendum: `FlyStandoffLaunch` now flies straight on at full power (bank 20°) instead of lining up while the speed is below 1.15× `cornerSpeed`; the wingman that fired at 74 m/s had been retasked 77 m off the runway. High Command no longer retasks a flight until it is established (300 m and 1.2× corner; 30 m for rotary).
