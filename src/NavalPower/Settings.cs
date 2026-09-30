@@ -59,6 +59,7 @@ namespace NavalPower
         internal static ConfigEntry<bool> InterfaceTrace;
         internal static ConfigEntry<bool> OwnRadarEvasion;
         internal static ConfigEntry<bool> StandOnWhenCovered;
+        internal static ConfigEntry<int> MissilesPerAirTarget, MissilesPerSurfaceTarget;
         internal static ConfigEntry<float> RadarEvasionFloor;
         internal static ConfigEntry<float> InterfaceScale;
         internal static ConfigEntry<float> LowFuelAlert;
@@ -216,6 +217,12 @@ namespace NavalPower
                 "A flight shot at keeps to its orders instead of evading while it can defend itself where it is: " +
                 "a jamming pod on every radar-guided missile coming at it, and flares left for any heat-seeker. " +
                 "A radar missile still coming inside 2.5 km is evaded regardless. Off, every shot is evaded.");
+            MissilesPerAirTarget = config.Bind("Flights", "Missiles per air target", 2,
+                new ConfigDescription("Most of our missiles closing on one aircraft at once; further launches at it are held. " +
+                    "A flight's own setting (its rules & weapons page) overrides this.", new AcceptableValueRange<int>(1, 8)));
+            MissilesPerSurfaceTarget = config.Bind("Flights", "Missiles per surface target", 0,
+                new ConfigDescription("Most of our missiles closing on one ship, vehicle or building at once. 0 is automatic: the game's " +
+                    "own estimate of the hits it needs, at most four. A flight's own setting overrides this.", new AcceptableValueRange<int>(0, 8)));
             RadarEvasionFloor = config.Bind("Flights", "Radar evasion floor", 250f,
                 Advanced("Height above ground that our radar evasion's descent stops at.",
                     new AcceptableValueRange<float>(50f, 3000f)));
@@ -366,6 +373,8 @@ namespace NavalPower
             Tuning.IrBurstPause = IrBurstPause.Value;
             Tuning.OwnRadarEvasion = OwnRadarEvasion.Value;
             Tuning.StandOnWhenCovered = StandOnWhenCovered.Value;
+            Tuning.MissilesPerAirTarget = MissilesPerAirTarget.Value;
+            Tuning.MissilesPerSurfaceTarget = MissilesPerSurfaceTarget.Value;
             Tuning.RadarEvasionFloor = RadarEvasionFloor.Value;
             Tuning.CloseSpacing = CloseSpacing.Value;
             Tuning.CombatSpacing = CombatSpacing.Value;

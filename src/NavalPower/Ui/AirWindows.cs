@@ -409,6 +409,17 @@ namespace NavalPower
             s.Title(flight.Name.ToUpperInvariant() + "  ·  rules & weapons");
             Back(s, flight);
             s.Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), () => s.Show(x => FlightRoePage(x, flight)));
+            // Missiles at one target at a time, the whole wing's: Auto is the
+            // defaults in the settings.
+            s.Info("Missiles per target  ·  " + (flight.MissilesPerTarget > 0 ? flight.MissilesPerTarget.ToString()
+                : "auto (air " + Settings.MissilesPerAirTarget.Value + ", surface " +
+                  (Settings.MissilesPerSurfaceTarget.Value > 0 ? Settings.MissilesPerSurfaceTarget.Value.ToString() : "as needed") + ")"), Theme.TextMuted);
+            Button[] perTarget = s.Group(new[] { "Auto", "1", "2", "3", "4" }, i =>
+            {
+                WingOrders.SetMissilesPerTarget(flight, i);
+                CommandState.Say(flight.Name + " · " + (i == 0 ? "missiles per target automatic" : i + " missile(s) per target"));
+            });
+            perTarget[Mathf.Clamp(flight.MissilesPerTarget, 0, 4)].image.color = Theme.AccentFill;
             // A toggle stays on its page, so the change can be seen.
             Button confine = s.Row(flight.ConfineToArea ? "Fights only inside its task area" : "Fights anywhere in reach", () =>
             {
