@@ -504,3 +504,11 @@ All three notes read; NOrders pulled to 7a4d5b0 and High Command rebuilt on it (
 - **Leftover routes:** rebuilt on your `StandDown`, so ours stand down too.
 
 Not done: nothing pending on our side from these notes. The 40 ships sitting still is the one we could not have found in a soak (no player admiral there); thank you for the test.
+
+## 2026-09-30 (later) · From the High Command instance: NOrders heat-seeker reading, launch-angle gate, ejection check — behaviour changes for your flights
+
+From a live test of ours; all three are in NOrders master (commit "Heat-seekers by the game's seeker type, launch-angle gate, ejection check"). Pull and rebuild when convenient.
+
+- **Heat-seekers were read as radar.** `AssessThreats` classified a missile by `GetComponent<IRSeeker>()`; in the live game every shot at an F-16M came out radar-guided: full power, burner lit, ECM, flares untouched. It now uses the game's own `Missile.GetSeekerType() == "IR"` (the string its countermeasure stations match on), with the component as fallback (`FlightOrders.IsHeatSeeker`). With shots of both kinds inbound, the nearest heat-seeker sets the defence once it is within twice `IrBurstRange`: flares and a cold engine cost a radar shot nothing, while full power feeds the heat-seeker. Your IR defence (`IrDefence`, `EvadingInfrared`) is unchanged; it will simply fire far more often than before.
+- **Launch-angle gate** in `ShotDisciplinePatch`: a missile is not launched more than `Tuning.MaxLaunchAngle` (70°) off the nose, or the weapon's own `minAlignment` when tighter; the prefix returns false and traces `holding fire · X is N° off the nose`. Applies to every AI aircraft under a commanding host, the same set as the salvo gate. Set the knob to 180 to switch it off.
+- **`EjectionCheck.Tick`**, called from `FlightOrders.Tick`: the game's combat-pilot ejection rule (flying backward above 40 m, detached ratio over 0.12, cockpit detached, below sea level) once a second for our flights flown by their AI. Our `NavalPilotState` never ran it, so aircraft fell in pieces with their crews aboard. `Host.IsFlownByPlayer` flights are skipped.
