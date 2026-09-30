@@ -171,7 +171,23 @@ namespace NavalPower
                 Explain(ship, blocked);
                 return;
             }
-            if (!CommandableShip.CanCommand(ship, out string why)) { Explain(ship, why); return; }
+            if (!CommandableShip.CanCommand(ship, out string why))
+            {
+                // Another mod holds it: ask for it, and take command when it
+                // comes across.
+                if (CommandableShip.Held(ship) && !Handovers.Waiting(ship))
+                {
+                    Ship asked = ship;
+                    Handovers.Request(ship, () =>
+                    {
+                        var cameras = SceneSingleton<CameraStateManager>.i;
+                        if (cameras != null && cameras.followingUnit == asked) Enter(asked);
+                    });
+                    return;
+                }
+                if (!Handovers.Waiting(ship)) Explain(ship, why);
+                return;
+            }
             Enter(ship);
         }
 
@@ -428,6 +444,7 @@ namespace NavalPower
             Guard.Run("Wings", Wings.Tick);
             Guard.Run("Ship names", ShipNames.Tick);
             Guard.Run("Task forces", TaskForces.Tick);
+            Guard.Run("Handovers", Handovers.Tick);
             Guard.Run("Bearing launch", BearingLaunch.Tick);
             Guard.Run("Escort defence", EscortDefence.Tick);
             Guard.Run("Pilot seat", PilotSeat.Tick);
@@ -496,6 +513,7 @@ namespace NavalPower
                 if (GameplayReady() && cameras != null && cameras.followingUnit is Ship followed)
                 {
                     if (CommandableShip.CanCommand(followed, out string reason)) { Enter(followed); return; }
+                    if (CommandableShip.Held(followed)) { Ship asked = followed; Handovers.Request(followed, () => Enter(asked)); return; }
                     why = reason ?? why;
                 }
                 else if (cameras != null && cameras.followingUnit == null && lastField != null)

@@ -181,7 +181,7 @@ namespace NavalPower
             var candidates = new List<Ship>();
             foreach (Unit unit in UnitRegistry.allUnits)
                 if (unit is Ship other && !other.disabled && TaskForces.Of(other) != force &&
-                    other.NetworkHQ == force.Guide.NetworkHQ && CommandableShip.CanCommand(other, out _) &&
+                    other.NetworkHQ == force.Guide.NetworkHQ && (CommandableShip.CanCommand(other, out _) || CommandableShip.Held(other)) &&
                     FastMath.Distance(other.GlobalPosition(), force.Guide.GlobalPosition()) < 60000f)
                     candidates.Add(other);
             candidates.Sort((a, b) => FastMath.Distance(a.GlobalPosition(), force.Guide.GlobalPosition())
@@ -191,10 +191,21 @@ namespace NavalPower
             {
                 Ship chosen = other;
                 TaskForce current = TaskForces.Of(other);
+                bool held = CommandableShip.Held(other);
                 s.Row(ShipNames.Of(other) + Class(other) + "  ·  " +
                     UnitConverter.DistanceReading(FastMath.Distance(other.GlobalPosition(), force.Guide.GlobalPosition())) +
-                    (current != null ? "  ·  in " + current.Name : ""), () =>
+                    (held ? "  ·  " + UiKit.Tint((Handovers.Waiting(other) ? "asking " : "held by ") + Handovers.HolderName(other), Theme.Warn)
+                        : current != null ? "  ·  in " + current.Name : ""), () =>
                     {
+                        if (held)
+                        {
+                            Handovers.Request(chosen, () =>
+                            {
+                                if (TaskForces.Add(force, chosen, out string late)) CommandState.Say(ShipNames.Of(chosen) + " · joining " + force.Name);
+                                else CommandState.Say(late);
+                            });
+                            return;
+                        }
                         if (TaskForces.Add(force, chosen, out string reason)) CommandState.Say(ShipNames.Of(chosen) + " · joining " + force.Name);
                         else CommandState.Say(reason);
                     });

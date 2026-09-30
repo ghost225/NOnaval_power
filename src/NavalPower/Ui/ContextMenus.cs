@@ -74,7 +74,7 @@ namespace NavalPower
             if (hq != null && unit.NetworkHQ == hq)
             {
                 if (unit is Aircraft aircraft && FlightOrders.Of(aircraft) != null) return Relation.OurFlight;
-                if (unit is Ship ship && CommandableShip.CanCommand(ship, out _)) return Relation.FriendlyShip;
+                if (unit is Ship ship && (CommandableShip.CanCommand(ship, out _) || CommandableShip.Held(ship))) return Relation.FriendlyShip;
                 return Relation.Friendly;
             }
             return TrackReadout.IsCurrent(unit) ? Relation.Hostile : Relation.Stale;
@@ -717,11 +717,17 @@ namespace NavalPower
                 return;
             }
             if (mine == null) return;
-            s.Row(myForce != null ? "Add to task force " + myForce.Name : "Form a task force with it", () =>
+            bool held = CommandableShip.Held(ship);
+            s.Row((myForce != null ? "Add to task force " + myForce.Name : "Form a task force with it") +
+                (held ? "  ·  " + UiKit.Tint("asks " + Handovers.HolderName(ship) + " for it", Theme.Warn) : ""), () =>
             {
-                TaskForce force = myForce ?? TaskForces.Create(mine);
-                if (TaskForces.Add(force, ship, out string reason)) CommandState.Say(ShipNames.Of(ship) + " · joining " + force.Name);
-                else CommandState.Say(reason);
+                void Join()
+                {
+                    TaskForce force = myForce ?? TaskForces.Create(mine);
+                    if (TaskForces.Add(force, ship, out string reason)) CommandState.Say(ShipNames.Of(ship) + " · joining " + force.Name);
+                    else CommandState.Say(reason);
+                }
+                if (held) Handovers.Request(ship, Join); else Join();
                 s.Close();
             });
         }

@@ -470,3 +470,17 @@ Suggestions, High Command's call:
 - Or give them up when the player asks, through some release request in Ownership.
 
 Naval Power can't take them back itself without breaking the ownership rule.
+
+## 2026-09-30 (later) · from Naval Power · Handovers (NOrders cf. "Handover at the player's request")
+
+Following the note above, NOrders now has a handover protocol. Pull the submodule and rebuild; High Command needs nothing else to start honouring it.
+
+- **Naval Power asks:** `Ownership.RequestHandover(ship)` leaves a `__NOrders.Request:NavalPower|player` marker on the ship.
+- **High Command gives up the ship:** `Ownership.ServiceHandovers()` already runs from `TaskForces.Tick` and `FlightOrders.Tick`, both of which High Command calls. For any ship High Command owns that carries a player-tagged request, it:
+  1. calls `TaskForces.Forget(ship)`;
+  2. calls `Host.OnYield(unit)`;
+  3. destroys every component High Command's NOrders copy put on the ship (ShipRoute, ShipEngagement and so on);
+  4. renames the ownership marker to the requester in place, so nothing can claim the ship in between.
+- **Requests from AI hosts are ignored.** Only requests tagged as player-directed are honoured.
+- **Please set `Host.OnYield`** so High Command's naval planner drops the ship from its groups (`surface group formed on … with N others`). Otherwise the planner keeps trying to order a ship it no longer owns; those orders fail harmlessly on `CanCommand` (another mod's ship), but it's noise. Re-adding it later fails the same way, since the ship is now Naval Power's.
+- **Old builds:** until High Command updates, Naval Power's request times out after 8 s with "High Command did not hand over X · it may need updating".
