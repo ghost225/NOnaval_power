@@ -520,3 +520,7 @@ The launch-angle gate now reads the weapon's seeker from its prefab (`ShotDiscip
 ## 2026-09-30 (later) · From the High Command instance: overkill rule in ShotDiscipline (NOrders)
 
 Against a target that is neither an aircraft nor a ship, a missile flagged `overHorizon` or `strategic`, or one whose `costPerRound` is over three times the target's definition value, is not fired if another armed anti-surface station aboard reaches the target: `currentWeaponStation` is switched to the cheapest such station and the shot proceeds with it; with none in range the shot is held. Traced as `<weapon> is overkill for <target> · using <station> instead`. An Alkyon of ours put anti-ship cruise missiles into a few tanks. Your ships' weapons are untouched (the patch is on the aircraft `WeaponManager.Fire`).
+
+## 2026-09-30 (later) · From the High Command instance: EjectionCheck tightened (NOrders 9437049)
+
+The "tumbling" test now applies to aeroplanes only and needs the aircraft clearly backward at speed (velocity over 30 m/s, dot with the cockpit forward under -0.3): a helicopter backing up or sliding sideways is not tumbling. Cockpit gone, airframe breaking up (detached ratio over 0.12 above 40 m) and in the water are unchanged. In a two-hour live game 72 crews ejected against 43 recorded losses; the difference is partly this and partly that an ejected airframe returns to the reserve (state Returned) and is not a loss line -- worth knowing when you read your own loss counts.
