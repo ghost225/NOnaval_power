@@ -831,6 +831,16 @@ namespace NavalPower
             foreach (LoadoutStation station in plan.Stations)
             {
                 LoadoutStation shown = station;
+                // A station something else leaves unusable is shown, greyed and
+                // closed, the way the game's own loadout screen does.
+                LoadoutStation blocker = plan.BlockedBy(station);
+                if (blocker != null)
+                {
+                    Button closed = s.Row(station.Name + "   ·   " + UiKit.Tint("blocked by " + blocker.Name, Theme.TextFaint),
+                        () => CommandState.Say(shown.Name + " · unusable while " + blocker.Name + " is loaded"));
+                    closed.GetComponentInChildren<Text>().color = Theme.TextFaint;
+                    continue;
+                }
                 Button row = s.Row(station.Name + "   ·   " + station.SelectedName, () => s.Show(x => StationPage(x, shown)));
                 if (station.Selected == null) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
@@ -928,7 +938,7 @@ namespace NavalPower
         private void StationPage(Surface s, LoadoutStation station)
         {
             s.Title(station.Name.ToUpperInvariant());
-            Button empty = s.Row("Empty", () => { station.Selected = null; s.Show(LoadoutPage); });
+            Button empty = s.Row("Empty", () => { plan.Choose(station, null, out _); s.Show(LoadoutPage); });
             if (station.Selected == null) empty.image.color = Theme.AccentFill;
             foreach (WeaponMount option in station.Options)
             {
@@ -947,7 +957,14 @@ namespace NavalPower
                     locked.GetComponentInChildren<Text>().color = Theme.TextFaint;
                     continue;
                 }
-                Button row = s.Row(mount.mountName + detail, () => { station.Selected = mount; s.Show(LoadoutPage); });
+                Button row = s.Row(mount.mountName + detail, () =>
+                {
+                    if (!plan.Choose(station, mount, out List<string> emptied))
+                        CommandState.Say(station.Name + " · unusable while " + plan.BlockedBy(station)?.Name + " is loaded");
+                    else if (emptied.Count > 0)
+                        CommandState.Say(station.Name + " loaded · emptied " + string.Join(", ", emptied.ToArray()) + ", which it leaves unusable");
+                    s.Show(LoadoutPage);
+                });
                 if (station.Selected == mount) row.image.color = Theme.AccentFill;
             }
             s.Row("Back", () => s.Show(LoadoutPage));
