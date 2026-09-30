@@ -711,6 +711,8 @@ namespace NavalPower
             }
             if (theirs != null && theirs == myForce)
             {
+                if (theirs.Guide != ship)
+                    s.Row("Make it the guide of " + theirs.Name, () => { CommandUi.Promote(ship); s.Close(); });
                 if (escort != null && escort.Detached)
                     s.Row("Return to formation", () => { TaskForces.Rejoin(ship); CommandState.Say(ShipNames.Of(ship) + " · returning to formation"); s.Close(); });
                 s.Row("Remove from " + theirs.Name, () => { TaskForces.Remove(ship); CommandState.Say(ShipNames.Of(ship) + " · left " + theirs.Name); s.Close(); });

@@ -74,7 +74,9 @@ namespace NavalPower
                     CommandState.Say(force.Name + " · detached ships returning to formation");
                 });
             if (force.Guide != ship)
-                s.Row("Make " + ShipNames.Of(ship) + " the guide", () => TaskForces.MakeGuide(ship));
+                s.Row("Make " + ShipNames.Of(ship) + " the guide", () => Promote(ship));
+            if (force.Escorts.Count > 0)
+                s.Row("Change the guide…", () => s.Show(x => GuidePage(x, force)));
 
             // The whole force at once.
             s.Info("WHOLE FORCE", Theme.Accent);
@@ -137,6 +139,36 @@ namespace NavalPower
                 if (TaskForces.Of(CommandState.Ship) == force) row.image.color = Theme.AccentFill;
             }
             s.Row("Back", () => s.Show(TaskForcePage));
+        }
+
+        // Any ship in the force can lead it: the others take their stations
+        // off the new guide, the old guide becomes an escort.
+        private void GuidePage(Surface s, TaskForce force)
+        {
+            if (force == null || force.Guide == null) { s.Show(TaskForcePage); return; }
+            s.Title(force.Name.ToUpperInvariant() + "  ·  change the guide");
+            s.Info("Guide now  ·  " + ShipNames.Of(force.Guide) + Class(force.Guide), Theme.TextMuted);
+            foreach (Escort escort in force.Escorts)
+            {
+                if (escort.Ship == null || escort.Ship.disabled) continue;
+                Ship chosen = escort.Ship;
+                s.Row(ShipNames.Of(chosen) + Class(chosen) + "  ·  " +
+                    UnitConverter.DistanceReading(FastMath.Distance(chosen.GlobalPosition(), force.Guide.GlobalPosition())) +
+                    (escort.Detached ? "  ·  detached" : ""), () =>
+                    {
+                        Promote(chosen);
+                        s.Show(TaskForcePage);
+                    });
+            }
+            s.Row("Back", () => s.Show(TaskForcePage));
+        }
+
+        internal static void Promote(Ship ship)
+        {
+            TaskForce force = TaskForces.Of(ship);
+            if (force == null || force.Guide == ship) return;
+            TaskForces.MakeGuide(ship);
+            CommandState.Say(force.Name + " · " + ShipNames.Of(ship) + " is now the guide");
         }
 
         private void ShipRow(Surface s, Ship ship, string label, Color colour)
