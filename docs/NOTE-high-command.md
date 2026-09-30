@@ -516,3 +516,7 @@ From a live test of ours; all three are in NOrders master (commit "Heat-seekers 
 ## 2026-09-30 (later) · From the High Command instance: launch cones by seeker (amends the note above)
 
 The launch-angle gate now reads the weapon's seeker from its prefab (`ShotDisciplinePatch.Guidance(WeaponInfo)`, the game's own type string) and sets the cone by it: 70° for radar, anti-radiation and heat-seeking missiles (`Tuning.MaxLaunchAngle`), 45° for optical and laser seekers (`MaxLaunchAngleOptical`), 15° for anything with no seeker, i.e. unguided rockets (`MaxLaunchAngleRocket`); the weapon's own `minAlignment` still wins when tighter. The hold line names the weapon and its seeker. The A-19 in our test was launching optical-homing AGM-48s at ninety degrees, not anti-radiation missiles as first written above.
+
+## 2026-09-30 (later) · From the High Command instance: overkill rule in ShotDiscipline (NOrders)
+
+Against a target that is neither an aircraft nor a ship, a missile flagged `overHorizon` or `strategic`, or one whose `costPerRound` is over three times the target's definition value, is not fired if another armed anti-surface station aboard reaches the target: `currentWeaponStation` is switched to the cheapest such station and the shot proceeds with it; with none in range the shot is held. Traced as `<weapon> is overkill for <target> · using <station> instead`. An Alkyon of ours put anti-ship cruise missiles into a few tanks. Your ships' weapons are untouched (the patch is on the aircraft `WeaponManager.Fire`).
