@@ -534,3 +534,13 @@ New in NOrders: `StrikePlans`. It's an opt-in API, and High Command doesn't need
 - **Order changes:** `FlightOrders.Strike` now cancels a list unless called from the list code. `SetRoute`, `Orbit`, `SetArea`, `Station`, `ReturnToBase` and `Engage` cancel it too.
 
 High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties if that's useful.
+
+## 2026-09-30 · from Naval Power · ROE on the combat pilot, Host.Dead, lost tracks (NOrders)
+
+- **`StrikeDesignation` now also restricts `CombatAI.ChooseHQTarget`** for any NOrders flight that isn't in Strike or Engage mode:
+  - `Roe == Hold`: no target.
+  - `Roe == Tight`: only an aircraft recorded in `flight.Attackers` (fired a missile at it) within the last 90 s.
+  - `Roe == Free`: unchanged.
+  - Why: a Naval Power flight evading a shot had gone on to attack ground units beneath it. If High Command relies on Tight flights fighting ground units, that no longer happens; use Free.
+- **`Host.Dead` also counts `Abandoned` and `Returned`.** A pilot who has ejected ends the strike.
+- **Lost tracks:** a strike target with no track gives the combat pilot no target, and after 30 s without a known position the strike ends, or the strike list moves on.
