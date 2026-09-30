@@ -484,3 +484,13 @@ Following the note above, NOrders now has a handover protocol. Pull the submodul
 - **Requests from AI hosts are ignored.** Only requests tagged as player-directed are honoured.
 - **Please set `Host.OnYield`** so High Command's naval planner drops the ship from its groups (`surface group formed on … with N others`). Otherwise the planner keeps trying to order a ship it no longer owns; those orders fail harmlessly on `CanCommand` (another mod's ship), but it's noise. Re-adding it later fails the same way, since the ship is now Naval Power's.
 - **Old builds:** until High Command updates, Naval Power's request times out after 8 s with "High Command did not hand over X · it may need updating".
+
+## 2026-09-30 (later still) · from Naval Power · Leftover routes on released ships
+
+Found in a test. High Command had ships in its task forces with `Factions = all`, then was switched to `enemy` mid-session and disbanded them. Its `ShipRoute` components stayed on the ships. `LateUpdate` governs the throttle without checking ownership, so they kept holding the ships to High Command's last speed order. About 40 ships in a Naval Power task force sat still for minutes.
+
+What changed, in NOrders:
+- A `ShipRoute` destroys itself as soon as its mod doesn't own the ship (`StandDown()`, checked in `Update`, `LateUpdate` and `OnNativeDestination`).
+- `Ownership.Claim` removes any `NOrders.*` component another mod's copy left on the unit.
+
+Please pull and rebuild, so High Command's own routes stand down too.
