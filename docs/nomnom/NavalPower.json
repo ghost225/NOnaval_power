@@ -24,6 +24,21 @@
   "artifacts": [
     {
       "fileName": "NavalPower.dll",
+      "version": "1.0.4",
+      "category": "release",
+      "type": "plugin",
+      "gameVersion": "0.34.1",
+      "downloadUrl": "https://github.com/ghost225/NOnaval_power/releases/download/v1.0.4/NavalPower.dll",
+      "hash": "sha256:937ef4c6dd9c81942d96ed44df77702eb75ac788495823df1456e980decc9ad2",
+      "incompatibilities": [
+        {
+          "id": "com.resolute.command",
+          "version": "0.1.8"
+        }
+      ]
+    },
+    {
+      "fileName": "NavalPower.dll",
       "version": "1.0.3",
       "category": "release",
       "type": "plugin",
