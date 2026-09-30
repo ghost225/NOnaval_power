@@ -160,11 +160,10 @@ namespace NavalPower
                 {
                     if (!collapsed.Remove(key)) collapsed.Add(key);
                 });
-            // Neutral, with the lead's state as an edge; framed while any of
-            // the wing needs you.
+            // Neutral, with the lead's state as an edge.
             header.image.color = Wings.Members(wing).Contains(CommandState.SelectedFlight)
                 ? Theme.Dim(Theme.Accent, 0.3f) : Theme.SurfaceRaised;
-            Surface.Edge(header, FlightIcons.For(lead), trouble > 0);
+            Surface.Edge(header, FlightIcons.For(lead));
         }
 
         private static string FirstAttention(List<Flight> members)
@@ -184,11 +183,11 @@ namespace NavalPower
                 (attention != null ? "  ·  " + UiKit.Tint(attention.ToUpperInvariant(), FlightIcons.Attention) : ""),
                 () => OpenFlight(shown), flight.Aircraft, flight.Name);
             // Readable first: white text on a neutral row, the flight's state as
-            // an edge in its map colour, a frame when it needs you.
+            // an edge in its map colour.
             row.GetComponentInChildren<Text>().color =
                 flight.Mode == FlightMode.ReturnToBase && !NeedsYou(flight) ? Theme.TextMuted : Theme.Text;
             row.image.color = selected ? Theme.AccentFill : Theme.Control;
-            Surface.Edge(row, FlightIcons.For(flight), NeedsYou(flight));
+            Surface.Edge(row, FlightIcons.For(flight));
         }
 
         // Flares left, coloured when they are running out.
