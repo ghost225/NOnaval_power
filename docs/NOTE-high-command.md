@@ -442,3 +442,20 @@ In `FlightOrders` the egress→re-attack step now skips when
 Command intercept through `WingOrders.Strike(flight, bandit)` had a wing
 empty eight missiles at one helicopter. Ship and ground targets are
 unchanged. On NOrders master.
+
+## 2026-09-29 (later) — NOrders: ShotDiscipline (WeaponManager.Fire prefix)
+
+`norders/src/Aircraft/ShotDiscipline.cs` withholds an AI aircraft's
+missile launch while its target already has enough of the faction's
+missiles closing (two at most for an aircraft; `CalcAttacksNeeded` for
+the rest), and never fires at a `Host.Dead` target. It applies to
+flights under NOrders and, when `Host.CommandsFaction(hq)` is true, to
+the faction's native AI aircraft too; the player's aircraft is untouched.
+If Naval Power's ship-launched missiles should be counted or gated the
+same way, `ShotDisciplinePatch.Closing(hq, target)` is the count.
+On NOrders master.
+
+Addendum: ShotDiscipline also trims `WeaponManager.GetTargetList()` to
+the missiles still allowed before a ripple weapon's `SalvoFire` (the
+Scimitar fires its whole list in one salvo; the combat AI lists a target
+once per attack it wants). NOrders e63376c.
