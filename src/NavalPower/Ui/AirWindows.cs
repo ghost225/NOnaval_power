@@ -285,7 +285,9 @@ namespace NavalPower
                     ? UiKit.Tint((flight.Airdrop ? "AIRDROP" : "DELIVERY") + " UNDER WAY", Theme.Accent) + "  ·  right-click the map to move the zone"
                 : flight.Route.Count > 0
                     ? "Right-click map: task area · shift: route  ·  " + flight.Route.Count + " leg(s) queued"
-                    : "Right-click map: task area · shift: route · right-click a contact: attack", Theme.TextMuted);
+                    : "Right-click map: task area · shift: route · right-click a contact: attack · shift: add to strike plan", Theme.TextMuted);
+
+            StrikePlanSection(s, flight);
 
             // The orders given most, one click each.
             Button[] quick = s.Group(new[] { "Hold here", "Return to base", "Weapons free" }, i =>
@@ -625,6 +627,107 @@ namespace NavalPower
             });
             s.Info("Members take it with their number: " + wing + "-1, " + wing + "-2…", Theme.TextMuted);
             s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
+        }
+
+        // The strike plan, while one is being put together: its targets in
+        // order, each with its weapon, whether it looks like one pass, and
+        // the button that sends it. Then any strike list being flown.
+        private void StrikePlanSection(Surface s, Flight flight)
+        {
+            List<StrikeItem> plan = StrikePlans.PlanOf(flight);
+            if (plan.Count > 0)
+            {
+                StrikePlans.Needs(flight, out int wanted, out int carried);
+                int passes = StrikePlans.Passes(flight, out string why);
+                s.Info(UiKit.Tint("STRIKE PLAN  ·  " + plan.Count + " target(s)", FlightIcons.Fighting) +
+                    (wanted > 0 ? "  ·  " + wanted + " of " + carried + " missiles" : ""), Theme.Text);
+                s.Info(passes <= 1 ? UiKit.Tint("Looks possible in one pass", Theme.Good)
+                    : UiKit.Tint("About " + passes + " passes", FlightIcons.Attention) + (why.Length > 0 ? "  ·  " + why : ""), Theme.TextMuted);
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    StrikeItem item = plan[i];
+                    string weapon = string.IsNullOrEmpty(item.Weapon) ? "best available" : WeaponLabel(flight, item.Weapon);
+                    Button row = s.Row((i + 1) + ".  " + ContactName(item.Target) + "  ·  " + DistanceTo(flight, item.Target) + "  ·  " + weapon,
+                        () => s.Show(x => PlanWeaponPage(x, flight, item)), "✕", () =>
+                        {
+                            StrikePlans.Remove(flight, item);
+                            s.Show(x => FlightPage(x, flight));
+                        }, out _);
+                    Surface.Edge(row, FlightIcons.Fighting);
+                }
+                Button go = s.Row("AUTHORIZE STRIKE", () =>
+                {
+                    CommandState.Say(StrikePlans.Authorize(flight));
+                    s.Show(x => FlightPage(x, flight));
+                });
+                go.image.color = Theme.Dim(FlightIcons.Fighting, 0.45f);
+                s.Row("Clear the plan", () => { StrikePlans.Clear(flight); s.Show(x => FlightPage(x, flight)); });
+            }
+            if (flight.StrikeList.Count > 0)
+            {
+                s.Info(UiKit.Tint("STRIKE LIST  ·  " + flight.StrikeList.Count + " to go", FlightIcons.Fighting), Theme.Text);
+                foreach (StrikeItem item in flight.StrikeList)
+                {
+                    bool now = item.Target == flight.Target;
+                    int closing = ShotDisciplinePatch.Closing(flight.Aircraft != null ? flight.Aircraft.NetworkHQ : null, item.Target);
+                    s.Info((now ? "▸ " : "   ") + ContactName(item.Target) + (closing > 0 ? "  ·  " + closing + " missile(s) closing" : "") +
+                        (string.IsNullOrEmpty(item.Weapon) ? "" : "  ·  " + WeaponLabel(flight, item.Weapon)), now ? Theme.Text : Theme.TextMuted);
+                }
+            }
+        }
+
+        private void PlanWeaponPage(Surface s, Flight flight, StrikeItem item)
+        {
+            if (!Alive(s, flight)) return;
+            s.Title("WEAPON FOR " + ContactName(item.Target).ToUpperInvariant());
+            Button auto = s.Row("Best available  ·  let the flight choose", () => { item.Weapon = null; s.Show(x => FlightPage(x, flight)); });
+            if (string.IsNullOrEmpty(item.Weapon)) auto.image.color = Theme.AccentFill;
+            // Every weapon the wing carries, once, with the rounds across it.
+            var rounds = new Dictionary<string, int>();
+            var infos = new Dictionary<string, WeaponInfo>();
+            foreach (Flight member in Wings.Group(Wings.LeadOf(flight) ?? flight))
+                foreach (WeaponStation station in FlightOrders.ArmedStations(member.Aircraft))
+                {
+                    string key = station.WeaponInfo.name;
+                    rounds.TryGetValue(key, out int n);
+                    rounds[key] = n + station.Ammo;
+                    infos[key] = station.WeaponInfo;
+                }
+            foreach (KeyValuePair<string, WeaponInfo> entry in infos)
+            {
+                WeaponInfo info = entry.Value;
+                float worth = WeaponOrders.Opportunity(info, item.Target);
+                Button row = s.Row(info.weaponName + "  ·  " + rounds[entry.Key] + " in the wing  ·  " +
+                    (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), () =>
+                    {
+                        item.Weapon = info.name;
+                        s.Show(x => FlightPage(x, flight));
+                    });
+                if (item.Weapon == info.name) row.image.color = Theme.AccentFill;
+                if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
+            }
+            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
+        }
+
+        private static string WeaponLabel(Flight flight, string weapon)
+        {
+            foreach (Flight member in Wings.Group(Wings.LeadOf(flight) ?? flight))
+            {
+                WeaponStation station = FlightOrders.NamedStation(member.Aircraft, weapon);
+                if (station != null) return station.WeaponInfo.weaponName;
+            }
+            return weapon + " (none left)";
+        }
+
+        private static string ContactName(Unit unit) =>
+            unit == null ? "?" : unit is Ship ship && ShipNames.IsNamed(ship) ? ShipNames.Of(ship) : unit.definition?.unitName ?? unit.name;
+
+        private static string DistanceTo(Flight flight, Unit unit)
+        {
+            if (flight?.Aircraft == null || unit == null) return "";
+            FactionHQ hq = flight.Aircraft.NetworkHQ;
+            GlobalPosition at = hq != null && hq.TryGetKnownPosition(unit, out GlobalPosition known) ? known : unit.GlobalPosition();
+            return UnitConverter.DistanceReading(FastMath.Distance(at, flight.Aircraft.GlobalPosition()));
         }
 
         private void FlightRoePage(Surface s, Flight flight)

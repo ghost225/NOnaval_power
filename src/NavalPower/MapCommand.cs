@@ -676,6 +676,15 @@ namespace NavalPower
                     CommandState.Say(tasking.Name + " carries nothing that can attack " + contact);
                     return;
                 }
+                // Shift: into the strike plan, sent only when authorised.
+                if (append)
+                {
+                    StrikePlans.Plan(tasking, pointed);
+                    int planned = StrikePlans.PlanOf(tasking).Count;
+                    CommandState.Say(tasking.Name + " · strike plan · " + planned + " target(s) · shift-click more, then AUTHORIZE STRIKE on its page");
+                    if (!pinned) CommandState.SelectedFlight = tasking;       // keep it in hand while planning
+                    return;
+                }
                 WingOrders.Strike(tasking, pointed);
                 CommandState.Say(tasking.Name + " striking " + contact);
                 return;

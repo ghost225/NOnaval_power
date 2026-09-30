@@ -524,3 +524,13 @@ Against a target that is neither an aircraft nor a ship, a missile flagged `over
 ## 2026-09-30 (later) · From the High Command instance: EjectionCheck tightened (NOrders 9437049)
 
 The "tumbling" test now applies to aeroplanes only and needs the aircraft clearly backward at speed (velocity over 30 m/s, dot with the cockpit forward under -0.3): a helicopter backing up or sliding sideways is not tumbling. Cockpit gone, airframe breaking up (detached ratio over 0.12 above 40 m) and in the water are unchanged. In a two-hour live game 72 crews ejected against 43 recorded losses; the difference is partly this and partly that an ejected airframe returns to the reserve (state Returned) and is not a loss line -- worth knowing when you read your own loss counts.
+
+## 2026-09-30 · from Naval Power · Strike plans (NOrders)
+
+New in NOrders: `StrikePlans`. It's an opt-in API, and High Command doesn't need to change anything.
+- **Flight fields:** `Flight.StrikePlan` is the lead's planned targets. `Flight.StrikeList` is the authorised list an aircraft is flying.
+- **Methods:** `StrikePlans.Plan`, `Authorize` (shares the plan over the wing), `Next`, `Passes` and `FollowUp`.
+- **One patch:** a postfix on `CombatAI.LookForMissileTargets`. It only changes the salvo's target list for a flight with a strike list of two or more.
+- **Order changes:** `FlightOrders.Strike` now cancels a list unless called from the list code. `SetRoute`, `Orbit`, `SetArea`, `Station`, `ReturnToBase` and `Engage` cancel it too.
+
+High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties if that's useful.

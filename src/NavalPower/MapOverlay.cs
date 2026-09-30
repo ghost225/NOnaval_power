@@ -74,11 +74,42 @@ namespace NavalPower
             if (ship != null) DrawLanding(vh, ship);
             DrawFlights(vh);
             DrawDropLines(vh);
+            DrawStrikePlans(vh);
             DrawRuler(vh);
             if (overBudget && !warnedBudget)
             {
                 warnedBudget = true;
                 Plugin.Log.LogWarning("[ui] map overlay reached its vertex budget; some strokes were left out");
+            }
+        }
+
+        // Strike plans and lists: a line from the aircraft through its targets
+        // in order, a ring on each -- faint while only planned, solid once
+        // authorised.
+        private void DrawStrikePlans(VertexHelper vh)
+        {
+            Color strike = FlightIcons.Fighting;
+            FactionHQ hq = CommandState.Hq;
+            foreach (Flight flight in FlightOrders.All())
+            {
+                bool lead = Wings.LeadOf(flight) == flight || flight.Wing == null;
+                List<StrikeItem> items = lead && flight.StrikePlan.Count > 0 ? flight.StrikePlan : flight.StrikeList;
+                if (items.Count == 0 || flight.Aircraft == null) continue;
+                bool planned = items == flight.StrikePlan;
+                Color colour = Theme.Dim(strike, planned ? 0.55f : 0.9f);
+                Vector2 from = Project(flight.Aircraft.GlobalPosition());
+                foreach (StrikeItem item in items)
+                {
+                    if (Host.Dead(item.Target)) continue;
+                    GlobalPosition at = hq != null && hq.TryGetKnownPosition(item.Target, out GlobalPosition known) ? known : item.Target.GlobalPosition();
+                    Vector2 to = Project(at);
+                    Line(vh, from, to, Theme.Dim(colour, planned ? 0.4f : 0.6f), planned ? 1.2f : 1.6f);
+                    float ring = 300f;
+                    float pixels = (Project(at + new Vector3(ring, 0f, 0f)) - to).magnitude;
+                    if (pixels > 0.01f && pixels < 9f) ring *= 9f / pixels;
+                    Circle(vh, at, ring, colour);
+                    from = to;
+                }
             }
         }
 
