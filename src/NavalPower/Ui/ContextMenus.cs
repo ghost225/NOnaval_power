@@ -488,25 +488,53 @@ namespace NavalPower
         private void JamPage(Surface s, Unit target)
         {
             s.Title("JAM " + NameOf(target).ToUpperInvariant());
-            foreach (Flight flight in FlightOrders.Jammers())
+            List<Flight> jammers = FlightOrders.Jammers();
+            if (jammers.Count == 0) { s.Info("No flight up with a jammer.", Theme.TextMuted); Back(s); return; }
+
+            // Onto a flight's jam list, and nothing else changes: it keeps its
+            // task and its pods jam from wherever that takes it.
+            s.Info("Jam it, keep the task", Theme.TextMuted);
+            foreach (Flight flight in jammers)
             {
                 Flight shown = flight;
                 int capacity = FlightOrders.JamCapacity(flight);
-                int jamming = flight.Mode == FlightMode.Jam ? flight.JamTargets.Count : 0;
-                bool already = flight.Mode == FlightMode.Jam && flight.JamTargets.Contains(target);
-                // Already jamming, with a pod to spare: add this one to its list.
-                if (flight.Mode == FlightMode.Jam && !already && jamming < capacity)
-                    s.Row(flight.Name + "  ·  add to its jamming  (" + (jamming + 1) + "/" + capacity + ")", () =>
+                int listed = flight.JamTargets.Count;
+                if (flight.JamTargets.Contains(target))
+                {
+                    s.Row(flight.Name + "  ·  jamming it  ·  stop jamming this", () =>
                     {
-                        if (WingOrders.Jam(shown, target, add: true))
-                            CommandState.Say(shown.Name + " also jamming " + NameOf(target) + " · " + shown.JamTargets.Count + "/" + capacity);
+                        FlightOrders.Unjam(shown, target);
+                        CommandState.Say(shown.Name + " · no longer jamming " + NameOf(target));
                         s.Close();
                     });
-                s.Row(flight.Name + "  ·  " + flight.TypeName + (flight.Mode == FlightMode.Jam ? "  ·  jam only this" : "") +
-                    "  ·  " + capacity + " target(s)" + (MissileJamming.Pods(flight.Aircraft).Count >= 2 ? ", a pod kept for missiles" : ", its pod turns on missiles"), () =>
+                    continue;
+                }
+                if (listed >= capacity)
+                {
+                    s.Info(flight.Name + "  ·  jam list full  (" + listed + "/" + capacity + ")", Theme.TextFaint);
+                    continue;
+                }
+                s.Row(flight.Name + "  ·  " + flight.TypeName + "  ·  add to its jam list  (" + (listed + 1) + "/" + capacity + ")", () =>
+                {
+                    if (WingOrders.JamAlong(shown, target))
+                        CommandState.Say(shown.Name + " · jamming " + NameOf(target) + " · " + shown.JamTargets.Count + "/" + capacity + " · task unchanged");
+                    s.Close();
+                });
+            }
+
+            // At standoff: off its task to the station that reaches its whole
+            // list and this, as far out as the pods allow.
+            s.Info("Jam at standoff distance", Theme.TextMuted);
+            foreach (Flight flight in jammers)
+            {
+                Flight shown = flight;
+                int capacity = FlightOrders.JamCapacity(flight);
+                int after = Mathf.Min(capacity, flight.JamTargets.Count + (flight.JamTargets.Contains(target) ? 0 : 1));
+                s.Row(flight.Name + "  ·  jam at standoff  ·  " + after + " target(s)" +
+                    (MissileJamming.Pods(flight.Aircraft).Count >= 2 ? ", a pod kept for missiles" : ", its pod turns on missiles"), () =>
                 {
                     WingOrders.Jam(shown, target);
-                    CommandState.Say(shown.Name + " jamming " + NameOf(target));
+                    CommandState.Say(shown.Name + " · moving to jam " + shown.JamTargets.Count + " target(s) from standoff");
                     s.Close();
                 });
             }
