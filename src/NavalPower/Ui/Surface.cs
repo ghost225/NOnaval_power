@@ -227,6 +227,10 @@ namespace NavalPower
             page(this);
             for (int i = rows.Count - 1; i >= cursor; i--) Drop(i);
             header.text = title ?? "";
+            // One line, shrunk a little and then cut short of the title
+            // buttons: a long status ran on underneath them.
+            UiKit.Fit(header, Theme.CaptionSize + 1, 2);
+            UiKit.Clip(header);
             Size();
             if (pageChanged) { content.anchoredPosition = Vector2.zero; pageChanged = false; }
         }

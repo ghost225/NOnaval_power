@@ -45,6 +45,22 @@ namespace NavalPower
             while (text.fontSize > size - shrink && text.preferredWidth > room) text.fontSize--;
         }
 
+        // Cut to the width it has, a word at a time, with an ellipsis.
+        internal static void Clip(Text text)
+        {
+            float room = text.rectTransform.rect.width;
+            if (room <= 1f || text.preferredWidth <= room) return;
+            string full = text.text;
+            int cut = full.Length;
+            while (cut > 0)
+            {
+                int space = full.LastIndexOf(' ', cut - 1);
+                cut = space > 0 ? space : cut - 1;
+                text.text = full.Substring(0, cut).TrimEnd(' ', '·') + " …";
+                if (text.preferredWidth <= room) return;
+            }
+        }
+
         internal static Button Button(RectTransform parent, string label, float x, float y,
             float width, float height, Action action) =>
             Button(parent, label, x, y, width, height, action, TextAnchor.MiddleCenter);
