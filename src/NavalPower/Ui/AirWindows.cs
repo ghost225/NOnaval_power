@@ -424,7 +424,7 @@ namespace NavalPower
             s.Row("Rules of engagement  ·  " + FlightOrders.Describe(flight.Roe), () => s.Show(x => FlightRoePage(x, flight)));
             // Missiles at one target at a time, the whole wing's: Auto is the
             // defaults in the settings.
-            s.Info("Missiles per target  ·  " + (flight.MissilesPerTarget > 0 ? flight.MissilesPerTarget.ToString()
+            s.Info("Guided rounds per target (missiles, glide bombs)  ·  " + (flight.MissilesPerTarget > 0 ? flight.MissilesPerTarget.ToString()
                 : "auto (air " + Settings.MissilesPerAirTarget.Value + ", surface " +
                   (Settings.MissilesPerSurfaceTarget.Value > 0 ? Settings.MissilesPerSurfaceTarget.Value.ToString() : "as needed") + ")"), Theme.TextMuted);
             Button[] perTarget = s.Group(new[] { "Auto", "1", "2", "3", "4" }, i =>
@@ -650,21 +650,49 @@ namespace NavalPower
             {
                 StrikePlans.Needs(flight, out int wanted, out int carried);
                 int passes = StrikePlans.Passes(flight, out string why);
+                var unreached = new HashSet<StrikeItem>();
+                List<StrikePlans.Shortfall> shortfalls = StrikePlans.Check(flight, unreached);
+                int perTarget = flight.MissilesPerTarget;
                 s.Info(UiKit.Tint("STRIKE PLAN  ·  " + plan.Count + " target(s)", FlightIcons.Fighting) +
-                    (wanted > 0 ? "  ·  " + wanted + " of " + carried + " missiles" : ""), Theme.Text);
-                s.Info(passes <= 1 ? UiKit.Tint("Looks possible in one pass", Theme.Good)
-                    : UiKit.Tint("About " + passes + " passes", FlightIcons.Attention) + (why.Length > 0 ? "  ·  " + why : ""), Theme.TextMuted);
+                    "  ·  " + (perTarget > 0 ? UiKit.Tint(perTarget + "× PER TARGET", perTarget > 1 ? FlightIcons.Attention : Theme.Text) : "auto per target") +
+                    (wanted > 0 ? "  ·  " + wanted + " of " + carried + " guided rounds" : ""), Theme.Text);
+                // Rounds per target for missiles and glide bombs, the whole
+                // wing's -- the same setting as on the rules page.
+                Button[] per = s.Group(new[] { "Per target: auto", "1", "2", "3", "4" }, i =>
+                {
+                    WingOrders.SetMissilesPerTarget(flight, i);
+                    CommandState.Say(flight.Name + " · " + (i == 0 ? "rounds per target automatic" : i + " guided round(s) per target"));
+                    s.Show(x => FlightPage(x, flight));
+                });
+                per[Mathf.Clamp(perTarget, 0, 4)].image.color = Theme.AccentFill;
+                if (shortfalls.Count > 0)
+                {
+                    foreach (StrikePlans.Shortfall f in shortfalls)
+                        s.Info(UiKit.Tint("CAN'T COMPLETE  ·  ", Theme.Bad) + StrikePlans.Describe(f), Theme.Text);
+                    if (perTarget != 1 && StrikePlans.OneEachFits(flight))
+                        s.Row("Set 1 per target  ·  every target gets a round", () =>
+                        {
+                            WingOrders.SetMissilesPerTarget(flight, 1);
+                            CommandState.Say(flight.Name + " · 1 guided round per target");
+                            s.Show(x => FlightPage(x, flight));
+                        });
+                }
+                else
+                    s.Info(passes <= 1 ? UiKit.Tint("Looks possible in one pass", Theme.Good)
+                        : UiKit.Tint("About " + passes + " passes", FlightIcons.Attention) + (why.Length > 0 ? "  ·  " + why : ""), Theme.TextMuted);
                 for (int i = 0; i < plan.Count; i++)
                 {
                     StrikeItem item = plan[i];
                     string weapon = string.IsNullOrEmpty(item.Weapon) ? "best available" : WeaponLabel(flight, item.Weapon);
-                    Button row = s.Row((i + 1) + ".  " + ContactName(item.Target) + "  ·  " + DistanceTo(flight, item.Target) + "  ·  " + weapon,
+                    bool left = unreached.Contains(item);
+                    Button row = s.Row((i + 1) + ".  " + ContactName(item.Target) + "  ·  " + DistanceTo(flight, item.Target) + "  ·  " + weapon +
+                        (left ? "  ·  " + UiKit.Tint("NO ROUNDS LEFT", Theme.Bad) : ""),
                         () => s.Show(x => PlanWeaponPage(x, flight, item)), "✕", () =>
                         {
                             StrikePlans.Remove(flight, item);
                             s.Show(x => FlightPage(x, flight));
                         }, out _);
-                    Surface.Edge(row, FlightIcons.Fighting);
+                    Surface.Edge(row, left ? Theme.Bad : FlightIcons.Fighting);
                 }
                 Button go = s.Row("AUTHORIZE STRIKE", () =>
                 {
