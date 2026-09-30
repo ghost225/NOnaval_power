@@ -300,7 +300,7 @@ namespace NavalPower
                         break;
                     case 1:
                         WingOrders.ReturnToBase(flight);
-                        CommandState.Say(flight.Name + " · recovering");
+                        CommandState.Say(flight.Name + (flight.RearmAtHome ? " · home to rearm, then back out" : " · recovering"));
                         break;
                     default:
                         WingOrders.Engage(flight);
@@ -310,6 +310,17 @@ namespace NavalPower
             });
             if (flight.Mode == FlightMode.ReturnToBase) quick[1].image.color = Theme.AccentFill;
             if (flight.Mode == FlightMode.Engage) quick[2].image.color = Theme.AccentFill;
+            // What coming home means: park and stand down, or -- at a land
+            // airfield -- rearm, refuel and go back out to the task. A deck
+            // always parks.
+            Button[] home = s.Group(new[] { "Home: park", "Home: rearm & go back" }, i =>
+            {
+                WingOrders.SetRearmAtHome(flight, i == 1);
+                CommandState.Say(flight.Name + (i == 1
+                    ? " · at an airfield it will rearm, refuel and go back out · a ship's deck still parks it"
+                    : " · will park and stand down when home"));
+            });
+            home[flight.RearmAtHome ? 1 : 0].image.color = Theme.AccentFill;
 
             // Everything else, a page each, each row showing where it stands.
             s.Row("Tasking  ▸   " + ShortTask(flight) + (flight.Mode == FlightMode.Orbit

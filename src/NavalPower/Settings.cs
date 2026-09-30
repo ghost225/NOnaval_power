@@ -63,6 +63,8 @@ namespace NavalPower
         internal static ConfigEntry<float> RadarEvasionFloor;
         internal static ConfigEntry<float> InterfaceScale;
         internal static ConfigEntry<float> LowFuelAlert;
+        internal static ConfigEntry<bool> RearmAtAirfields;
+        internal static ConfigEntry<float> TurnaroundSeconds;
         internal static ConfigEntry<bool> NameShips;
         internal static ConfigEntry<KeyboardShortcut> ReportKey;
         internal static ConfigEntry<KeyboardShortcut> OrderNearestKey;
@@ -199,6 +201,13 @@ namespace NavalPower
             EscortIntercept = config.Bind("Wings", "Escorts intercept missiles", true,
                 "An escort fires an air-to-air missile (heat-seeking first, then active radar) at a missile fired " +
                 "on the aircraft it escorts, when it can reach it in time.");
+            RearmAtAirfields = config.Bind("Flights", "Rearm at airfields", false,
+                "What a new flight does when it comes home to a land airfield: on, it is rearmed (paid per round) and refuelled " +
+                "and goes back out to its task; off, it parks and returns to the reserve. Each flight can be switched in its window. " +
+                "On a ship's deck a flight always parks.");
+            TurnaroundSeconds = config.Bind("Flights", "Turnaround time", 60f,
+                new ConfigDescription("Seconds a flight sits on the ground being rearmed and refuelled before it taxis out again.",
+                    new AcceptableValueRange<float>(10f, 600f)));
             LowFuelAlert = config.Bind("Flights", "Low fuel alert", 25f,
                 new ConfigDescription("Fuel percentage below which a flight is marked as needing attention, " +
                     "until it is heading home. Raise it when the deck is far from the fight.",
@@ -363,6 +372,8 @@ namespace NavalPower
             Tuning.EgressAltitude = EgressAltitude.Value;
             Tuning.RadarHandover = RadarHandover.Value;
             Tuning.LowFuelAlert = LowFuelAlert.Value;
+            Tuning.RearmAtAirfields = RearmAtAirfields.Value;
+            Tuning.TurnaroundSeconds = TurnaroundSeconds.Value;
             Tuning.BombingHeight = BombingHeight.Value;
             Tuning.CruiseThrottle = CruiseThrottle.Value;
             Tuning.IrBurstRange = IrBurstRange.Value;
