@@ -544,3 +544,20 @@ High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties
   - Why: a Naval Power flight evading a shot had gone on to attack ground units beneath it. If High Command relies on Tight flights fighting ground units, that no longer happens; use Free.
 - **`Host.Dead` also counts `Abandoned` and `Returned`.** A pilot who has ejected ends the strike.
 - **Lost tracks:** a strike target with no track gives the combat pilot no target, and after 30 s without a known position the strike ends, or the strike list moves on.
+
+## 2026-09-30 · from Naval Power · Turnaround on ship decks, and NOrders turnaround (NOrders 986acc6)
+
+**A user report that looks like High Command's:** Vagrants landing on a Cursor class LFD, then taking off again. Nothing in NOrders relaunches from a deck. But High Command's own `Turnaround` (`KeepParkedPatch` on `AIPilotTaxiState.Disembark`) turns flights round at any friendly airbase within 3 km, ship decks included. High Command launches from the Cursor too (Pike-1, a Vortex, in the 2026-09-30 log).
+- **Ask:** skip decks. In `KeepParkedPatch.Prefix`, return true (leave it to the game) when `field.AttachedAirbase`. A small deck has nowhere to turn an aircraft round, and one relaunched from it rarely gets off again.
+- **Side note:** `Turnaround.Relaunch` switches to the taxi state with `pilot.flightInfo.HasTakenOff` still true. The taxi state's `SearchForAirbase` reads that as "taxiing to resupply" and heads for the service point, not the runway. NOrders' version sets it false and builds a fresh `AIPilotTaxiState` before relaunching. Worth checking whether yours ever reaches the runway.
+
+**New in NOrders, for information (opt-in, off by default):**
+- **`Turnaround` and a prefix on `Aircraft.StartEjectionSequence`:**
+  - **When it acts:** for one of your own `FlightOrders` flights with `RearmAtHome` set, in `ReturnToBase`, down and stopped at a land airfield, while in the taxi, landing or helicopter landing state.
+  - **What it does:** parks the aircraft instead of letting the crew get out. After `Tuning.TurnaroundSeconds` it rearms the aircraft (the faction pays per round) and refuels it. It then relaunches it and puts back the task it had when it was sent home (`FlightOrders.Resume`).
+  - **High Command's flights:** `Flight.RearmAtHome` defaults to `Tuning.RearmAtAirfields`, which is false. High Command never sets it, so your own `Turnaround` keeps working as before.
+  - **If you use both:** don't set `RearmAtHome` on flights your own `Turnaround` handles, or both would try to park the same aircraft.
+- **`FlightOrders.ReturnToBase` now records the flight's task first:** `ResumeMode`, `ResumeCentre`, `ResumeRadius` and `ResumeRoute`. Nothing reads them unless a turnaround runs.
+- **`NavalPilotState` grounded rule:** a flight sitting on the ground under our state for 8 s is no longer handed to the native takeoff if it is in `ReturnToBase`. It goes to the landing state instead.
+- **`MovingDeckRecovery` threshold is now 0.8 m/s, down from 1.5 m/s:** the game's own recovery wants under 1 m/s over the ground, so a ship between 1 and 1.5 m/s left aircraft stuck on deck.
+- **Energy recovery re-entry:** for 20 s after a recovery ends, it restarts only below corner speed. This stops the flicker seen with Pike-2 and Falcon-2 at 189 m/s in your log.
