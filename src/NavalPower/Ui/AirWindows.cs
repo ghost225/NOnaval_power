@@ -683,7 +683,7 @@ namespace NavalPower
                 for (int i = 0; i < plan.Count; i++)
                 {
                     StrikeItem item = plan[i];
-                    string weapon = string.IsNullOrEmpty(item.Weapon) ? "best available" : WeaponLabel(flight, item.Weapon);
+                    string weapon = PlanLabel(flight, item);
                     bool left = unreached.Contains(item);
                     Button row = s.Row((i + 1) + ".  " + ContactName(item.Target) + "  ·  " + DistanceTo(flight, item.Target) + "  ·  " + weapon +
                         (left ? "  ·  " + UiKit.Tint("NO ROUNDS LEFT", Theme.Bad) : ""),
@@ -710,7 +710,7 @@ namespace NavalPower
                     bool now = item.Target == flight.Target;
                     int closing = ShotDisciplinePatch.Closing(flight.Aircraft != null ? flight.Aircraft.NetworkHQ : null, item.Target);
                     s.Info((now ? "▸ " : "   ") + ContactName(item.Target) + (closing > 0 ? "  ·  " + closing + " missile(s) closing" : "") +
-                        (string.IsNullOrEmpty(item.Weapon) ? "" : "  ·  " + WeaponLabel(flight, item.Weapon)), now ? Theme.Text : Theme.TextMuted);
+                        (item.Saturate ? "  ·  " + UiKit.Tint("SATURATION", FlightIcons.Fighting) : string.IsNullOrEmpty(item.Weapon) ? "" : "  ·  " + WeaponLabel(flight, item.Weapon)), now ? Theme.Text : Theme.TextMuted);
                 }
             }
         }
@@ -718,9 +718,18 @@ namespace NavalPower
         private void PlanWeaponPage(Surface s, Flight flight, StrikeItem item)
         {
             if (!Alive(s, flight)) return;
-            s.Title("WEAPON FOR " + ContactName(item.Target).ToUpperInvariant());
-            Button auto = s.Row("Best available  ·  let the flight choose", () => { item.Weapon = null; s.Show(x => FlightPage(x, flight)); });
-            if (string.IsNullOrEmpty(item.Weapon)) auto.image.color = Theme.AccentFill;
+            s.Title("ATTACK ON " + ContactName(item.Target).ToUpperInvariant());
+            Back(s, flight);
+            // How: an ordinary attack with one weapon (at the per-target
+            // rounds), or a saturation -- everything chosen, from every
+            // aircraft carrying it, at this one target.
+            Button[] how = s.Group(new[] { "One weapon", "SATURATION" }, i =>
+            {
+                item.Saturate = i == 1;
+                s.Show(x => PlanWeaponPage(x, flight, item));
+            });
+            how[item.Saturate ? 1 : 0].image.color = item.Saturate ? Theme.Dim(FlightIcons.Fighting, 0.6f) : Theme.AccentFill;
+
             // Every weapon the wing carries, once, with the rounds across it.
             var rounds = new Dictionary<string, int>();
             var infos = new Dictionary<string, WeaponInfo>();
@@ -732,6 +741,43 @@ namespace NavalPower
                     rounds[key] = n + station.Ammo;
                     infos[key] = station.WeaponInfo;
                 }
+
+            if (item.Saturate)
+            {
+                s.Info("Every round of the ticked weapons, from every aircraft in the wing carrying them, at this target. " +
+                    "None ticked: every guided anti-surface weapon aboard.", Theme.TextMuted);
+                foreach (KeyValuePair<string, WeaponInfo> entry in infos)
+                {
+                    WeaponInfo info = entry.Value;
+                    if (!(info.missile || info.glideBomb) || info.bomb) continue;
+                    bool ticked = item.Weapons.Contains(info.name);
+                    float worth = WeaponOrders.Opportunity(info, item.Target);
+                    Button row = s.Row((ticked ? "✓  " : "     ") + info.weaponName + "  ·  " + rounds[entry.Key] + " in the wing  ·  " +
+                        (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), () =>
+                        {
+                            if (!item.Weapons.Remove(info.name)) item.Weapons.Add(info.name);
+                            s.Show(x => PlanWeaponPage(x, flight, item));
+                        });
+                    if (ticked) row.image.color = Theme.AccentFill;
+                    if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
+                }
+                int total = 0;
+                foreach (int n in StrikePlans.SaturationLoad(flight, item).Values) total += n;
+                s.Info(UiKit.Tint(total + " round(s) at " + ContactName(item.Target), total > 0 ? FlightIcons.Fighting : Theme.Bad), Theme.Text);
+                Button together = s.Row(item.Together ? "Launch together  ·  hold at range until the wing is ready (90 s at most)"
+                                                      : "Launch as each aircraft gets there", () =>
+                {
+                    item.Together = !item.Together;
+                    s.Show(x => PlanWeaponPage(x, flight, item));
+                });
+                if (item.Together) together.image.color = Theme.AccentFill;
+                s.Info("Missiles hold together; glide bombs go on their own release cue.", Theme.TextMuted);
+                s.Row("Done", () => s.Show(x => FlightPage(x, flight)));
+                return;
+            }
+
+            Button auto = s.Row("Best available  ·  let the flight choose", () => { item.Weapon = null; s.Show(x => FlightPage(x, flight)); });
+            if (string.IsNullOrEmpty(item.Weapon)) auto.image.color = Theme.AccentFill;
             foreach (KeyValuePair<string, WeaponInfo> entry in infos)
             {
                 WeaponInfo info = entry.Value;
@@ -745,7 +791,17 @@ namespace NavalPower
                 if (item.Weapon == info.name) row.image.color = Theme.AccentFill;
                 if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
-            s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
+        }
+
+        // The plan row's weapon column: the weapon, or the saturation's load.
+        private static string PlanLabel(Flight flight, StrikeItem item)
+        {
+            if (!item.Saturate) return string.IsNullOrEmpty(item.Weapon) ? "best available" : WeaponLabel(flight, item.Weapon);
+            var parts = new List<string>();
+            int total = 0;
+            foreach (KeyValuePair<string, int> entry in StrikePlans.SaturationLoad(flight, item)) { parts.Add(entry.Value + "× " + entry.Key); total += entry.Value; }
+            return UiKit.Tint("SATURATION", FlightIcons.Fighting) + " " + total + " rds" + (parts.Count > 0 ? " (" + string.Join(", ", parts.ToArray()) + ")" : "") +
+                (item.Together ? " · together" : "");
         }
 
         private static string WeaponLabel(Flight flight, string weapon)
