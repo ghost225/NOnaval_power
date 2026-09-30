@@ -109,7 +109,7 @@ namespace NavalPower
             });
             s.Row("Disband " + force.Name, () =>
             {
-                TaskForces.Disband(force);
+                TaskForces.Disband(force, "Disband button");
                 CommandState.Say(force.Name + " disbanded");
             });
             s.Info("[ and ] step through the force's ships", Theme.TextFaint);

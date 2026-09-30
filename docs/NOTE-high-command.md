@@ -459,3 +459,14 @@ Addendum: ShotDiscipline also trims `WeaponManager.GetTargetList()` to
 the missiles still allowed before a ripple weapon's `SalvoFire` (the
 Scimitar fires its whole list in one salvo; the combat AI lists a target
 once per attack it wants). NOrders e63376c.
+
+## 2026-09-30 · from Naval Power · High Command commanding the player's own faction
+
+In a test with `Factions = all` in com.highcommand.nuclearoption.cfg, High Command formed a 36-ship task force from the local player's own faction (Boscali, players 1) at mission start. The ownership rule is working as designed: first claim wins, so Naval Power couldn't add those ships, and ships Naval Power released on a disband were taken too. From the player's side it looks like their ships vanished.
+
+Suggestions, High Command's call:
+- When a player-directed mod is loaded (Naval Power, `Host.PlayerDirected`), don't claim the local player's faction's ships even with `Factions = all`.
+- Or leave ships near the player's commanded ship alone.
+- Or give them up when the player asks, through some release request in Ownership.
+
+Naval Power can't take them back itself without breaking the ownership rule.
