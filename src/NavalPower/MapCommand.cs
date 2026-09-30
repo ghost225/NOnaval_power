@@ -668,7 +668,7 @@ namespace NavalPower
             // Only on a live track: a stale one gets its menu, which offers a
             // search rather than a strike on a position nobody has.
             if (tasking != null && pointed != null && pointed != CommandState.Ship &&
-                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Hq && TrackReadout.IsCurrent(pointed))
+                pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Hq && TrackReadout.IsTargetable(pointed))
             {
                 string contact = pointed.definition?.unitName ?? pointed.name;
                 if (FlightOrders.BestStationFor(tasking.Aircraft, pointed) == null)

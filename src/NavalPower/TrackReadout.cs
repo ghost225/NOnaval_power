@@ -38,6 +38,20 @@ namespace NavalPower
             return track != null && track.Observed();
         }
 
+        // Fit to target. A structure cannot move, so once found it stays a
+        // target where it was seen, however long since anyone looked -- the
+        // game's own AI already treats its known position as accurate. What
+        // still needs eyes on it now is a camera: IsCurrent, not this.
+        internal static bool IsTargetable(Unit contact)
+        {
+            if (IsCurrent(contact)) return true;
+            FactionHQ hq = CommandState.Hq;
+            if (contact == null || contact.disabled || hq == null || !Fixed(contact)) return false;
+            return hq.GetTrackingData(contact.persistentID) != null;
+        }
+
+        internal static bool Fixed(Unit contact) => contact is Building;
+
         // From the ship when there is one, else from the airfield being
         // commanded -- which has the faction's picture but no sensors of its own.
         internal static string Describe(Ship ship, Unit contact, WeaponCommandInfo weapon)
@@ -59,7 +73,8 @@ namespace NavalPower
             bool observed = friendly || (track != null && track.Observed());
 
             var text = new System.Text.StringBuilder();
-            text.Append(name).Append(friendly ? "  ·  FRIENDLY" : observed ? "  ·  TRACKED" : "  ·  STALE TRACK");
+            text.Append(name).Append(friendly ? "  ·  FRIENDLY" : observed ? "  ·  TRACKED"
+                : Fixed(contact) && track != null ? "  ·  FIXED TARGET" : "  ·  STALE TRACK");
             if (!friendly && ship != null) text.Append("\n").Append(TrackPicture.Describe(ship, contact));
 
             if (!known)
@@ -85,7 +100,9 @@ namespace NavalPower
                 float age = Time.timeSinceLevelLoad - track.lastSpottedTime;
                 text.Append(observed
                     ? "\nObserved now"
-                    : "\nLast seen " + age.ToString("0") + " s ago · position estimated");
+                    : Fixed(contact)
+                        ? "\nLast seen " + age.ToString("0") + " s ago · it does not move · no camera without eyes on it"
+                        : "\nLast seen " + age.ToString("0") + " s ago · position estimated");
             }
 
             if (weapon != null && ship != null)

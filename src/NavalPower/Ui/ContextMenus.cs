@@ -77,7 +77,7 @@ namespace NavalPower
                 if (unit is Ship ship && (CommandableShip.CanCommand(ship, out _) || CommandableShip.Held(ship))) return Relation.FriendlyShip;
                 return Relation.Friendly;
             }
-            return TrackReadout.IsCurrent(unit) ? Relation.Hostile : Relation.Stale;
+            return TrackReadout.IsTargetable(unit) ? Relation.Hostile : Relation.Stale;
         }
 
         private static string NameOf(Unit unit) => ShipNames.Of(unit);
@@ -756,6 +756,13 @@ namespace NavalPower
         {
             if (feedView == null || unit == null) return;
             bool pinned = feedView.IsPinned(unit);
+            // A fixed target nobody has eyes on is still a target, but there is
+            // nothing to look at it through.
+            if (!pinned && !TrackReadout.IsCurrent(unit))
+            {
+                s.Info("No camera feed  ·  nobody has eyes on it", Theme.TextFaint);
+                return;
+            }
             s.Row(pinned ? "Close its camera feed" : "Pin a camera feed on it", () =>
             {
                 feedView.Pin(unit, out string reason);
