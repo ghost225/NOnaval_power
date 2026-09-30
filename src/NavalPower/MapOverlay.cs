@@ -44,8 +44,18 @@ namespace NavalPower
             if (map == null || map.mapImage == null || !map.gameObject.activeInHierarchy) return;
             drewLastFrame = true;
 
+            // Keep strokes clear of the status strip where it actually is, and
+            // only while it shows. A fixed 170 px off the bottom stopped lines
+            // short in the full-screen map, where the map runs to the edge.
             clip = rectTransform.rect;
-            clip.yMin += 170;                      // Keep strokes clear of the command bar.
+            RectTransform strip = CommandUi.StatusStrip;
+            if (strip != null && strip.gameObject.activeInHierarchy)
+            {
+                strip.GetWorldCorners(corners);
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform,
+                    RectTransformUtility.WorldToScreenPoint(null, corners[1]), null, out Vector2 top);
+                clip.yMin = Mathf.Max(clip.yMin, top.y);
+            }
             // The terrain image is a world extent, not the visible viewport:
             // orders and ranges continue over water past its edge.
             if (map.mapBackground == null || !Intersect(map.mapBackground.rectTransform)) return;

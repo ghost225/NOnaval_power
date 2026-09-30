@@ -25,6 +25,8 @@ namespace NavalPower
         private TargetFeed feedView;
         private GameObject root;
         private RectTransform strip, eventLine, windowLayer, menuLayer, hover, seatBar;
+        // The status strip along the bottom, for the map overlay to keep clear of.
+        internal static RectTransform StatusStrip;
         private Text stripName, stripNav, stripStatus, stripState, hoverText, seatLabel;
         private RawImage hoverPicture;
         private Unit peekCandidate;
@@ -224,6 +226,7 @@ namespace NavalPower
         private void BuildStrip()
         {
             strip = UiKit.Box("Status strip", (RectTransform)root.transform, Theme.Surface);
+            StatusStrip = strip;
             strip.anchorMin = new Vector2(0, 0); strip.anchorMax = new Vector2(1, 0);
             strip.pivot = new Vector2(0.5f, 0);
             strip.sizeDelta = new Vector2(0, StripHeight);
