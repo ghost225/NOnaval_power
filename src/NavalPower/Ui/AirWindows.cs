@@ -58,7 +58,8 @@ namespace NavalPower
                 {
                     if (!collapsed.Remove(home)) collapsed.Add(home);
                 });
-                header.image.color = Theme.Dim(Theme.Accent, 0.12f);
+                header.image.color = Theme.SurfaceRaised;
+                Surface.Edge(header, trouble > 0 ? FlightIcons.Attention : FlightIcons.Own);
                 if (folded) continue;
 
                 // Wings first, each folding to one line, then single aircraft:
@@ -100,9 +101,11 @@ namespace NavalPower
                         Button entry = s.Row((movement.Ours ? "▸ " : "") + movement.Name + "  ·  " +
                             Phase(movement.Phase) + "  ·  " + movement.Detail, () => { });
                         entry.GetComponentInChildren<Text>().color =
-                            movement.Phase == TrafficPhase.Recovering ? Theme.Warn
-                            : movement.Phase == TrafficPhase.Queued ? Theme.TextMuted
-                            : movement.Ours ? Theme.Accent : Theme.Text;
+                            movement.Phase == TrafficPhase.Queued ? Theme.TextMuted : Theme.Text;
+                        Surface.Edge(entry,
+                            movement.Phase == TrafficPhase.Recovering ? FlightIcons.Attention
+                            : movement.Phase == TrafficPhase.Queued ? Theme.TextFaint
+                            : movement.Ours ? Theme.Accent : Theme.TextMuted);
                     }
                 }
             }

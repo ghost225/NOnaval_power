@@ -56,16 +56,18 @@ namespace NavalPower
             // The guide, then each escort: click to take command of it.
             NavigationSnapshot nav = NavigationOrders.GetSnapshot(force.Guide);
             ShipRow(s, force.Guide, "GUIDE  ·  " + ShipNames.Of(force.Guide) + Class(force.Guide) + "  ·  " +
-                (nav != null ? Speed(nav.ActualSpeedKnots) : "") + (force.UnderFire ? "  ·  under fire" : ""), Theme.Text);
+                (nav != null ? Speed(nav.ActualSpeedKnots) : "") + (force.UnderFire ? "  ·  under fire" : ""),
+                force.UnderFire ? FlightIcons.Attention : Theme.Accent);
             int detached = 0;
             foreach (Escort escort in force.Escorts)
             {
                 if (escort.Detached) detached++;
                 string where = (escort.ThreatArc ? "picket " : "") + escort.Bearing.ToString("000") + "°  " +
                     UnitConverter.DistanceReading(escort.Range);
-                ShipRow(s, escort.Ship, "      " + ShipNames.Of(escort.Ship) + Class(escort.Ship) + "  ·  " + where + "  ·  " +
-                    TaskForces.Describe(force, escort),
-                    escort.Detached ? Theme.Warn : escort.GivingWay ? Theme.Warn : Theme.Text);
+                string state = TaskForces.Describe(force, escort);
+                ShipRow(s, escort.Ship, "      " + ShipNames.Of(escort.Ship) + Class(escort.Ship) + "  ·  " + where + "  ·  " + state,
+                    escort.Detached || escort.GivingWay ? FlightIcons.Attention
+                    : state == "on station" ? FlightIcons.Own : FlightIcons.Cargo);
             }
             if (detached > 0)
                 s.Row("Return " + detached + " detached ship(s) to formation", () =>
@@ -171,15 +173,19 @@ namespace NavalPower
             CommandState.Say(force.Name + " · " + ShipNames.Of(ship) + " is now the guide");
         }
 
-        private void ShipRow(Surface s, Ship ship, string label, Color colour)
+        // White text on a neutral row; the ship's state is the ribbon down its
+        // left edge -- green on station, blue closing, yellow giving way or
+        // detached, the accent for the guide.
+        private void ShipRow(Surface s, Ship ship, string label, Color state)
         {
             Ship shown = ship;
             Button row = CameraRow(s, label, () =>
             {
                 if (shown != CommandState.Ship) CameraGlide.SwitchTo(shown);
             }, ship, ShipNames.Of(ship));
-            row.GetComponentInChildren<Text>().color = colour;
-            if (ship == CommandState.Ship) row.image.color = Theme.AccentFill;
+            row.GetComponentInChildren<Text>().color = Theme.Text;
+            row.image.color = ship == CommandState.Ship ? Theme.AccentFill : Theme.Control;
+            Surface.Edge(row, state);
         }
 
         private void NoForcePage(Surface s, Ship ship)
