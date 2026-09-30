@@ -36,6 +36,7 @@ namespace NavalPower
         {
             vh.Clear();
             drewLastFrame = false;
+            overBudget = false;
             // A ship draws its sensors, weapons and tracks; an airfield has
             // none of those, only its flights and its traffic.
             Ship ship = CommandState.Ship;
@@ -74,6 +75,11 @@ namespace NavalPower
             DrawFlights(vh);
             DrawDropLines(vh);
             DrawRuler(vh);
+            if (overBudget && !warnedBudget)
+            {
+                warnedBudget = true;
+                Plugin.Log.LogWarning("[ui] map overlay reached its vertex budget; some strokes were left out");
+            }
         }
 
         // Airdrop lines: the one being laid down, from its start to the
@@ -179,7 +185,14 @@ namespace NavalPower
             {
                 if (escort.Ship == null || escort.Detached) continue;
                 Color colour = escort.GivingWay ? Theme.Dim(Theme.Warn, 0.9f) : Theme.Dim(Theme.Accent, 0.55f);
-                Circle(vh, escort.Station, Mathf.Max(escort.Ship.maxRadius * 2f, 150f), colour);
+                // Never smaller on screen than a ship icon: zoomed out over a
+                // big formation a 150 m ring was a pixel or two, hidden under
+                // the ship sitting on it. At this size an escort on station
+                // shows ringed, and an empty ring is a station still to reach.
+                float ring = Mathf.Max(escort.Ship.maxRadius * 2f, 150f);
+                float pixels = (Project(escort.Station + new Vector3(ring, 0f, 0f)) - Project(escort.Station)).magnitude;
+                if (pixels > 0.01f && pixels < MinStationPixels) ring *= MinStationPixels / pixels;
+                Circle(vh, escort.Station, ring, colour);
                 if (escort.OffStation > Mathf.Max(3f * escort.Ship.maxRadius, 400f))
                     Line(vh, Project(escort.Ship.GlobalPosition()), Project(escort.Station), Theme.Dim(colour, 0.6f), 1.2f);
             }
@@ -452,8 +465,14 @@ namespace NavalPower
         private void Circle(VertexHelper vh, GlobalPosition center, float radius, Color color)
         {
             if (radius <= 0f || float.IsNaN(radius) || float.IsInfinity(radius)) return;
-            const int segments = 96;
+            // As many sides as its size on screen needs, not 96 for every ring:
+            // a big task force's station rings, each a few pixels across, cost
+            // as much as the largest range ring and pushed the whole overlay
+            // past the mesh's vertex limit.
+            Vector2 middle = Project(center);
             Vector2 previous = Project(center + new Vector3(radius, 0f, 0f));
+            float pixels = (previous - middle).magnitude;
+            int segments = Mathf.Clamp(Mathf.CeilToInt(pixels / 4f), 12, 96);
             for (int i = 1; i <= segments; i++)
             {
                 float angle = i * Mathf.PI * 2f / segments;
@@ -491,6 +510,10 @@ namespace NavalPower
             Line(vh, point + Vector2.down * size, point + Vector2.left * size, color, 2f);
         }
 
+        private const int VertexBudget = 60000;
+        private const float MinStationPixels = 11f;
+        private bool overBudget, warnedBudget;
+
         private void Line(VertexHelper vh, Vector2 from, Vector2 to, Color color, float width)
         {
             // Clip the centreline inset by half the stroke, or thick lines bleed
@@ -499,6 +522,9 @@ namespace NavalPower
             Rect strokeClip = Rect.MinMaxRect(clip.xMin + inset, clip.yMin + inset, clip.xMax - inset, clip.yMax - inset);
             if (strokeClip.width <= 0f || strokeClip.height <= 0f) return;
             if (!MapGeometry.ClipLine(ref from, ref to, strokeClip)) return;
+            // Past Unity's vertex limit a UI mesh is dropped whole -- every
+            // stroke gone, not just the last. Stop short of it instead.
+            if (vh.currentVertCount >= VertexBudget) { overBudget = true; return; }
             Vector2 normal = new Vector2(-(to - from).y, (to - from).x).normalized * width * 0.5f;
             int start = vh.currentVertCount;
             vh.AddVert(from - normal, color, Vector2.zero);

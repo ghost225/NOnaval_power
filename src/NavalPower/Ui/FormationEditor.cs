@@ -126,6 +126,29 @@ namespace NavalPower
                 dots[i].gameObject.SetActive(used);
                 if (used) dots[i].Bind(force.Escorts[i]);
             }
+            Declutter();
+        }
+
+        // Labels that would land on one already placed are hidden -- with
+        // twenty-five ships the names piled into an unreadable band -- and the
+        // ship under the cursor, or being dragged, always shows its own.
+        private readonly List<Rect> placed = new List<Rect>();
+
+        private void Declutter()
+        {
+            if (GetComponent<RectMask2D>() == null) gameObject.AddComponent<RectMask2D>();    // nothing spills past the plot
+            placed.Clear();
+            foreach (FormationDot dot in dots)
+                if (dot.gameObject.activeSelf && dot.Focused) placed.Add(dot.LabelRect());
+            foreach (FormationDot dot in dots)
+            {
+                if (!dot.gameObject.activeSelf || dot.Focused) continue;
+                Rect rect = dot.LabelRect();
+                bool clear = true;
+                foreach (Rect other in placed) if (rect.Overlaps(other)) { clear = false; break; }
+                dot.ShowLabel(clear);
+                if (clear) placed.Add(rect);
+            }
         }
 
         // Plot position for a bearing and range, and back.
@@ -213,8 +236,31 @@ namespace NavalPower
 
     // One escort on the plot. Dragged, it moves the escort's station live;
     // otherwise it follows the station as the page refreshes.
-    internal sealed class FormationDot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+    internal sealed class FormationDot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerEnterHandler, IPointerExitHandler
     {
+        private bool hovered;
+        internal bool Focused => hovered || dragging;
+
+        // Where its label sits on the plot, sized to its text.
+        internal Rect LabelRect()
+        {
+            Vector2 at = ((RectTransform)transform).anchoredPosition + new Vector2(0f, -12f);
+            float width = Mathf.Min(label.preferredWidth, 200f) + 6f;
+            return new Rect(at.x - width * 0.5f, at.y - 16f, width, 16f);
+        }
+
+        internal void ShowLabel(bool shown) => label.enabled = shown;
+
+        private void Relabel()
+        {
+            label.supportRichText = true;
+            label.enabled = true;
+            label.text = ShipNames.Of(escort.Ship) + (Focused && ShipNames.IsNamed(escort.Ship)
+                ? "  " + UiKit.Tint(ShipNames.TypeOf(escort.Ship), Theme.TextMuted) : "") + (escort.Detached ? " (detached)" : "");
+        }
+
+        public void OnPointerEnter(PointerEventData data) { hovered = true; if (escort != null) { Relabel(); transform.SetAsLastSibling(); } }
+        public void OnPointerExit(PointerEventData data) { hovered = false; if (escort != null) Relabel(); }
         private FormationPlot plot;
         private Escort escort;
         private Image image;
@@ -237,14 +283,12 @@ namespace NavalPower
         internal void Bind(Escort shown)
         {
             escort = shown;
-            label.supportRichText = true;
-            label.text = ShipNames.Of(escort.Ship) + (ShipNames.IsNamed(escort.Ship)
-                ? "  " + UiKit.Tint(ShipNames.TypeOf(escort.Ship), Theme.TextMuted) : "") + (escort.Detached ? " (detached)" : "");
+            Relabel();
             image.color = escort.Detached ? Theme.Dim(Theme.Warn, 0.8f) : escort.ThreatArc ? Theme.Warn : Theme.Accent;
             if (!dragging) ((RectTransform)transform).anchoredPosition = plot.ToPlot(escort.Bearing, escort.Range);
         }
 
-        public void OnBeginDrag(PointerEventData data) { dragging = true; }
+        public void OnBeginDrag(PointerEventData data) { dragging = true; if (escort != null) Relabel(); }
 
         public void OnDrag(PointerEventData data)
         {
@@ -258,6 +302,7 @@ namespace NavalPower
         public void OnEndDrag(PointerEventData data)
         {
             dragging = false;
+            if (escort != null) Relabel();
             if (escort != null)
                 CommandState.Say(ShipNames.Of(escort.Ship) + " · station " + escort.Bearing.ToString("000") + "° " +
                     UnitConverter.DistanceReading(escort.Range));
