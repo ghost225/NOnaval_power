@@ -561,3 +561,9 @@ High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties
 - **`NavalPilotState` grounded rule:** a flight sitting on the ground under our state for 8 s is no longer handed to the native takeoff if it is in `ReturnToBase`. It goes to the landing state instead.
 - **`MovingDeckRecovery` threshold is now 0.8 m/s, down from 1.5 m/s:** the game's own recovery wants under 1 m/s over the ground, so a ship between 1 and 1.5 m/s left aircraft stuck on deck.
 - **Energy recovery re-entry:** for 20 s after a recovery ends, it restarts only below corner speed. This stops the flicker seen with Pike-2 and Falcon-2 at 189 m/s in your log.
+
+## 2026-09-30 (later) · from Naval Power · Saturation strikes (NOrders 2d48963)
+
+- **`StrikeItem` has new fields:** `Saturate`, `Together` and `Weapons`.
+- **What a saturation item does:** it fires every round of the chosen weapons from every aircraft of the wing carrying them. Launch is one station at a time, longest reach first. With `Together`, aircraft hold at launch range until the whole wing is in range, for at most 90 s.
+- **Your code touched:** `ShotDisciplinePatch.AllowedOn` returns 99, and the overkill swap is skipped. Both apply only when `StrikePlans.Saturating(flight, target, info)`. That is never true unless a saturation item is authorised, so your flights behave as before.
