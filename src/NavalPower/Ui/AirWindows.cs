@@ -54,7 +54,7 @@ namespace NavalPower
 
                 Button header = s.Row((folded ? "▸  " : "▾  ") + home.ToUpperInvariant() + "   ·   " +
                     group.Value.Count + " aircraft" +
-                    (trouble > 0 ? "   ·   " + UiKit.Tint(trouble + " need attention", Theme.Bad) : ""), () =>
+                    (trouble > 0 ? "   ·   " + UiKit.Tint(trouble + " need attention", FlightIcons.Attention) : ""), () =>
                 {
                     if (!collapsed.Remove(home)) collapsed.Add(home);
                 });
@@ -156,12 +156,15 @@ namespace NavalPower
             Button header = s.Row("   " + (folded ? "▸  " : "▾  ") + wing + "  ·  " + members.Count + "× " + lead.TypeName +
                 "  ·  " + (lead.Status ?? ShortTask(lead)) + "  ·  " + fuel.ToString("0") + "% fuel" +
                 (waiting > 0 ? "  ·  " + waiting + " to launch" : "") +
-                (trouble > 0 ? "  ·  " + UiKit.Tint(trouble + " need attention · " + FirstAttention(members), Theme.Bad) : ""), () =>
+                (trouble > 0 ? "  ·  " + UiKit.Tint(trouble + " need attention · " + FirstAttention(members), FlightIcons.Attention) : ""), () =>
                 {
                     if (!collapsed.Remove(key)) collapsed.Add(key);
                 });
+            // Neutral, with the lead's state as an edge; framed while any of
+            // the wing needs you.
             header.image.color = Wings.Members(wing).Contains(CommandState.SelectedFlight)
-                ? Theme.Dim(Theme.Accent, 0.3f) : Theme.Dim(FlightIcons.For(lead), 0.26f);
+                ? Theme.Dim(Theme.Accent, 0.3f) : Theme.SurfaceRaised;
+            Surface.Edge(header, FlightIcons.For(lead), trouble > 0);
         }
 
         private static string FirstAttention(List<Flight> members)
@@ -178,14 +181,14 @@ namespace NavalPower
             string attention = flight.Attention;
             Button row = CameraRow(s, indent + flight.Name + "  ·  " + role + (flight.Status ?? ShortTask(flight)) +
                 "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight) +
-                (attention != null ? "  ·  " + UiKit.Tint(attention.ToUpperInvariant(), Theme.Bad) : ""),
+                (attention != null ? "  ·  " + UiKit.Tint(attention.ToUpperInvariant(), FlightIcons.Attention) : ""),
                 () => OpenFlight(shown), flight.Aircraft, flight.Name);
+            // Readable first: white text on a neutral row, the flight's state as
+            // an edge in its map colour, a frame when it needs you.
             row.GetComponentInChildren<Text>().color =
-                NeedsYou(flight) ? Theme.Bad
-                : flight.Interrupted ? Theme.Warn
-                : flight.Mode == FlightMode.ReturnToBase ? Theme.TextMuted
-                : Theme.Text;
-            row.image.color = selected ? Theme.AccentFill : Theme.Dim(FlightIcons.For(flight), 0.18f);
+                flight.Mode == FlightMode.ReturnToBase && !NeedsYou(flight) ? Theme.TextMuted : Theme.Text;
+            row.image.color = selected ? Theme.AccentFill : Theme.Control;
+            Surface.Edge(row, FlightIcons.For(flight), NeedsYou(flight));
         }
 
         // Flares left, coloured when they are running out.

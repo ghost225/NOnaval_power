@@ -250,6 +250,7 @@ namespace NavalPower
         internal Button Row(string label, Action action)
         {
             RowView view = Take(Kind.Button, 1);
+            Edge(view.Button, null);
             view.Text.text = label;
             UiKit.Fit(view.Text, 15);
             view.Action = action;
@@ -264,6 +265,7 @@ namespace NavalPower
         internal Button Row(string label, Action action, string side, Action sideAction, out Button sideButton)
         {
             RowView view = Take(Kind.Split, 2);
+            Edge(view.Button, null);
             view.Text.text = label;
             UiKit.Fit(view.Text, 15, 4);
             view.Action = action;
@@ -278,6 +280,48 @@ namespace NavalPower
             view.GroupAction = _ => sideAction?.Invoke();
             sideButton = view.Buttons[0];
             return view.Button;
+        }
+
+        // A row's state, on a neutral row: a bar down its left edge in the
+        // state's colour, and with `outlined` a thin frame round it as well.
+        // A solid coloured row made its text unreadable -- red on yellow, for
+        // a flight needing attention. Rows are reused, so every Row call
+        // clears this first.
+        internal static void Edge(Button row, Color? colour, bool outlined = false)
+        {
+            if (row == null) return;
+            Transform bar = row.transform.Find("StateEdge");
+            var frame = row.GetComponent<Outline>();
+            if (colour == null)
+            {
+                if (bar != null) bar.gameObject.SetActive(false);
+                if (frame != null) frame.enabled = false;
+                return;
+            }
+            if (bar == null)
+            {
+                RectTransform made = UiKit.Box("StateEdge", (RectTransform)row.transform, colour.Value);
+                made.anchorMin = new Vector2(0f, 0f);
+                made.anchorMax = new Vector2(0f, 1f);
+                made.pivot = new Vector2(0f, 0.5f);
+                made.sizeDelta = new Vector2(4f, 0f);
+                made.anchoredPosition = Vector2.zero;
+                var image = made.GetComponent<Image>();
+                if (image != null) image.raycastTarget = false;
+                bar = made;
+            }
+            bar.gameObject.SetActive(true);
+            var barImage = bar.GetComponent<Image>();
+            if (barImage != null) barImage.color = colour.Value;
+            if (outlined)
+            {
+                if (frame == null) frame = row.gameObject.AddComponent<Outline>();
+                frame.enabled = true;
+                frame.effectColor = colour.Value;
+                frame.effectDistance = new Vector2(1.5f, -1.5f);
+                frame.useGraphicAlpha = false;
+            }
+            else if (frame != null) frame.enabled = false;
         }
 
         internal void Info(string text) => Info(text, Theme.TextFaint);
