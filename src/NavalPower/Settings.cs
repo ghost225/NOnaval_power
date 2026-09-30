@@ -58,6 +58,7 @@ namespace NavalPower
         internal static ConfigEntry<bool> HarnessKeys;
         internal static ConfigEntry<bool> InterfaceTrace;
         internal static ConfigEntry<bool> OwnRadarEvasion;
+        internal static ConfigEntry<bool> StandOnWhenCovered;
         internal static ConfigEntry<float> RadarEvasionFloor;
         internal static ConfigEntry<float> InterfaceScale;
         internal static ConfigEntry<float> LowFuelAlert;
@@ -211,6 +212,10 @@ namespace NavalPower
                 "A radar-guided shot at one of our flights is flown off by our own logic: full power, the shot put " +
                 "on the beam, chaff in bursts, and a gentle descent. Off leaves it to the game's own evasion, which " +
                 "dives for the deck -- too hard for heavily loaded aircraft, which went into the sea.");
+            StandOnWhenCovered = config.Bind("Flights", "Hold the task when covered", true,
+                "A flight shot at keeps to its orders instead of evading while it can defend itself where it is: " +
+                "a jamming pod on every radar-guided missile coming at it, and flares left for any heat-seeker. " +
+                "A radar missile still coming inside 2.5 km is evaded regardless. Off, every shot is evaded.");
             RadarEvasionFloor = config.Bind("Flights", "Radar evasion floor", 250f,
                 Advanced("Height above ground that our radar evasion's descent stops at.",
                     new AcceptableValueRange<float>(50f, 3000f)));
@@ -360,6 +365,7 @@ namespace NavalPower
             Tuning.FlareReserve = FlareReserve.Value;
             Tuning.IrBurstPause = IrBurstPause.Value;
             Tuning.OwnRadarEvasion = OwnRadarEvasion.Value;
+            Tuning.StandOnWhenCovered = StandOnWhenCovered.Value;
             Tuning.RadarEvasionFloor = RadarEvasionFloor.Value;
             Tuning.CloseSpacing = CloseSpacing.Value;
             Tuning.CombatSpacing = CombatSpacing.Value;
