@@ -19,6 +19,25 @@ namespace NavalPower
             int craft = Amphib.Count(deck.Hold, deck.Craft);
             s.Title("AMPHIBIOUS  ·  " + craft + " × " + deck.Craft.unitName + "  ·  " + Amphib.Allocation().ToString("0") + " available");
 
+            // Keres drones carried in the hold, bought and launched here.
+            if (Kamikaze.Definition() != null)
+            {
+                int keres = Kamikaze.Aboard(ship);
+                s.Info(UiKit.Tint("KERES USV", FlightIcons.Fighting) + "  ·  " + keres + " aboard  ·  " + Kamikaze.Price().ToString("0") + " each", Theme.Text);
+                s.Group(new[] { "Buy 1", "Buy 2", "Buy 4" }, i =>
+                {
+                    Kamikaze.Buy(ship, i == 0 ? 1 : i == 1 ? 2 : 4, out string why);
+                    CommandState.Say(why);
+                });
+                if (keres > 0)
+                    s.Group(new[] { "Launch 1", "Launch 2", "Launch all " + keres }, i =>
+                    {
+                        Kamikaze.Launch(ship, i == 0 ? 1 : i == 1 ? 2 : keres, out string why);
+                        CommandState.Say(why);
+                    });
+                s.Info("Launched Keres wait astern. Right-click an enemy ship → SEND KERES to send them.", Theme.TextMuted);
+            }
+
             // The hold, with what the wave has set aside.
             List<KeyValuePair<UnitDefinition, int>> vehicles = Amphib.Vehicles(deck);
             if (craft == 0 && vehicles.Count == 0) s.Info("The hold is empty · buy landing craft and vehicles below.", Theme.TextMuted);

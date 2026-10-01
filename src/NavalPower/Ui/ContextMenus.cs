@@ -327,6 +327,36 @@ namespace NavalPower
             s.Title(name.ToUpperInvariant() + (hostile ? "  ·  hostile" : "  ·  unknown"));
             s.Info("Tracked  ·  " + BearingRange(KnownPosition(target)), Theme.TextMuted);
 
+            // A Keres commanded: run at it. Keres near the ship commanded:
+            // send some, nearest first.
+            if (target is Ship enemyShip && hostile && CommandState.Ship != null)
+            {
+                if (Kamikaze.Is(CommandState.Ship))
+                {
+                    Button ram = s.Row("RAM IT  ·  this Keres runs in and detonates", () =>
+                    {
+                        Kamikaze.Attack(CommandState.Ship, enemyShip, out string why);
+                        CommandState.Say(why);
+                        s.Close();
+                    });
+                    ram.image.color = Theme.Dim(FlightIcons.Fighting, 0.45f);
+                }
+                List<Ship> keres = Kamikaze.Near(CommandState.Ship);
+                keres.Remove(CommandState.Ship);
+                if (keres.Count > 0)
+                {
+                    s.Info("SEND KERES  ·  " + keres.Count + " within 15 km, nearest first", Theme.Text);
+                    string[] counts = keres.Count >= 4 ? new[] { "1", "2", "4", "All " + keres.Count } : keres.Count >= 2 ? new[] { "1", "2", "All " + keres.Count } : new[] { "1" };
+                    s.Group(counts, i =>
+                    {
+                        int n = counts[i].StartsWith("All") ? keres.Count : int.Parse(counts[i]);
+                        int sent = 0;
+                        for (int k = 0; k < n && k < keres.Count; k++) if (Kamikaze.Attack(keres[k], enemyShip, out _)) sent++;
+                        CommandState.Say(sent + " Keres attacking " + NameOf(enemyShip));
+                        s.Close();
+                    });
+                }
+            }
             if (CommandState.Ship != null) s.Row("Engage with…", () => s.Show(EngagePage));
             if (FlightOrders.All().Count > 0)
             {
