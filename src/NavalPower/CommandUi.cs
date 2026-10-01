@@ -64,9 +64,9 @@ namespace NavalPower
             heightLock.gameObject.SetActive(deck);
             deckSnap.gameObject.SetActive(deck);
             if (!deck) return;
-            deckSnapText.text = DeckViewState.SnapToDeck ? "Snap to deck  ·  on" : "SNAP OFF  ·  passes through the ship";
+            deckSnapText.text = DeckViewState.SnapToDeck ? "Snap to deck: ON" : "SNAP TO DECK: OFF";
             deckSnap.image.color = DeckViewState.SnapToDeck ? Theme.Control : Theme.AccentFill;
-            heightLockText.text = DeckViewState.HeightLocked ? "HEIGHT LOCKED  ·  click to free" : "Lock height";
+            heightLockText.text = DeckViewState.HeightLocked ? "HEIGHT LOCKED" : "Lock height";
             heightLock.image.color = DeckViewState.HeightLocked ? Theme.AccentFill : Theme.Control;
         }
 
