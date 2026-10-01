@@ -36,6 +36,27 @@ namespace NavalPower
             return row;
         }
 
+        // A flight's row: the camera as above, and before it a joystick that
+        // takes the controls of it straight from the list.
+        private Button FlightControlsRow(Surface s, string label, Action action, Flight flight)
+        {
+            Unit unit = flight.Aircraft;
+            Button row = s.Row(label, action, () =>
+            {
+                if (!PilotSeat.Take(flight, out string why)) CommandState.Say(flight.Name + " · " + why);
+            }, () =>
+            {
+                if (feedView == null || unit == null) return;
+                feedView.Pin(unit, out string reason);
+                CommandState.Say(flight.Name + " · " + reason);
+            }, out Button stick, out Button camera);
+            bool pinned = feedView != null && unit != null && feedView.IsPinned(unit);
+            EyeGlyph eye = camera.GetComponentInChildren<EyeGlyph>();
+            if (eye != null) eye.color = pinned ? Theme.Accent : Theme.TextMuted;
+            camera.image.color = pinned ? Theme.AccentFill : Theme.Control;
+            return row;
+        }
+
         // Each feed has its own night vision, apart from the main view's.
         private void ToggleNight(string key)
         {

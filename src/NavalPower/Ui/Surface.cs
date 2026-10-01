@@ -286,6 +286,30 @@ namespace NavalPower
             return view.Button;
         }
 
+        // A flight's row: a joystick (take the controls) and an eye (camera)
+        // at its right-hand end, each doing something of its own.
+        internal Button Row(string label, Action action, Action stickAction, Action eyeAction, out Button stick, out Button eye)
+        {
+            RowView view = Take(Kind.Split, 3);
+            Edge(view.Button, null);
+            view.Text.text = label;
+            UiKit.Fit(view.Text, 15, 4);
+            view.Action = action;
+            view.Button.image.color = Theme.Control;
+            view.Text.color = Theme.Text;
+            view.Button.interactable = true;
+            foreach (Text t in view.Texts) { t.text = ""; t.color = Theme.TextMuted; }
+            foreach (Button b in view.Buttons) b.image.color = Theme.Control;
+            StickGlyph stickGlyph = view.Buttons[0].GetComponentInChildren<StickGlyph>(true);
+            if (stickGlyph != null) stickGlyph.color = Theme.TextMuted;
+            EyeGlyph eyeGlyph = view.Buttons[1].GetComponentInChildren<EyeGlyph>(true);
+            if (eyeGlyph != null) { eyeGlyph.enabled = true; eyeGlyph.color = Theme.TextMuted; }
+            view.GroupAction = i => (i == 0 ? stickAction : eyeAction)?.Invoke();
+            stick = view.Buttons[0];
+            eye = view.Buttons[1];
+            return view.Button;
+        }
+
         // A row's state, on a neutral row: a bar down its left edge in the
         // state's colour, and with `outlined` a thin frame round it as well.
         // A solid coloured row made its text unreadable -- red on yellow, for
@@ -446,36 +470,55 @@ namespace NavalPower
 
                 case Kind.Split:
                 {
+                    // parts - 1 small buttons at the right-hand end: the last an
+                    // eye (camera), one before it a joystick (take the controls).
+                    int sides = Mathf.Max(parts - 1, 1);
+                    float sideRoom = sides * (SideWidth + 4f);
                     view.Rect = UiKit.Box("Split", content, new Color(0, 0, 0, 0));
                     UiKit.Place(view.Rect, 8, y, inner, RowHeight);
                     view.Rect.GetComponent<Image>().raycastTarget = false;
-                    view.Button = UiKit.Button(view.Rect, "", 0, 0, inner - SideWidth - 4f, RowHeight, () => view.Action?.Invoke(),
+                    view.Button = UiKit.Button(view.Rect, "", 0, 0, inner - sideRoom, RowHeight, () => view.Action?.Invoke(),
                         TextAnchor.MiddleLeft);
                     // Anchored to the row's edges, so a change of width moves
-                    // the side button with the right-hand edge.
+                    // the side buttons with the right-hand edge.
                     var main = (RectTransform)view.Button.transform;
                     main.anchorMin = Vector2.zero; main.anchorMax = Vector2.one;
-                    main.offsetMin = Vector2.zero; main.offsetMax = new Vector2(-(SideWidth + 4f), 0f);
+                    main.offsetMin = Vector2.zero; main.offsetMax = new Vector2(-sideRoom, 0f);
                     view.Text = view.Button.GetComponentInChildren<Text>();
                     view.Text.supportRichText = true;
                     // A long status is cut at the button's edge rather than
                     // running on underneath the side button.
                     main.gameObject.AddComponent<RectMask2D>();
-                    Button sideButton = UiKit.Button(view.Rect, "", 0, 0, SideWidth, RowHeight, () => view.GroupAction?.Invoke(0));
-                    var side = (RectTransform)sideButton.transform;
-                    side.anchorMin = side.anchorMax = new Vector2(1f, 0.5f);
-                    side.pivot = new Vector2(1f, 0.5f);
-                    side.anchoredPosition = Vector2.zero;
-                    side.sizeDelta = new Vector2(SideWidth, RowHeight);
-                    view.Buttons = new[] { sideButton };
-                    view.Texts = new[] { sideButton.GetComponentInChildren<Text>() };
-                    view.Texts[0].supportRichText = true;
-                    // With no label, the side button shows an eye.
-                    var eye = new GameObject("Eye", typeof(RectTransform)).AddComponent<EyeGlyph>();
-                    eye.rectTransform.SetParent(side, false);
-                    eye.rectTransform.anchorMin = eye.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                    eye.rectTransform.sizeDelta = new Vector2(22f, 13f);
-                    eye.raycastTarget = false;
+                    view.Buttons = new Button[sides];
+                    view.Texts = new Text[sides];
+                    for (int i = 0; i < sides; i++)
+                    {
+                        int which = i;
+                        Button sideButton = UiKit.Button(view.Rect, "", 0, 0, SideWidth, RowHeight, () => view.GroupAction?.Invoke(which));
+                        var side = (RectTransform)sideButton.transform;
+                        side.anchorMin = side.anchorMax = new Vector2(1f, 0.5f);
+                        side.pivot = new Vector2(1f, 0.5f);
+                        side.anchoredPosition = new Vector2(-(sides - 1 - i) * (SideWidth + 4f), 0f);
+                        side.sizeDelta = new Vector2(SideWidth, RowHeight);
+                        view.Buttons[i] = sideButton;
+                        view.Texts[i] = sideButton.GetComponentInChildren<Text>();
+                        view.Texts[i].supportRichText = true;
+                        MaskableGraphic glyph;
+                        if (i == sides - 1)
+                        {
+                            // With no label, the last side button shows an eye.
+                            glyph = new GameObject("Eye", typeof(RectTransform)).AddComponent<EyeGlyph>();
+                            glyph.rectTransform.sizeDelta = new Vector2(22f, 13f);
+                        }
+                        else
+                        {
+                            glyph = new GameObject("Stick", typeof(RectTransform)).AddComponent<StickGlyph>();
+                            glyph.rectTransform.sizeDelta = new Vector2(16f, 20f);
+                        }
+                        glyph.rectTransform.SetParent(side, false);
+                        glyph.rectTransform.anchorMin = glyph.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                        glyph.raycastTarget = false;
+                    }
                     break;
                 }
 

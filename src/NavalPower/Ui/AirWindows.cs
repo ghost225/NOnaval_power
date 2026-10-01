@@ -181,10 +181,10 @@ namespace NavalPower
             bool selected = CommandState.SelectedFlight == flight;
             string role = flight.Wing != null && Wings.IsLead(flight) ? "lead · " : "";
             string attention = flight.Attention;
-            Button row = CameraRow(s, indent + flight.Name + "  ·  " + role + (flight.Status ?? ShortTask(flight)) +
+            Button row = FlightControlsRow(s, indent + flight.Name + "  ·  " + role + (flight.Status ?? ShortTask(flight)) +
                 "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight) +
                 (attention != null ? "  ·  " + UiKit.Tint(attention.ToUpperInvariant(), FlightIcons.Attention) : ""),
-                () => OpenFlight(shown), flight.Aircraft, flight.Name);
+                () => OpenFlight(shown), flight);
             // Readable first: white text on a neutral row, the flight's state as
             // an edge in its map colour.
             row.GetComponentInChildren<Text>().color =
