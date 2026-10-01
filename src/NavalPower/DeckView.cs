@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using NuclearOption.MissionEditorScripts;
 using UnityEngine;
@@ -19,7 +20,8 @@ namespace NavalPower
     // our own, so the camera keeps following the ship and command holds.
     // Kept above sea and terrain as the free camera is, and at eye height or
     // more over the ship itself -- down to standing on the deck.
-    // The place it was left at is remembered per ship and used next time.
+    // The place it was left at is remembered per ship class, between
+    // sessions, and used next time.
     internal sealed class DeckViewState : CameraBaseState
     {
         internal static readonly DeckViewState Instance = new DeckViewState();
@@ -80,7 +82,7 @@ namespace NavalPower
             localVelocity = Vector3.zero;
             if (ship == null) return;
             Quaternion level = Level(ship);
-            if (remembered.TryGetValue(ship, out var last))
+            if (remembered.TryGetValue(ship, out var last) || Saved(ship, out last))
             {
                 local = last.at; pan = last.pan; tilt = last.tilt;
             }
@@ -100,7 +102,40 @@ namespace NavalPower
 
         public override void LeaveState(CameraStateManager cam)
         {
-            if (ship != null) remembered[ship] = (local, pan, tilt);
+            if (ship == null) return;
+            remembered[ship] = (local, pan, tilt);
+            Save(ship, local, pan, tilt);
+        }
+
+        // Kept between sessions per ship class (its unit name), so a spot
+        // found on one Annex is where every Annex's deck view opens.
+        private static string KeyOf(Ship s) => "NavalPower.DeckView." + (s.definition?.unitName ?? s.name);
+
+        private static void Save(Ship s, Vector3 at, float pan, float tilt)
+        {
+            try
+            {
+                PlayerPrefs.SetString(KeyOf(s), string.Join(",", new[] { at.x, at.y, at.z, pan, tilt }.Select(v => v.ToString("R", System.Globalization.CultureInfo.InvariantCulture))));
+                PlayerPrefs.Save();
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning("[deckview] save: " + ex.Message); }
+        }
+
+        private static bool Saved(Ship s, out (Vector3 at, float pan, float tilt) view)
+        {
+            view = default;
+            try
+            {
+                string text = PlayerPrefs.GetString(KeyOf(s), "");
+                string[] parts = text.Split(',');
+                if (parts.Length != 5) return false;
+                var v = new float[5];
+                for (int i = 0; i < 5; i++)
+                    if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v[i])) return false;
+                view = (new Vector3(v[0], v[1], v[2]), v[3], v[4]);
+                return true;
+            }
+            catch { return false; }
         }
 
         public override void UpdateState(CameraStateManager cam)

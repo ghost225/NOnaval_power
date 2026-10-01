@@ -305,7 +305,7 @@ namespace NavalPower
             K(s, "NV", "night vision for that feed.   Mouse wheel over a feed zooms it; middle click resets the zoom.");
             H(s, "DECK VIEW");
             P(s, "On a ship, the game's Switch View key cycles orbit → fly-by → deck view → orbit. Deck view is a free camera that rides with the ship: it keeps its place relative to the ship through turns, with the horizon level. " +
-                "Fly it with the movement keys (walking pace near the deck, faster further out, Shift for 4×), look with free look, zoom with the wheel. It can go down to head height on the deck (and inside the ship with Snap to deck off), and remembers where you left it on each ship. " +
+                "Fly it with the movement keys (walking pace near the deck, faster further out, Shift for 4×), look with free look, zoom with the wheel. It can go down to head height on the deck (and inside the ship with Snap to deck off), and remembers where you left it for each class of ship, between sessions. " +
                 "Switch View or Center returns to orbit. The setting Deck view ships chooses any ship, only the commanded one, or off.");
             K(s, "Lock height", "the button above the event line, bottom left, while in deck view: movement stays level so you can look up without climbing.");
             K(s, "Snap to deck", "beside it, on by default: the camera stays at head height over the ship's surfaces. Off, it passes through the ship, so you can go inside the bridge.");
