@@ -22,7 +22,7 @@ namespace NavalPower
             if (nav == null) { s.Info("No navigation for this ship."); return; }
 
             // A Keres: what it is doing, and the order to let it hunt.
-            if (Kamikaze.Is(ship))
+            if (Kamikaze.Available && Kamikaze.Is(ship))
             {
                 Unit target = Kamikaze.TargetOf(ship);
                 bool routed = nav.Waypoints != null && nav.Waypoints.Length > 0;

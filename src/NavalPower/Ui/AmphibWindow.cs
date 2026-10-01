@@ -20,7 +20,7 @@ namespace NavalPower
             s.Title("AMPHIBIOUS  ·  " + craft + " × " + deck.Craft.unitName + "  ·  " + Amphib.Allocation().ToString("0") + " available");
 
             // Keres drones carried in the hold, bought and launched here.
-            if (Kamikaze.Definition() != null)
+            if (Kamikaze.Available)
             {
                 int keres = Kamikaze.Aboard(ship);
                 s.Info(UiKit.Tint("KERES USV", FlightIcons.Fighting) + "  ·  " + keres + " aboard  ·  " + Kamikaze.Price().ToString("0") + " each", Theme.Text);

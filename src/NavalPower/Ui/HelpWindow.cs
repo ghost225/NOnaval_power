@@ -37,7 +37,7 @@ namespace NavalPower
             ("CARGO AND AIRDROPS", "Cargo and airdrops  ·  zones, lines, supply runs"),
             ("CAMERAS", "Cameras  ·  feeds, deck view, flying it yourself"),
             ("RECOVERY", "Recovery  ·  marshal, landing, turnaround"),
-            ("AMPHIBIOUS AND KERES", "Amphibious and Keres  ·  well deck, drone boats"),
+            ("AMPHIBIOUS", "Amphibious  ·  the well deck, and Keres drone boats with the Aryx mod"),
             ("MAP TOOLS", "Map tools  ·  ruler, docked map, compass"),
             ("SETTINGS", "Settings  ·  every option explained"),
         };
@@ -138,7 +138,7 @@ namespace NavalPower
             K(s, "ROE", "the ship's rules of engagement for automatic fire.");
             K(s, "DMG", "damage control: flooding, priorities, sealing compartments.");
             K(s, "TF", "the task force: formation, spacing, guide, the whole force's ROE and EMCON.");
-            K(s, "AMPH", "the well deck (only on ships that have one): landing craft, vehicles, Keres drones.");
+            K(s, "AMPH", "the well deck (only on ships that have one): landing craft and vehicles" + (Kamikaze.Available ? ", Keres drones." : "."));
             K(s, "AIR", "air operations: launching, every flight, deck traffic. Its label shows how many are up, tinted when one needs attention.");
             K(s, "CAM", "the target camera feed.");
             K(s, "RPL", "replenishment: supply helicopter, rearming alongside.");
@@ -165,7 +165,7 @@ namespace NavalPower
             K(s, "Your own ship", "Speed…, Hold position, Clear the route, Arm a weapon for a manual shot…, Rules of engagement…, Go silent / Radiate, Launch an aircraft…, formation rows, Rename…, camera, CEASE FIRE.");
             K(s, "A friendly ship", "Take command of it, Cover it with a flight…, formation rows, Rename…, camera.");
             K(s, "One of our flights", "Orders… (its window), Hold here, Weapons free, Return to base, Take the controls, camera.");
-            K(s, "A hostile", "RAM IT / SEND KERES (with Keres about), Engage with…, Strike with flights…, Jam it… (with a jammer up), Close / Open the range, camera.");
+            K(s, "A hostile", (Kamikaze.Available ? "RAM IT / SEND KERES (with Keres about), " : "") + "Engage with…, Strike with flights…, Jam it… (with a jammer up), Close / Open the range, camera.");
             K(s, "A lost track", "Send a flight to search…, Steer toward where it was. No firing or camera on a stale track.");
             K(s, "A bearing line (passive ESM)", "Steer toward the emitter, Add a leg toward it, anti-radiation shots down the bearing, Send a flight to investigate….");
             H(s, "THE MOUSE");
@@ -333,6 +333,7 @@ namespace NavalPower
             K(s, "Load a landing craft for the wave…", "click vehicles to add them (up to the craft's capacity), then ADD TO THE WAVE. Click a readied craft to stand it down.");
             K(s, "Landing point", "then right-click the map where they should land; it shows where they will really come ashore and warns about a poor beach.");
             K(s, "LAUNCH THE WAVE", "craft leave the well deck in turn, form up abreast astern, and go in together, each on its own lane up the beach. AT SEA lists them; open one to recall it.");
+            if (!Kamikaze.Available) return;          // only with the Aryx Naval Expansion loaded and working
             H(s, "KERES DRONE BOATS  ·  Aryx Naval Expansion");
             P(s, "A Keres is an unmanned boat with a warhead: it runs in at an enemy ship, weaving, and detonates within 50 m. " +
                 "On a well-deck ship (the Annex), AMPH shows KERES USV: Buy 1 / 2 / 4 into the hold, Launch 1 / 2 / all. Launched Keres wait 400 m astern for orders.");

@@ -329,7 +329,7 @@ namespace NavalPower
 
             // A Keres commanded: run at it. Keres near the ship commanded:
             // send some, nearest first.
-            if (target is Ship enemyShip && hostile && CommandState.Ship != null)
+            if (target is Ship enemyShip && hostile && CommandState.Ship != null && Kamikaze.Available)
             {
                 if (Kamikaze.Is(CommandState.Ship))
                 {
