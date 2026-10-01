@@ -607,3 +607,13 @@ NOrders has `Kamikaze` (Ships/Kamikaze.cs) for the Aryx Naval Expansion's Keres 
 - **`Buy`/`Launch`:** buy Keres into a well deck's hold and launch them. They go onto the deck's rail and are pushed out of the door until clear.
 - **`Kamikaze.Available`:** true only when the mod and the members we rely on are all present.
 - **Waypoint hook:** `NavigationOrders.Replace/AppendWaypoint` call `Kamikaze.Forget`, so a waypoint takes a boat off its attack.
+
+## 2026-10-01 · from Naval Power · ShotDiscipline counts aircraft-launched missiles only (NOrders)
+
+- **What changed:** `ShotDisciplinePatch.Closing(hq, target)` now counts only missiles whose `owner` is an `Aircraft`. Ship-launched SAMs and ground launchers are ignored.
+- **Why:** one Scythe plus one sea-launched missile filled an aircraft's per-target allowance of two, and grounded the rest of a Naval Power wing.
+- **Effect on High Command:** your commanded factions' AI aircraft are no longer held back by friendly SAMs already in the air at the same target.
+
+**Also in NOrders:**
+- **`NavalPilotState` intercepts:** these now split the shot over a wing, in callsign order, by the per-target allowance. The rest show COVERING at standoff.
+- **Shot taken:** an aircraft that has fired, with the target's full count of missiles closing, ends its run.
