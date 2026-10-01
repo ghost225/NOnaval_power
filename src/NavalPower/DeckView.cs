@@ -199,30 +199,53 @@ namespace NavalPower
         }
     }
 
-    // Into the cycle: the fly-by's "Switch View" on a ship goes to deck view
-    // instead of back to orbit (ships have no cockpit view, the step the
-    // game would otherwise take).
+    // Into the cycle: on a ship, "Switch View" in the fly-by goes to deck
+    // view. The fly-by only reads that key while flight controls are enabled
+    // -- never while commanding a ship -- so the key is read here as well;
+    // and where the fly-by does act on it, its step back to orbit (or to a
+    // cockpit view, for a unit with one) is turned into deck view.
     [HarmonyPatch(typeof(CameraTVState), nameof(CameraTVState.UpdateState))]
     internal static class DeckViewCyclePatch
     {
+        private const string Name = "Deck view";
         internal static bool InFlyby;
+
         private static void Prefix() => InFlyby = true;
+
+        private static void Postfix(CameraStateManager cam)
+        {
+            InFlyby = false;
+            if (!Guard.Ok(Name)) return;
+            try
+            {
+                if (cam == null || cam.currentState != cam.TVState || !Settings.DeckView.Value) return;
+                if (!(cam.followingUnit is Ship ship) || ship.disabled) return;
+                if (!GameManager.playerInput.GetButtonTimedPressUp("Switch View", 0f, PlayerSettings.clickDelay)) return;
+                Plugin.Log.LogInfo("[deckview] fly-by → deck view · " + ShipNames.Of(ship));
+                cam.SwitchState(DeckViewState.Instance);
+            }
+            catch (Exception ex) { Guard.Failed(Name, ex); }
+        }
+
         private static void Finalizer() => InFlyby = false;
     }
 
     [HarmonyPatch(typeof(CameraStateManager), nameof(CameraStateManager.SwitchState))]
     internal static class DeckViewSwitchPatch
     {
-        private const string Name = "Deck view";
+        private const string Name = "Deck view switch";
 
         private static void Prefix(CameraStateManager __instance, ref CameraBaseState state)
         {
             if (!DeckViewCyclePatch.InFlyby || !Guard.Ok(Name)) return;
             try
             {
-                if (state == __instance.orbitState && __instance.currentState == __instance.TVState &&
+                if ((state == __instance.orbitState || state == __instance.cockpitState) && __instance.currentState == __instance.TVState &&
                     __instance.followingUnit is Ship ship && !ship.disabled && Settings.DeckView.Value)
+                {
+                    Plugin.Log.LogInfo("[deckview] fly-by → deck view · " + ShipNames.Of(ship));
                     state = DeckViewState.Instance;
+                }
             }
             catch (Exception ex) { Guard.Failed(Name, ex); }
         }
