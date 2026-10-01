@@ -35,6 +35,31 @@ namespace NavalPower
 
         private const float StripHeight = 36f, EventHeight = 24f;
 
+        // Deck view's height lock: a button at the left, just above the event
+        // line, shown only while the camera is in deck view.
+        private Button heightLock;
+        private Text heightLockText;
+
+        private void RefreshHeightLock()
+        {
+            bool deck = DeckViewState.Active;
+            if (heightLock == null)
+            {
+                if (!deck) return;
+                heightLock = UiKit.Button((RectTransform)root.transform, "", 0, 0, 190, 26, () => DeckViewState.HeightLocked = !DeckViewState.HeightLocked);
+                var rect = (RectTransform)heightLock.transform;
+                rect.anchorMin = rect.anchorMax = new Vector2(0f, 0f);
+                rect.pivot = new Vector2(0f, 0f);
+                rect.anchoredPosition = new Vector2(12f, StripHeight + EventHeight + 6f);
+                heightLockText = heightLock.GetComponentInChildren<Text>();
+                heightLockText.fontSize = Theme.CaptionSize;
+            }
+            heightLock.gameObject.SetActive(deck);
+            if (!deck) return;
+            heightLockText.text = DeckViewState.HeightLocked ? "HEIGHT LOCKED  ·  click to free" : "Lock height";
+            heightLock.image.color = DeckViewState.HeightLocked ? Theme.AccentFill : Theme.Control;
+        }
+
         // ---- the outside world's view of the UI ------------------------------
 
         internal bool PopupOpen => context != null && context.IsOpen;
@@ -45,6 +70,20 @@ namespace NavalPower
 
         // The wheel over a feed's picture zooms that camera rather than
         // scrolling the window or zooming the world.
+        // Middle click over a feed: its zoom back to the default field of view.
+        internal bool ResetFeedZoom()
+        {
+            if (feedView == null) return false;
+            Vector2 point = Input.mousePosition;
+            Camera camera = null;
+            if (Over(windows, "cam", point)) camera = feedView.LiveCamera;
+            for (int slot = 1; slot <= TargetFeed.MaxPinned && camera == null; slot++)
+                if (Over(windows, "pin" + slot, point)) camera = feedView.Find(slot)?.Camera;
+            if (camera == null) return false;
+            camera.fieldOfView = Settings.FeedFieldOfView.Value;
+            return true;
+        }
+
         internal bool ZoomedAFeed(float delta)
         {
             if (feedView == null || Mathf.Abs(delta) < 0.01f) return false;
@@ -148,6 +187,7 @@ namespace NavalPower
             if (!Mathf.Approximately(appliedScale, Settings.InterfaceScale.Value) || appliedHeight != Screen.height) ApplyScale();
             else if (reclamp) { reclamp = false; foreach (Surface window in windows.Values) if (window.IsOpen) window.Clamp(); }
             RefreshRuler();
+            RefreshHeightLock();
             WatchFeeds();
             CycleTaskForce();
             if (Time.unscaledTime >= nextRefresh)

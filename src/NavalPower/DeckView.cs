@@ -52,6 +52,12 @@ namespace NavalPower
             }
         }
 
+        // Height held: movement stays level whatever the view's pitch, and
+        // the up/down keys do nothing -- look up without climbing.
+        internal static bool HeightLocked;
+
+        internal static void ResetZoom() { Instance.fovAdjust = 0f; }
+
         internal static void Zoom(float delta)
         {
             if (Active) Instance.fovAdjust -= delta * Settings.ZoomSensitivity.Value;
@@ -122,9 +128,16 @@ namespace NavalPower
                 float along = GameManager.playerInput.GetAxis("Move Longitudinal");
                 float across = GameManager.playerInput.GetAxis("Move Lateral");
                 float up = GameManager.playerInput.GetAxis("Move Vertical");
+                if (HeightLocked) up = 0f;
                 if (cam.allowInputs && (along != 0f || across != 0f || up != 0f))
                 {
-                    Vector3 direction = view * Vector3.forward * along + view * Vector3.right * across + Vector3.up * up;
+                    Vector3 ahead = view * Vector3.forward, side = view * Vector3.right;
+                    if (HeightLocked)
+                    {
+                        ahead = Quaternion.Euler(0f, pan, 0f) * Vector3.forward;
+                        side = Quaternion.Euler(0f, pan, 0f) * Vector3.right;
+                    }
+                    Vector3 direction = ahead * along + side * across + Vector3.up * up;
                     if (direction.sqrMagnitude > 1f) direction.Normalize();
                     wanted = direction * Speed() * Mathf.Max(cam.desiredTransSpeed, 0.1f);
                     moving = true;
@@ -140,6 +153,10 @@ namespace NavalPower
             localVelocity = Vector3.Lerp(localVelocity, wanted, blend);
             if (!moving && localVelocity.sqrMagnitude < 0.01f) localVelocity = Vector3.zero;
             local += localVelocity * Time.unscaledDeltaTime;
+
+            // Middle click: the zoom back to normal (not over our panels,
+            // where it belongs to whatever is under it).
+            if (Input.GetMouseButtonDown(2) && !(MapCommand.Instance?.Ui != null && MapCommand.Instance.Ui.PointerInside())) fovAdjust = 0f;
 
             Place(cam, Level(ship), snap: false);
 

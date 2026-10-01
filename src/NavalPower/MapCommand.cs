@@ -460,6 +460,26 @@ namespace NavalPower
             RefreshHover();
             Ui?.RefreshPinned();
             HandleZoom();
+            HandleZoomReset();
+        }
+
+        // Middle click: the zoom back to normal -- a feed's under the cursor,
+        // otherwise the main view's. Not over the map or our panels.
+        private void HandleZoomReset()
+        {
+            if (!Input.GetMouseButtonDown(2)) return;
+            if (Ui != null && Ui.ResetFeedZoom()) return;
+            if (Ui != null ? Ui.MapCovers(Input.mousePosition) : DynamicMap.mapMaximized) return;
+            if (Ui != null && Ui.PointerInside()) return;
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (cameras == null) return;
+            foreach (string name in ZoomStates)
+            {
+                object state = AccessTools.Field(typeof(CameraStateManager), name)?.GetValue(cameras);
+                System.Reflection.FieldInfo trim = state != null ? AccessTools.Field(state.GetType(), "FOVAdjustment") : null;
+                trim?.SetValue(state, 0f);
+            }
+            DeckViewState.ResetZoom();
         }
 
         private void UpdateGesture()
