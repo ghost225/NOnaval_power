@@ -567,3 +567,16 @@ High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties
 - **`StrikeItem` has new fields:** `Saturate`, `Together` and `Weapons`.
 - **What a saturation item does:** it fires every round of the chosen weapons from every aircraft of the wing carrying them. Launch is one station at a time, longest reach first. With `Together`, aircraft hold at launch range until the whole wing is in range, for at most 90 s.
 - **Your code touched:** `ShotDisciplinePatch.AllowedOn` returns 99, and the overkill swap is skipped. Both apply only when `StrikePlans.Saturating(flight, target, info)`. That is never true unless a saturation item is authorised, so your flights behave as before.
+
+## 2026-09-30 (later) · from Naval Power · Orderly recovery (NOrders, RecoveryQueue)
+
+**What changed:** `NavalPilotState.FlyHome` no longer hands a fixed-wing flight straight to `AILandingState`.
+- **Flying home:** the flight flies back to `flight.Home` itself.
+- **The marshal stack:** within 10 km of home it joins a stack per airbase. Places are in arrival order; the first holds at 900 m and each after it 300 m higher, on a 3 km orbit.
+- **Clearance:** only the head of the stack is handed to the game's landing. The next is cleared once the one ahead is down (taxi or parked, plus 8 s) or has gone round. A turning ship holds the queue, and so does another aircraft of any side on the approach to that field.
+- **Fuel:** under 10% fuel jumps the queue; under 4% is cleared at once.
+- **Helicopters** still go straight to the game's landing.
+
+**For High Command's flights:** this applies to yours too whenever they go home through `FlightMode.ReturnToBase` in our state. With `Home` unset or disabled, it falls back to the old hand-off.
+
+**New in `DeckWaveOff`:** `OnApproach`, `Touchdown` and `Phase`. Flight status now shows `LANDING · <phase>` while the game's landing state has the aircraft.
