@@ -61,10 +61,16 @@ namespace NavalPower
         {
             if (string.IsNullOrEmpty(message)) return;
             feedback = message;
-            feedbackUntil = Time.unscaledTime + 6f;
+            feedbackAt = Time.unscaledTime;
+            feedbackUntil = Time.unscaledTime + 12f;
         }
 
+        // Fresh for 12 s, at full colour, ahead of the standing status; after
+        // that, still shown dimmed for up to a minute where the line would
+        // otherwise be empty -- a newer event replaces it, nothing blanks it.
+        private static float feedbackAt = -100f;
         internal static string Feedback => Time.unscaledTime < feedbackUntil ? feedback : null;
+        internal static string Recent => Time.unscaledTime - feedbackAt < 60f ? feedback : null;
 
         internal static void Clear()
         {

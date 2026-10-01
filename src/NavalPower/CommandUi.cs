@@ -405,6 +405,11 @@ namespace NavalPower
             }
         }
 
+        // The standing status, or with none, the last event, dimmed.
+        private static string OrRecent(string standing) =>
+            !string.IsNullOrEmpty(standing) ? standing
+            : CommandState.Recent != null ? UiKit.Tint(CommandState.Recent, Theme.TextMuted) : standing;
+
         private void RefreshStrip()
         {
             Ship ship = CommandState.Ship;
@@ -429,7 +434,7 @@ namespace NavalPower
                       "  ·  right-click the map to order it"
                 : CommandState.Armed
                     ? "Right-click a contact to engage with " + (CommandState.SelectedWeapon()?.Name ?? "")
-                : WeaponOrders.GetStatus(ship);
+                : OrRecent(WeaponOrders.GetStatus(ship));
 
             bool silent = Sensors.IsSilent(ship);
             EngagementMode roe = EngagementPolicy.GetMode(ship);
@@ -470,6 +475,7 @@ namespace NavalPower
                 : CommandState.SelectedFlight != null
                     ? UiKit.Tint("Tasking " + CommandState.SelectedFlight.Name, Theme.Accent) +
                       "  ·  right-click the map to order it"
+                : CommandState.Recent != null ? UiKit.Tint(CommandState.Recent, Theme.TextMuted)
                 : "Open AIR to launch or task flights  ·  the view flies with the movement keys";
 
             List<Flight> airborne = FlightOrders.All();
