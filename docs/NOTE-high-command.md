@@ -617,3 +617,23 @@ NOrders has `Kamikaze` (Ships/Kamikaze.cs) for the Aryx Naval Expansion's Keres 
 **Also in NOrders:**
 - **`NavalPilotState` intercepts:** these now split the shot over a wing, in callsign order, by the per-target allowance. The rest show COVERING at standoff.
 - **Shot taken:** an aircraft that has fired, with the target's full count of missiles closing, ends its run.
+
+## 2026-10-01 (later) · from Naval Power · Performance changes in NOrders
+
+A player reported heavy lag in a big naval action, gone without the mod. These changes cut per-unit work.
+
+**`Ownership`:**
+- **`OwnerOf` is cached:** 0.5 s per unit. `Claim` reads fresh, and our own Claim, Release and Transfer update the cache at once. Another mod's claim shows up within 0.5 s.
+- **Ordinal compares:** markers are matched with `StringComparison.Ordinal`.
+- **Steward kept:** the steward object is found once and kept, rather than `GameObject.Find` once a frame.
+- **`ServiceHandovers`:** looks only at ships, and no longer copies the whole unit list.
+
+**`ShipEngagement` (ship ROE):**
+- **Turret release:** it releases only turrets it held. `Turret.SetManual` always wakes a sleeping turret, and the old code woke every turret on the ship every 0.25–1 s.
+- **Turret list:** cached per ship for 10 s.
+
+**`ShotDisciplinePatch.Closing`:** the count is cached 0.2 s per target, and invalidated when a shot is allowed.
+
+**`Flight`:**
+- **`RefreshStores`:** throttled to 2 Hz.
+- **`IsStore`:** the fuel tank check is cached per `WeaponInfo`.
