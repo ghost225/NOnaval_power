@@ -31,6 +31,8 @@ namespace NavalPower
         private Vector3 localVelocity;
         private float pan, tilt;            // the view, relative to the ship's heading
         private float fovAdjust;
+        private float nextSave, savedPan, savedTilt;
+        private Vector3 savedLocal;
         private const float EyeHeight = 1.7f;      // metres: standing on the deck, as the free camera stands on the ground
         private static readonly Dictionary<Ship, (Vector3 at, float pan, float tilt)> remembered = new Dictionary<Ship, (Vector3, float, float)>();
 
@@ -98,6 +100,8 @@ namespace NavalPower
                 tilt = 15f;
             }
             Place(cam, level, snap: true);
+            savedLocal = local; savedPan = pan; savedTilt = tilt;
+            nextSave = Time.unscaledTime + 2f;
         }
 
         public override void LeaveState(CameraStateManager cam)
@@ -197,6 +201,19 @@ namespace NavalPower
             if (Input.GetMouseButtonDown(2) && !(MapCommand.Instance?.Ui != null && MapCommand.Instance.Ui.PointerInside())) fovAdjust = 0f;
 
             Place(cam, Level(ship), snap: false);
+
+            // Saved while it is in use too, every couple of seconds when moved:
+            // ending the mission or closing the game in deck view never leaves
+            // the state, so a spot saved only on leaving was lost.
+            if (Time.unscaledTime >= nextSave)
+            {
+                nextSave = Time.unscaledTime + 2f;
+                if ((local - savedLocal).sqrMagnitude > 0.25f || Mathf.Abs(pan - savedPan) > 1f || Mathf.Abs(tilt - savedTilt) > 1f)
+                {
+                    Save(ship, local, pan, tilt);
+                    savedLocal = local; savedPan = pan; savedTilt = tilt;
+                }
+            }
 
             if (GameManager.playerInput.GetButtonTimedPressUp("Switch View", 0f, PlayerSettings.clickDelay) ||
                 GameManager.playerInput.GetButtonDown("Center"))
