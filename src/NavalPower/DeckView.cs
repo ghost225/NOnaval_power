@@ -64,10 +64,14 @@ namespace NavalPower
             }
             else
             {
-                // From wherever the fly-by left the camera.
-                local = Quaternion.Inverse(level) * (cam.transform.position - ship.transform.position);
-                Vector3 euler = (Quaternion.Inverse(level) * cam.transform.rotation).eulerAngles;
-                pan = euler.y; tilt = euler.x > 180f ? euler.x - 360f : euler.x;
+                // First time on this ship: above and behind the stern, looking
+                // up the deck -- not the fly-by's fixed spot out in the sea.
+                UnitDefinition def = ship.definition;
+                float length = def != null && def.length > 0f ? def.length : 100f;
+                float height = def != null ? def.height : 15f;
+                local = new Vector3(0f, height + Mathf.Max(25f, length * 0.25f), -(length * 0.5f + Mathf.Max(50f, length * 0.5f)));
+                pan = 0f;
+                tilt = 15f;
             }
             Place(cam, level, snap: true);
         }
@@ -248,6 +252,27 @@ namespace NavalPower
                 }
             }
             catch (Exception ex) { Guard.Failed(Name, ex); }
+        }
+    }
+}
+
+namespace NavalPower
+{
+    // Commanding a ship, the aircraft HUD stays off. Closing the map turns it
+    // back on whenever the camera is in a cockpit view, and the fly-by could
+    // step to a ship's cockpit view -- the HUD came up over the ship's
+    // controls.
+    [HarmonyLib.HarmonyPatch(typeof(DynamicMap), nameof(DynamicMap.Minimize))]
+    internal static class ShipHudPatch
+    {
+        private static void Postfix()
+        {
+            try
+            {
+                var cameras = SceneSingleton<CameraStateManager>.i;
+                if (CommandState.Ship != null && cameras != null && cameras.followingUnit is Ship) FlightHud.EnableCanvas(enable: false);
+            }
+            catch (System.Exception ex) { Plugin.Log.LogWarning("[deckview] hud: " + ex.Message); }
         }
     }
 }
