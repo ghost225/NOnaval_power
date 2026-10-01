@@ -37,8 +37,8 @@ namespace NavalPower
 
         // Deck view's height lock: a button at the left, just above the event
         // line, shown only while the camera is in deck view.
-        private Button heightLock;
-        private Text heightLockText;
+        private Button heightLock, deckSnap;
+        private Text heightLockText, deckSnapText;
 
         private void RefreshHeightLock()
         {
@@ -53,9 +53,19 @@ namespace NavalPower
                 rect.anchoredPosition = new Vector2(12f, StripHeight + EventHeight + 6f);
                 heightLockText = heightLock.GetComponentInChildren<Text>();
                 heightLockText.fontSize = Theme.CaptionSize;
+                deckSnap = UiKit.Button((RectTransform)root.transform, "", 0, 0, 190, 26, () => DeckViewState.SnapToDeck = !DeckViewState.SnapToDeck);
+                var snapRect = (RectTransform)deckSnap.transform;
+                snapRect.anchorMin = snapRect.anchorMax = new Vector2(0f, 0f);
+                snapRect.pivot = new Vector2(0f, 0f);
+                snapRect.anchoredPosition = new Vector2(12f + 190f + 6f, StripHeight + EventHeight + 6f);
+                deckSnapText = deckSnap.GetComponentInChildren<Text>();
+                deckSnapText.fontSize = Theme.CaptionSize;
             }
             heightLock.gameObject.SetActive(deck);
+            deckSnap.gameObject.SetActive(deck);
             if (!deck) return;
+            deckSnapText.text = DeckViewState.SnapToDeck ? "Snap to deck  ·  on" : "SNAP OFF  ·  passes through the ship";
+            deckSnap.image.color = DeckViewState.SnapToDeck ? Theme.Control : Theme.AccentFill;
             heightLockText.text = DeckViewState.HeightLocked ? "HEIGHT LOCKED  ·  click to free" : "Lock height";
             heightLock.image.color = DeckViewState.HeightLocked ? Theme.AccentFill : Theme.Control;
         }

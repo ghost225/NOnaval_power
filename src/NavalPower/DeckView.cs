@@ -56,6 +56,10 @@ namespace NavalPower
         // the up/down keys do nothing -- look up without climbing.
         internal static bool HeightLocked;
 
+        // Kept at eye height over the ship's surfaces (on by default); off,
+        // the camera passes through the ship -- into the bridge and so on.
+        internal static bool SnapToDeck = true;
+
         internal static void ResetZoom() { Instance.fovAdjust = 0f; }
 
         internal static void Zoom(float delta)
@@ -225,7 +229,7 @@ namespace NavalPower
             // (The ship's overall height held it high over the whole hull.)
             UnitDefinition def = ship.definition;
             float top = ship.transform.position.y + (def != null ? Mathf.Max(def.height, 20f) : 60f) + 50f;
-            if (top > position.y - EyeHeight &&
+            if (SnapToDeck && top > position.y - EyeHeight &&
                 Physics.Raycast(new Vector3(position.x, top, position.z), Vector3.down, out RaycastHit onShip, top - (position.y - EyeHeight), (int)PhysicsLayers.ShipsMask) &&
                 onShip.collider != null && onShip.collider.GetComponentInParent<Ship>() == ship)
                 position.y = Mathf.Max(position.y, onShip.point.y + EyeHeight);
