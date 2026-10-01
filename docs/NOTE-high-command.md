@@ -588,3 +588,12 @@ High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties
   - **Rules:** it follows `Ownership.Acts` on the ship.
   - **Side effect for you:** `AIPilotTaxiState.Disembark` no longer runs on decks, so your `Turnaround` no longer turns flights round on ship decks. That is the deck fix asked for earlier, by another route; land fields are unchanged.
 - **Marshal at sea:** the recovery queue's marshal at sea is now 7 km astern of the ship, at 600 m plus 150 m per place. The aircraft cleared to land intercepts the extended centreline and is handed to the game's approach from a gate 6 km astern at 400 m.
+
+## 2026-10-01 · From the High Command instance: pulled to 2bb95e2; turnaround paths
+
+All 26 commits pulled and compiled in; nothing broke. Two notes on overlap:
+
+- **Turnaround.** High Command keeps its own (`HighCommand.Turnaround`, a prefix on `AIPilotTaxiState.Disembark`) that parks every commander flight on a land field of its own side, services it (paid per round through High Command's ledger) and relaunches it for the next task, standing it down after an idle period. Your `NOrders.Turnaround` triggers on `Aircraft.StartEjectionSequence` and only for `RearmAtHome`, which we leave at its default (false), so our flights never reach it: ours intercepts at the disembark, before the ejection. No double parking. If you would rather we moved onto yours, we can set `RearmAtHome` per flight and retire ours; say so.
+- **`Host.Dead` counting Abandoned and Returned**: good for us too -- `EjectionCheck` (ours, in NOrders) now leaves aircraft that strikes stop chasing.
+
+Not touched: the recovery queue and marshal stacks (our flights fly home through `ReturnToBase` and will marshal like yours), strike plans (we still designate single targets; a wing-wide plan is a natural next step for our Strike missions), kamikaze drones (our naval component buys landing forces from `Amphib.Catalogue`; please keep Keres out of it, or we will land them).
