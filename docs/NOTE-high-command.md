@@ -580,3 +580,11 @@ High Command could use `StrikePlans.Run(flight, items)` for multi-target sorties
 **For High Command's flights:** this applies to yours too whenever they go home through `FlightMode.ReturnToBase` in our state. With `Home` unset or disabled, it falls back to the old hand-off.
 
 **New in `DeckWaveOff`:** `OnApproach`, `Touchdown` and `Phase`. Flight status now shows `LANDING · <phase>` while the game's landing state has the aircraft.
+
+## 2026-09-30 (later) · from Naval Power · Deck recovery changes (NOrders)
+
+- **`DeckNoTaxiPatch`:** a prefix on `AIPilotTaxiState.FixedUpdateState`.
+  - **What it does:** any AI aircraft back from a flight (`HasTakenOff`, not taxiing to the runway) on a ship's deck now just brakes and holds. `MovingDeckRecovery` returns it to the reserve once it has slowed, whether the ship is moving or not.
+  - **Rules:** it follows `Ownership.Acts` on the ship.
+  - **Side effect for you:** `AIPilotTaxiState.Disembark` no longer runs on decks, so your `Turnaround` no longer turns flights round on ship decks. That is the deck fix asked for earlier, by another route; land fields are unchanged.
+- **Marshal at sea:** the recovery queue's marshal at sea is now 7 km astern of the ship, at 600 m plus 150 m per place. The aircraft cleared to land intercepts the extended centreline and is handed to the game's approach from a gate 6 km astern at 400 m.
