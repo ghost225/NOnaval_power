@@ -77,9 +77,9 @@ namespace NavalPower
                     wing.Value.Sort((a, b) => string.CompareOrdinal(a.Label ?? "", b.Label ?? ""));
                     WingHeader(s, wing.Key, wing.Value);
                     if (collapsed.Contains("wing:" + wing.Key)) continue;
-                    foreach (Flight member in wing.Value) FlightRow(s, member, "            ");
+                    foreach (Flight member in wing.Value) FlightRow(s, member, "  ");
                 }
-                foreach (Flight flight in singles) FlightRow(s, flight, "      ");
+                foreach (Flight flight in singles) FlightRow(s, flight, "");
             }
 
             if (airborne.Count > 0)
@@ -156,9 +156,9 @@ namespace NavalPower
                 if (NeedsYou(member)) trouble++;
             }
             int waiting = LaunchQueue.QueuedInWing(wing) + FlightOrders.PendingInWing(wing);
-            Button header = s.Row("   " + (folded ? "▸  " : "▾  ") + wing + "  ·  " + members.Count + "× " + lead.TypeName +
-                "  ·  " + (lead.Status ?? ShortTask(lead)) + "  ·  " + fuel.ToString("0") + "% fuel" +
-                (waiting > 0 ? "  ·  " + waiting + " to launch" : "") +
+            Button header = s.Row(" " + (folded ? "▸ " : "▾ ") + wing + " · " + members.Count + "× " + lead.TypeName +
+                " · " + (lead.Status ?? ShortTask(lead)) + " · " + fuel.ToString("0") + "% fuel" +
+                (waiting > 0 ? " · " + waiting + " to launch" : "") +
                 (trouble > 0 ? "  ·  " + UiKit.Tint(trouble + " need attention · " + FirstAttention(members), FlightIcons.Attention) : ""), () =>
                 {
                     if (!collapsed.Remove(key)) collapsed.Add(key);
@@ -181,9 +181,11 @@ namespace NavalPower
             bool selected = CommandState.SelectedFlight == flight;
             string role = flight.Wing != null && Wings.IsLead(flight) ? "lead · " : "";
             string attention = flight.Attention;
-            Button row = FlightControlsRow(s, indent + flight.Name + "  ·  " + role + (flight.Status ?? ShortTask(flight)) +
-                "  ·  " + flight.FuelPercent.ToString("0") + "%  ·  " + flight.StoresSummary + FlareTag(flight) +
-                (attention != null ? "  ·  " + UiKit.Tint(attention.ToUpperInvariant(), FlightIcons.Attention) : ""),
+            // Tight: every character counts beside the joystick and camera.
+            // Under its wing's header, "Raven 1-2" is just "1-2".
+            Button row = FlightControlsRow(s, indent + ShortCallsign(flight) + " · " + role + (flight.Status ?? ShortTask(flight)) +
+                " · " + flight.FuelPercent.ToString("0") + "% · " + flight.StoresSummary + FlareTag(flight, true) +
+                (attention != null ? " · " + UiKit.Tint(attention.ToUpperInvariant(), FlightIcons.Attention) : ""),
                 () => OpenFlight(shown), flight);
             // Readable first: white text on a neutral row, the flight's state as
             // an edge in its map colour.
@@ -194,11 +196,19 @@ namespace NavalPower
         }
 
         // Flares left, coloured when they are running out.
-        private static string FlareTag(Flight flight)
+        private static string ShortCallsign(Flight flight)
+        {
+            string label = flight.Label, wing = flight.Wing;
+            if (string.IsNullOrEmpty(label) || string.IsNullOrEmpty(wing) || !label.StartsWith(wing) || label.Length == wing.Length) return flight.Name;
+            int space = wing.LastIndexOf(' ');
+            return wing.Substring(space + 1) + label.Substring(wing.Length);
+        }
+
+        private static string FlareTag(Flight flight, bool compact = false)
         {
             if (flight.Aircraft?.countermeasureManager == null) return "";
             float left = IrDefence.FlareFraction(flight.Aircraft);
-            string tag = "  ·  flares " + (left * 100f).ToString("0") + "%";
+            string tag = (compact ? " · FL " : "  ·  flares ") + (left * 100f).ToString("0") + "%";
             return left <= 0f ? UiKit.Tint(tag, Theme.Bad) : left <= Settings.FlareReserve.Value ? UiKit.Tint(tag, Theme.Warn) : tag;
         }
 
