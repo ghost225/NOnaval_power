@@ -803,6 +803,7 @@ namespace NavalPower
                 float current = (float)trim.GetValue(state);
                 trim.SetValue(state, current - delta * Settings.ZoomSensitivity.Value);
             }
+            DeckViewState.Zoom(delta);
         }
 
         private void RefreshHover()

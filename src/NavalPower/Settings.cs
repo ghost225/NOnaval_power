@@ -64,6 +64,7 @@ namespace NavalPower
         internal static ConfigEntry<float> InterfaceScale;
         internal static ConfigEntry<float> LowFuelAlert;
         internal static ConfigEntry<bool> RearmAtAirfields;
+        internal static ConfigEntry<bool> DeckView;
         internal static ConfigEntry<float> TurnaroundSeconds;
         internal static ConfigEntry<bool> NameShips;
         internal static ConfigEntry<KeyboardShortcut> ReportKey;
@@ -201,6 +202,9 @@ namespace NavalPower
             EscortIntercept = config.Bind("Wings", "Escorts intercept missiles", true,
                 "An escort fires an air-to-air missile (heat-seeking first, then active radar) at a missile fired " +
                 "on the aircraft it escorts, when it can reach it in time.");
+            DeckView = config.Bind("Interface", "Deck view", true,
+                "Adds a deck view to a ship's Switch View cycle -- orbit, fly-by, deck view: a free camera flown with the " +
+                "movement keys that rides with the ship, keeping its place relative to it through turns.");
             RearmAtAirfields = config.Bind("Flights", "Rearm at airfields", false,
                 "What a new flight does when it comes home to a land airfield: on, it is rearmed (paid per round) and refuelled " +
                 "and goes back out to its task; off, it parks and returns to the reserve. Each flight can be switched in its window. " +
