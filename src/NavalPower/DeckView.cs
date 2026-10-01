@@ -17,7 +17,8 @@ namespace NavalPower
     // off the starboard bow through a turn. The horizon stays level (the
     // ship's heading only, not its pitch or roll). It is a camera state of
     // our own, so the camera keeps following the ship and command holds.
-    // Kept above sea and terrain as the free camera is, and out of the hull.
+    // Kept above sea and terrain as the free camera is, and at eye height or
+    // more over the ship itself -- down to standing on the deck.
     // The place it was left at is remembered per ship and used next time.
     internal sealed class DeckViewState : CameraBaseState
     {
@@ -28,6 +29,7 @@ namespace NavalPower
         private Vector3 localVelocity;
         private float pan, tilt;            // the view, relative to the ship's heading
         private float fovAdjust;
+        private const float EyeHeight = 1.7f;      // metres: standing on the deck, as the free camera stands on the ground
         private static readonly Dictionary<Ship, (Vector3 at, float pan, float tilt)> remembered = new Dictionary<Ship, (Vector3, float, float)>();
 
         internal static bool Active
@@ -187,10 +189,18 @@ namespace NavalPower
         // hull, the sea and the ground.
         private void Place(CameraStateManager cam, Quaternion level, bool snap)
         {
-            UnitDefinition def = ship.definition;
-            if (def != null && def.length > 0f && Mathf.Abs(local.z) < def.length * 0.5f && Mathf.Abs(local.x) < Mathf.Max(def.width, 8f) * 0.5f)
-                local.y = Mathf.Max(local.y, def.height + 2f);
             Vector3 position = ship.transform.position + level * local;
+            // Head height over whatever of the ship is beneath: a ray straight
+            // down onto the ship from above the camera, reaching to eye height
+            // below it. Anything it meets means the camera is in the ship or
+            // closer than eye height to it, and it is lifted to stand there.
+            // (The ship's overall height held it high over the whole hull.)
+            UnitDefinition def = ship.definition;
+            float top = ship.transform.position.y + (def != null ? Mathf.Max(def.height, 20f) : 60f) + 50f;
+            if (top > position.y - EyeHeight &&
+                Physics.Raycast(new Vector3(position.x, top, position.z), Vector3.down, out RaycastHit onShip, top - (position.y - EyeHeight), (int)PhysicsLayers.ShipsMask) &&
+                onShip.collider != null && onShip.collider.GetComponentInParent<Ship>() == ship)
+                position.y = Mathf.Max(position.y, onShip.point.y + EyeHeight);
             if ((SceneSingleton<MissionEditor>.i == null || !SceneSingleton<MissionEditor>.i.allowCameraClip) &&
                 Physics.Linecast(position + Vector3.up * 5000f, position - Vector3.up * 5000f, out RaycastHit hit, PhysicsLayers.StaticsMask))
                 position.y = Mathf.Max(position.y, hit.point.y + 1.7f);
