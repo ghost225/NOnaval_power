@@ -319,7 +319,7 @@ namespace NavalPower
             P(s, "Return to base, or low fuel, sends a flight home. Fixed-wing aircraft recover in order; helicopters land straight onto their own pads.");
             K(s, "RETURNING · distance", "flying home.");
             K(s, "MARSHAL · #2 to land", "in the stack within 14 km of home: overhead a land field, or 7 km astern of a ship. The next to land holds lowest (600 m), each after it 150 m higher, with the reason it is waiting.");
-            K(s, "CLEARED", "only the one at the head is cleared. At sea it flies out wide astern, turns in down the ship's centreline, and starts the approach from about 6 km astern and 400 m.");
+            K(s, "Cleared", "only the one at the head of the stack is cleared, and goes straight to the game's own approach from the stack.");
             K(s, "LANDING · phase", "the game's own landing: joining the pattern, turning final, on final, touched down, going round.");
             P(s, "The next is cleared once the one ahead is down and the deck has had a few seconds to clear, or has gone round. A turning ship, or any other aircraft on the approach, holds the queue. Under 10% fuel jumps the queue; under 4% is cleared at once. " +
                 "On a ship, brakes are held on from the turn to final, the aircraft stops where it lands (no taxiing), the crew climb out, and it returns to the reserve a few seconds later.");
