@@ -56,6 +56,7 @@ namespace NavalPower
             fovAdjust = 0f;
             localVelocity = Vector3.zero;
             if (ship == null) return;
+            Survey(ship);
             Quaternion level = Level(ship);
             if (remembered.TryGetValue(ship, out var last))
             {
@@ -91,6 +92,7 @@ namespace NavalPower
             if (Input.GetMouseButton(1)) CursorManager.Refresh();
 
             bool moving = false;
+            Vector3 wanted = Vector3.zero;
             Quaternion view = Quaternion.Euler(tilt, pan, 0f);
             if (!InputFieldChecker.InsideInputField)
             {
@@ -105,16 +107,22 @@ namespace NavalPower
                 float up = GameManager.playerInput.GetAxis("Move Vertical");
                 if (cam.allowInputs && (along != 0f || across != 0f || up != 0f))
                 {
-                    // Gentler than the free camera's: this is for moving about a ship.
-                    float speed = Input.GetKey(KeyCode.LeftShift) ? 1500f : 150f;
-                    localVelocity += cam.desiredTransSpeed * speed * Time.unscaledDeltaTime *
-                        (view * Vector3.forward * along + view * Vector3.right * across + Vector3.up * up);
+                    Vector3 direction = view * Vector3.forward * along + view * Vector3.right * across + Vector3.up * up;
+                    if (direction.sqrMagnitude > 1f) direction.Normalize();
+                    wanted = direction * Speed() * Mathf.Max(cam.desiredTransSpeed, 0.1f);
                     moving = true;
                 }
             }
+            // Direct control: the camera goes the speed asked for almost at
+            // once and stops almost at once, with no drift after the keys are
+            // let go -- the free camera's build-up and coast overshot any spot
+            // on a deck. Smoothed over about a tenth of a second, the same at
+            // any frame rate.
+            if (!moving) wanted = Vector3.zero;
+            float blend = 1f - Mathf.Exp(-Time.unscaledDeltaTime / 0.1f);
+            localVelocity = Vector3.Lerp(localVelocity, wanted, blend);
+            if (!moving && localVelocity.sqrMagnitude < 0.01f) localVelocity = Vector3.zero;
             local += localVelocity * Time.unscaledDeltaTime;
-            float sq = localVelocity.sqrMagnitude;
-            localVelocity *= moving ? 0.96f : sq < 1f ? 0f : Mathf.Lerp(0.7f, 0.96f, sq / 250000f);
 
             Place(cam, Level(ship), snap: false);
 
@@ -124,6 +132,52 @@ namespace NavalPower
         }
 
         public override void FixedUpdateState(CameraStateManager cam) { }
+
+        // What a class offers for fixed views -- its parts by name, its sensor
+        // mounts and its deck -- logged once per class, to choose how views
+        // such as "bridge" are found across stock and mod ships.
+        private static readonly HashSet<string> surveyed = new HashSet<string>();
+        private static void Survey(Ship s)
+        {
+            string type = s.definition?.unitName ?? s.name;
+            if (!surveyed.Add(type)) return;
+            try
+            {
+                Quaternion level = Level(s);
+                string At(Transform t)
+                {
+                    Vector3 v = Quaternion.Inverse(level) * (t.position - s.transform.position);
+                    return "(" + v.x.ToString("0") + "," + v.y.ToString("0") + "," + v.z.ToString("0") + ")";
+                }
+                var parts = new List<string>();
+                foreach (ShipPart part in s.parts) if (part != null) parts.Add(part.name + At(part.transform));
+                var sensors = new List<string>();
+                foreach (TargetDetector d in s.GetComponentsInChildren<TargetDetector>(true)) sensors.Add(d.name + At(d.transform));
+                string deck = "";
+                foreach (Airbase a in s.GetComponentsInChildren<Airbase>(true))
+                    if (a?.runways != null)
+                        foreach (Airbase.Runway r in a.runways)
+                            if (r?.Start != null && r.End != null) deck += " · runway " + At(r.Start) + "→" + At(r.End);
+                UnitDefinition def = s.definition;
+                Plugin.Log.LogInfo("[deckview] " + type + " · " + (def != null ? def.length.ToString("0") + "×" + def.width.ToString("0") + "×" + def.height.ToString("0") + " m" : "") +
+                    " · parts: " + string.Join(", ", parts.ToArray()) + " · sensors: " + string.Join(", ", sensors.ToArray()) + deck);
+            }
+            catch (Exception ex) { Plugin.Log.LogWarning("[deckview] survey of " + type + ": " + ex.Message); }
+        }
+
+        // Metres a second: walking pace on the deck, faster the further out
+        // the camera is, so a long way off is not a long wait. Shift for four
+        // times as fast.
+        private float Speed()
+        {
+            UnitDefinition def = ship.definition;
+            float half = def != null ? Mathf.Max(def.length * 0.5f, 10f) : 50f;
+            Vector3 flat = new Vector3(local.x, 0f, local.z);
+            float fromHull = Mathf.Max(flat.magnitude - half, 0f);
+            float aboveDeck = Mathf.Max(local.y - (def != null ? def.height : 0f), 0f);
+            float speed = Mathf.Clamp(6f + Mathf.Max(fromHull, aboveDeck) * 0.35f, 6f, 250f);
+            return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? speed * 4f : speed;
+        }
 
         // The camera from its place in the ship's frame, kept out of the
         // hull, the sea and the ground.
