@@ -41,6 +41,17 @@ namespace NavalPower
             }
         }
 
+        // The setting: off, the commanded ship only, or any ship followed.
+        internal static bool AllowedOn(Ship ship)
+        {
+            switch (Settings.DeckView.Value)
+            {
+                case Settings.DeckViewScope.AnyShip: return true;
+                case Settings.DeckViewScope.CommandedShipOnly: return CommandState.Ship == ship;
+                default: return false;
+            }
+        }
+
         internal static void Zoom(float delta)
         {
             if (Active) Instance.fovAdjust -= delta * Settings.ZoomSensitivity.Value;
@@ -232,8 +243,8 @@ namespace NavalPower
             if (!Guard.Ok(Name)) return;
             try
             {
-                if (cam == null || cam.currentState != cam.TVState || !Settings.DeckView.Value) return;
-                if (!(cam.followingUnit is Ship ship) || ship.disabled) return;
+                if (cam == null || cam.currentState != cam.TVState) return;
+                if (!(cam.followingUnit is Ship ship) || ship.disabled || !DeckViewState.AllowedOn(ship)) return;
                 if (!GameManager.playerInput.GetButtonTimedPressUp("Switch View", 0f, PlayerSettings.clickDelay)) return;
                 Plugin.Log.LogInfo("[deckview] fly-by → deck view · " + ShipNames.Of(ship));
                 cam.SwitchState(DeckViewState.Instance);
@@ -255,7 +266,7 @@ namespace NavalPower
             try
             {
                 if ((state == __instance.orbitState || state == __instance.cockpitState) && __instance.currentState == __instance.TVState &&
-                    __instance.followingUnit is Ship ship && !ship.disabled && Settings.DeckView.Value)
+                    __instance.followingUnit is Ship ship && !ship.disabled && DeckViewState.AllowedOn(ship))
                 {
                     Plugin.Log.LogInfo("[deckview] fly-by → deck view · " + ShipNames.Of(ship));
                     state = DeckViewState.Instance;
