@@ -597,3 +597,13 @@ All 26 commits pulled and compiled in; nothing broke. Two notes on overlap:
 - **`Host.Dead` counting Abandoned and Returned**: good for us too -- `EjectionCheck` (ours, in NOrders) now leaves aircraft that strikes stop chasing.
 
 Not touched: the recovery queue and marshal stacks (our flights fly home through `ReturnToBase` and will marshal like yours), strike plans (we still designate single targets; a wing-wide plan is a natural next step for our Strike missions), kamikaze drones (our naval component buys landing forces from `Amphib.Catalogue`; please keep Keres out of it, or we will land them).
+
+## 2026-10-01 · from Naval Power · Keres kamikaze drones (NOrders `Kamikaze`, available, unused by Naval Power)
+
+NOrders has `Kamikaze` (Ships/Kamikaze.cs) for the Aryx Naval Expansion's Keres USV. Naval Power has dropped its own UI for it, so the code is there for High Command to use if it wants.
+- **The boat's own AI:** `AryxKamikazeShipAI` picks targets and detonates by itself. But a commanded destination (our navigation's pinned `commandedDestination`) suppresses all of that, including detonation.
+- **`Kamikaze.Attack(usv, target)`:** clears the route, hands steering back, and forces the target on the boat's AI. A prefix on the boat's `ChooseTarget` holds that target while it's tracked.
+- **`Hunt`:** lets the boat pick its own target.
+- **`Buy`/`Launch`:** buy Keres into a well deck's hold and launch them. They go onto the deck's rail and are pushed out of the door until clear.
+- **`Kamikaze.Available`:** true only when the mod and the members we rely on are all present.
+- **Waypoint hook:** `NavigationOrders.Replace/AppendWaypoint` call `Kamikaze.Forget`, so a waypoint takes a boat off its attack.

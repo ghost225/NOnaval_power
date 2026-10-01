@@ -21,21 +21,6 @@ namespace NavalPower
             s.Title("NAVIGATION  ·  " + ShipNames.Of(ship));
             if (nav == null) { s.Info("No navigation for this ship."); return; }
 
-            // A Keres: what it is doing, and the order to let it hunt.
-            if (Kamikaze.Available && Kamikaze.Is(ship))
-            {
-                Unit target = Kamikaze.TargetOf(ship);
-                bool routed = nav.Waypoints != null && nav.Waypoints.Length > 0;
-                s.Info(UiKit.Tint("KERES USV", FlightIcons.Fighting) + "  ·  " +
-                    (target != null ? "attacking " + ShipNames.Of(target) : routed ? "under orders, holding fire" : "hunting on its own"), Theme.Text);
-                s.Row("Hunt on its own  ·  it picks an enemy ship and runs in", () =>
-                {
-                    Kamikaze.Hunt(ship, out string why);
-                    CommandState.Say(why);
-                });
-                s.Info("Right-click an enemy ship → RAM IT to choose its target. A waypoint takes it off the attack.", Theme.TextMuted);
-            }
-
             int legs = nav.Waypoints != null ? nav.Waypoints.Length : 0;
             s.Info("Actual " + Speed(nav.ActualSpeedKnots) + "   ·   ordered " + Speed(nav.OrderedSpeedKnots) +
                 (legs > 0 ? "   ·   " + legs + " leg(s) queued" : ""), Theme.Text);
