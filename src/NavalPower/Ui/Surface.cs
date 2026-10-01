@@ -55,7 +55,7 @@ namespace NavalPower
         // wheel over it can zoom that camera rather than scroll the window.
         internal RectTransform ViewRect { get; private set; }
 
-        private enum Kind { Button, Info, Group, Slider, Field, View, Spacer, Split }
+        private enum Kind { Button, Info, Group, Slider, Field, View, Spacer, Split, Para }
         private const float SideWidth = 34f;
 
         private sealed class RowView
@@ -352,6 +352,22 @@ namespace NavalPower
             else if (frame != null) frame.enabled = false;
         }
 
+        // Text that wraps over as many lines as it needs: an explanation, a
+        // setting's description. Its height is estimated from the length.
+        internal void Paragraph(string text, Color color, int size = 0)
+        {
+            if (size <= 0) size = Theme.LabelSize + 1;
+            float inner = Width - 24f;
+            string plain = System.Text.RegularExpressions.Regex.Replace(text ?? "", "<.*?>", "");
+            int perLine = Mathf.Max(20, Mathf.FloorToInt(inner / (size * 0.55f)));
+            int lines = 0;
+            foreach (string part in plain.Split('\n')) lines += Mathf.Max(1, Mathf.CeilToInt(part.Length / (float)perLine));
+            RowView view = Take(Kind.Para, Mathf.RoundToInt(lines * size * 1.3f + 8f));
+            view.Text.text = text;
+            view.Text.fontSize = size;
+            view.Text.color = color;
+        }
+
         internal void Info(string text) => Info(text, Theme.TextFaint);
 
         internal void Info(string text, Color color)
@@ -574,6 +590,18 @@ namespace NavalPower
                     UiKit.Fill((RectTransform)picture.transform, 1f, 1f);
                     view.Image = picture.GetComponent<RawImage>();
                     view.Image.raycastTarget = false;
+                    break;
+
+                case Kind.Para:
+                    view.Height = parts;
+                    view.Rect = UiKit.Box("Paragraph", content, new Color(0, 0, 0, 0));
+                    UiKit.Place(view.Rect, 8, y, inner, parts);
+                    view.Rect.GetComponent<Image>().raycastTarget = false;
+                    view.Text = UiKit.Label(view.Rect, "", Theme.LabelSize + 1, TextAnchor.UpperLeft, Theme.TextFaint);
+                    UiKit.Fill(view.Text.rectTransform, 4f, 3f);
+                    view.Text.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    view.Text.verticalOverflow = VerticalWrapMode.Overflow;
+                    view.Text.supportRichText = true;
                     break;
 
                 case Kind.Spacer:

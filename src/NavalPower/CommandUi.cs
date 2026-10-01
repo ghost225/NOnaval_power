@@ -256,7 +256,7 @@ namespace NavalPower
             string[,] defs =
             {
                 { "nav", "NAV" }, { "wpn", "WPN" }, { "sns", "SNS" }, { "roe", "ROE" }, { "dmg", "DMG" }, { "tf", "TF" }, { "amp", "AMPH" },
-                { "air", "AIR" }, { "cam", "CAM" }, { "rpl", "RPL" }, { "map", "MAP" }, { "exit", "EXIT" }
+                { "air", "AIR" }, { "cam", "CAM" }, { "rpl", "RPL" }, { "map", "MAP" }, { "help", "?" }, { "exit", "EXIT" }
             };
             int count = defs.GetLength(0);
             for (int i = 0; i < count; i++)
@@ -479,6 +479,7 @@ namespace NavalPower
                 case "deck": width = 480f; break;
                 case "flight": width = 460f; break;
                 case "wpn": width = 460f; break;
+                case "help": width = 640f; break;
                 default: width = 400f; break;
             }
             var window = new Surface(key, windowLayer, canvas, width, growUp: true, closable: true);
@@ -556,6 +557,7 @@ namespace NavalPower
                 case "amp": return AmphibPage;
                 case "deck": return DeckPage;
                 case "cam": return LiveFeedPage;
+                case "help": return HelpPage;
                 default: return s => s.Title(key);
             }
         }

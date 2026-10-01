@@ -77,8 +77,11 @@ namespace NavalPower
         private static ConfigDescription Advanced(string description, AcceptableValueBase range = null) =>
             new ConfigDescription(description, range, new ConfigurationManagerAttributes { IsAdvanced = true });
 
+        internal static ConfigFile File;
+
         internal static void Bind(ConfigFile config)
         {
+            File = config;
             NextInForce = config.Bind("Command", "Next ship in task force", new KeyboardShortcut(KeyCode.RightBracket),
                 "Take command of the next ship in the task force.");
             PreviousInForce = config.Bind("Command", "Previous ship in task force", new KeyboardShortcut(KeyCode.LeftBracket),
