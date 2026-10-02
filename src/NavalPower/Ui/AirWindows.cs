@@ -966,7 +966,7 @@ namespace NavalPower
             if (!Alive(s, flight)) return;
             CommandState.SelectedFlight = flight;
             s.Title(flight.Name.ToUpperInvariant() + "  ·  task area radius");
-            float[] metres = { 2000f, 4000f, 8000f, 16000f, 28000f, 45000f };
+            float[] metres = { 2000f, 4000f, 6000f, 8000f, 16000f, 28000f, 45000f };
             foreach (float radius in metres)
             {
                 float chosen = radius;

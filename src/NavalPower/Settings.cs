@@ -104,11 +104,11 @@ namespace NavalPower
                     "turns straight back, so this defaults to full rather than to the airframe's figure.",
                     new AcceptableValueRange<float>(0.25f, 1f)));
 
-            DefaultAltitude = config.Bind("Flights", "Default altitude", 600f,
+            DefaultAltitude = config.Bind("Flights", "Default altitude", 3000f,
                 new ConfigDescription("Altitude above ground a newly adopted flight holds, in metres.",
                     new AcceptableValueRange<float>(60f, 12000f)));
 
-            DefaultAreaRadius = config.Bind("Flights", "Default task area radius", 3000f,
+            DefaultAreaRadius = config.Bind("Flights", "Default task area radius", 6000f,
                 new ConfigDescription("Radius of the area a flight works when first launched, in metres.",
                     new AcceptableValueRange<float>(500f, 60000f)));
 
