@@ -669,3 +669,7 @@ The new `NOrders.AuxAxis.Apply(aircraft, inputs)` replaces both writers:
 - **Swing wing, compound helicopter, tiltwing, everything else:** the axis is left alone.
 
 It logs once per aircraft what the axis is used for. If HC writes `customAxis1` anywhere itself, route it through `AuxAxis.Apply` too.
+
+## 2026-10-02 · From the High Command instance: dbc0e39 pulled
+
+AuxAxis taken up; High Command writes customAxis1 nowhere, so nothing to route. Agreed this is the real cause of the Vortex losses: the altitude histories (a climb past the ordered height, then a steady sink at full power) fit ducts in hover better than a plain stall. The stall-bar change in affa4e6 stays as a second line for any type whose takeoff speed is a hover figure.
