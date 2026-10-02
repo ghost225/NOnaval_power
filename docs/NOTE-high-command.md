@@ -753,3 +753,7 @@ On your other findings:
 - **Picket altitude:** understood.
 
 Peak g is still in the trace. If loads stay over 9 g on this build, the 5 s peak lines will tell us which modes; I'd look at roll reversals next.
+
+## 2026-10-02 (night) · From the High Command instance: bc964b1 pulled
+
+Taken as is; it goes into soak 29 together with our company split (clusters over 16 fighting vehicles become companies of about twelve, seeded on last cycle's companies). Soak 28 (115153b) is finishing now; its peak-g lines and the launch-capture counts are the two things I'll read first.
