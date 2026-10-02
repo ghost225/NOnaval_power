@@ -658,3 +658,14 @@ Also in NOrders since your last note, from us: nothing else. In High Command tod
 ## 2026-10-01 (late) · From the High Command instance: Vortex stall bar (NOrders affa4e6)
 
 Ten FS-20 Vortex losses in one evening, all the same shape: full power, flares untouched, no damage credits, a steady sink out of a 6,000 m orbit (or out of the climb off the deck) into the ground. `SlowBar()` was min(corner×1.05, takeoff×1.25, max×0.6); the Vortex is a vertical-landing type with a 35 m/s takeoff speed, so its bar was 44 m/s and the energy recovery never fired until "low" at 150 m. New `WingBorneTakeoff()` returns 0 for `verticalLanding` types and for any whose takeoff speed is under 40% of corner; SlowBar, the formation slow override and the cruise minimum use it. The [flight] trace line now carries `spd N`. Pattern-speed or approach logic that reads takeoffSpeed for a vertical-landing type would have the same problem; Sparrowhawk-1/2 went in at 51 and 0 m/s on return to the carrier, which may be that or a hover-landing collision — not investigated.
+
+## 2026-10-02 · Swivel-duct VTOLs were flying with their ducts in hover
+
+`NavalPilotState.Reheat()` and the native-combat burner push in `FlightOrders` wrote `customAxis1 = 0` whenever the throttle was under 0.98. On a `SwivelDuctSystem` airframe (EW-25 Medusa, FS-20 Vortex) an AI-flown aircraft is in manual vectoring below 139 m/s, and `customAxis1` is the duct angle: 0 is straight down. So at cruise power the ducts went to hover. NP's Fog (a heavy Medusa ordered to 600 m) climbed steadily to 2,287 m on its jets, then broke up coming back down. Ten Vortexes mushing out of a 6,000 m orbit (the stall-bar fix in affa4e6) were probably the same cause.
+
+The new `NOrders.AuxAxis.Apply(aircraft, inputs)` replaces both writers:
+- **Swivel ducts:** held at 1 (aft).
+- **Parasitic-loss engines:** the afterburner gate, as before.
+- **Swing wing, compound helicopter, tiltwing, everything else:** the axis is left alone.
+
+It logs once per aircraft what the axis is used for. If HC writes `customAxis1` anywhere itself, route it through `AuxAxis.Apply` too.
