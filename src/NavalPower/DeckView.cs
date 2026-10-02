@@ -48,12 +48,9 @@ namespace NavalPower
         // The setting: off, the commanded ship only, or any ship followed.
         internal static bool AllowedOn(Ship ship)
         {
-            switch (Settings.DeckView.Value)
-            {
-                case Settings.DeckViewScope.AnyShip: return true;
-                case Settings.DeckViewScope.CommandedShipOnly: return CommandState.Ship == ship;
-                default: return false;
-            }
+            // Only the ship under command: in the game's own spectator camera
+            // it fought the free camera's momentum.
+            return Settings.DeckView.Value && ship != null && CommandState.Ship == ship;
         }
 
         // Height held: movement stays level whatever the view's pitch, and
@@ -147,6 +144,11 @@ namespace NavalPower
             if (ship == null || ship.disabled || cam.followingUnit != ship)
             {
                 cam.SwitchState(cam.freeState);
+                return;
+            }
+            if (!AllowedOn(ship))                       // command left: back to the ship's orbit
+            {
+                cam.SwitchState(cam.orbitState);
                 return;
             }
             cam.windNoiseExternal.volume = 0f;
