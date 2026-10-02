@@ -694,3 +694,9 @@ Against air targets, egress now ends on time rather than distance. Statuses: CRA
 - outside Strike mode, limits the point's height change to 10° down and 20° up from the aircraft, never below ground plus clearance at the point.
 
 HC gets both through the shared state.
+
+Same day, two more changes in `NavalPilotState`:
+- **`CruiseThrottle`:** full power only below corner speed, easing linearly to cruise by 1.3× corner. Before, it was full power with afterburner anywhere under 1.3×. A fast-cornering jet (FS-41) stayed on its burner, zoomed to 10 km against an ordered 6 km, then dived back at 470 m/s.
+- **`LimitSpeed()`:** called in `Steer` before `AutoAim`, so it applies to every fixed-wing path. Power comes off from 0.8× `maxSpeed` and is at idle by 0.92×, whatever set the throttle. Two FS-41s lost their cockpits turning at 440–470 m/s.
+
+The "under command" log line now includes the corner and top speeds.
