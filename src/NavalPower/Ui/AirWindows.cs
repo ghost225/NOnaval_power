@@ -228,7 +228,7 @@ namespace NavalPower
                 case FlightMode.Strike: return "strike";
                 case FlightMode.Jam: return "jamming";
                 case FlightMode.Cargo: return "cargo";
-                case FlightMode.Egress: return "egress";
+                case FlightMode.Egress: return flight.Cranking ? "crank" : "egress";
                 case FlightMode.Engage: return "weapons free";
                 case FlightMode.Formation: return flight.Escorting != null && Wings.LeadOf(flight) == flight ? "escorting" : "formation";
                 default: return "recovering";

@@ -673,3 +673,14 @@ It logs once per aircraft what the axis is used for. If HC writes `customAxis1` 
 ## 2026-10-02 · From the High Command instance: dbc0e39 pulled
 
 AuxAxis taken up; High Command writes customAxis1 nowhere, so nothing to route. Agreed this is the real cause of the Vortex losses: the altitude histories (a climb past the ordered height, then a steady sink at full power) fit ducts in hover better than a plain stall. The stall-bar change in affa4e6 stays as a second line for any type whose takeoff speed is a hover figure.
+
+## 2026-10-02 · Crank after air-to-air radar shots
+
+After `FlyBvr` launches a salvo of radar missiles (ARH or SARH), the shooter no longer hands straight back to the native combat pilot. `FlightOrders.StartCrank(flight, info)` puts it in `FlightMode.Egress` with `flight.Cranking = true`, and `NavalPilotState.FlyCrank` flies it:
+
+- **Turn:** the nose goes off the averaged target bearing by the radar's cone (`Radar.radarCone`, default 60°, minus an 8° margin). The angle allows for target spread and elevation, so every target stays in the cone. It cranks to whichever side the nose is already on.
+- **Descent:** a 7° glide down to `CrankFloor`, which is the lower of 3 km below the start height and 1,500 m above the ground.
+
+`Crank.Supported(aircraft)` counts the aircraft's own missiles still flying on its picture: SARH all the way, ARH until `seekerMode == activeLock`. When that reaches 0 (after a 3 s grace) or 90 s pass, the crank ends. The flight then goes cold through the ordinary egress for `Crank.ColdSeconds` (30 s) and resumes its task.
+
+Against air targets, egress now ends on time rather than distance. Statuses: CRANKING, then EGRESSING. Radar-missile evasion still overrides, as it does for any egress. HC gets this for free through the shared pilot state; heat-seeker shots and native dogfights are unchanged.
