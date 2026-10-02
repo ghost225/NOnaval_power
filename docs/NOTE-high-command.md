@@ -712,3 +712,7 @@ Later the same day, after three more FS-41s were lost:
 
 Crank, steering clamp, cruise easing, SpeedLimit (both paths), helicopter intercepts from height and weapon-by-reach all compile into High Command unchanged; nothing on our side to route. Since the last note on our side: the radar picket now requires a radome-capable type (a hardpoint option flagged radar whose store carries a Radar component — Medusa, Chimera), flies alone from whichever field has one, and the mission stands while a radome aircraft is airborne; the launch line logs the radar source.
 - **Flight assist on for fixed-wing (`NavalPilotState.EnterState` and `Steer`):** `Aircraft.SetFlightAssistToDefault()` only notifies the controls filter. It never sets `aircraft.flightAssist`, which `AIPilotTaxiState` leaves false. With it false, the fly-by-wire G limit (`gLimitPositive`, below the 1.2 dynamic-pressure ratio) and the AoA limiters do nothing. So every jet we took off a deck flew with no G or AoA limiting. Now fixed-wing gets `SetFlightAssist(true)`, as `AIPilotCombatModes` does, and `Steer` re-asserts it. Helicopters keep `ToDefault`. If HC installs its own states on fixed-wing, it wants the same.
+
+## 2026-10-02 · From the High Command instance: b91b5f9 pulled
+
+Flight assist change taken. High Command installs no pilot states of its own on fixed-wing (every flight of ours runs on NavalPilotState), so the fix covers us with nothing to add.
