@@ -239,7 +239,7 @@ namespace NavalPower
             P(s, "AIR on the command bar, from a ship with a deck or an airfield you command.");
             K(s, "LAUNCH AN AIRCRAFT…", "the FLIGHT DECK: every airframe you can launch, its cost (free if one is in the reserve), and whether a hangar is free.");
             K(s, "FUNDING", "you pay from your allocation for airframes not in the reserve, or the faction pays for everything.");
-            K(s, "The loadout page", "each pylon set one at a time (pylons that block each other show which); Fuel 25–100%; Aircraft 1–4 (two or more make a wing, named -1, -2…); Callsign (with a suggestion); Livery; a takeoff estimate that warns when it is too heavy to get off; LAUNCH.");
+            K(s, "The loadout page", "each pylon set one at a time (pylons that block each other show which); Fuel 25–100%; Aircraft 1–4 (two or more make a wing, named -1, -2…); Callsign (suggested for your side and what the wing carries -- a Boscali ground-attack wing is a Hammer, a Primeva fighter an Aetos -- with Another suggestion to draw again; a name you type or take stays put); Livery; a takeoff estimate that warns when it is too heavy to get off; LAUNCH.");
             K(s, "WAITING FOR A HANGAR", "launches queued for a free lift or hangar; they go in turn. Cancel the queued launches drops them.");
             K(s, "Flight rows in AIR", "grouped by home, then wing. Click a row to open that flight's window; the joystick button takes the controls of it; the eye button pins a camera on it.");
             K(s, "All flights recover", "sends every flight home.   DECK TRAFFIC lists what is launching and landing.");

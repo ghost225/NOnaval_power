@@ -637,3 +637,14 @@ A player reported heavy lag in a big naval action, gone without the mod. These c
 **`Flight`:**
 - **`RefreshStores`:** throttled to 2 Hz.
 - **`IsStore`:** the fuel tank check is cached per `WeaponInfo`.
+
+## 2026-10-01 · Faction callsigns are shared now
+
+NOrders `Callsigns` now carries HC's faction pools (copied from `HighCommand.FlightNames`, same names and rotation, start drawn at random per faction and kind):
+
+- `Callsigns.Kind` / `Callsigns.KindOf(def, weapons)`: from what the aircraft carries rather than an `AirRole` (jammer → Ew, ARM → Sead, heavy or long-range A/G → Strike, light A/G → Cas, A/A only → Fighter, cargo or no combat role → Transport, heavy airframe with A/G → Bomber; helicopters and EW airframes by airframe first).
+- `Callsigns.Suggest(hq, def, weapons)`, `Suggest(hq, LoadoutPlan)`, `Suggest(Aircraft)`; unknown factions fall back to the old word-and-number `Suggest(def)`.
+- `Callsigns.Refresh(hq, plan)`: a plan not named by hand (`LoadoutPlan.CallsignChosen`) is renamed when its kind changes.
+- FlightOrders adoptions now call `Suggest(aircraft)`, so any aircraft NOrders adopts without a callsign gets a faction name. If HC passes its own callsign, nothing changes for it.
+
+HC can keep `FlightNames` (it picks by AirRole) or switch to `Callsigns.Suggest(hq, def, weapons)` and delete its copy. If it keeps its own, both draw from the same names but track in-use names through the same `FlightOrders.LabelsInUse()`, so they won't duplicate a live name.

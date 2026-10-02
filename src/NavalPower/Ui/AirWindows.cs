@@ -10,6 +10,7 @@ namespace NavalPower
     internal sealed partial class CommandUi
     {
         private LoadoutPlan plan;
+        private string suggestion;
         private readonly HashSet<string> collapsed = new HashSet<string>();
 
         // ---- the air picture -------------------------------------------------
@@ -1026,6 +1027,7 @@ namespace NavalPower
                     (affordable ? "" : "  ·  cannot afford"), () =>
                     {
                         plan = CarrierOps.PlanFor(chosen.Definition);
+                        suggestion = null;
                         s.Show(LoadoutPage);
                     });
                 if (!spare || !affordable) entry.GetComponentInChildren<Text>().color = Theme.TextMuted;
@@ -1048,6 +1050,7 @@ namespace NavalPower
         private void LoadoutPage(Surface s)
         {
             if (plan == null) { s.Show(DeckPage); return; }
+            Callsigns.Refresh(CommandState.Hq, plan);
             int armed = 0;
             foreach (LoadoutStation st in plan.Stations) if (st.Selected != null) armed++;
             s.Title((plan.Callsign ?? plan.Definition.unitName).ToUpperInvariant() + "  ·  " +
@@ -1108,15 +1111,22 @@ namespace NavalPower
             s.Field(plan.Callsign, value =>
             {
                 value = (value ?? "").Trim();
-                if (value.Length > 0) plan.Callsign = value;
+                if (value.Length > 0) { plan.Callsign = value; plan.CallsignChosen = true; }
+                suggestion = null;
                 s.Show(LoadoutPage);
             });
-            s.Row("Suggest one  ·  " + Callsigns.Suggest(plan.Definition), () =>
+            // One suggestion held while the page is up, so the name shown is
+            // the name taken; "Another" draws the next for this faction and load.
+            if (suggestion == null) suggestion = Callsigns.Suggest(CommandState.Hq, plan);
+            s.Row("Use  ·  " + suggestion, () =>
             {
-                plan.Callsign = Callsigns.Suggest(plan.Definition);
+                plan.Callsign = suggestion;
+                plan.CallsignChosen = true;
+                suggestion = null;
                 s.Show(LoadoutPage);
             });
-            s.Row("Back", () => s.Show(LoadoutPage));
+            s.Row("Another suggestion", () => { suggestion = null; s.Show(CallsignPage); });
+            s.Row("Back", () => { suggestion = null; s.Show(LoadoutPage); });
         }
 
         // The same list the game's own spawn screen offers for this airframe
