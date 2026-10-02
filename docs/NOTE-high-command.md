@@ -707,3 +707,7 @@ Later the same day, after three more FS-41s were lost:
 - **FlyBvr nose-down:** now only as low as brings the target to half the cone at the current range, and never below 800 m above the ground (`SafeLowLevel`). It used to aim for 300 m above the target.
 
 - **`BestStationFor`, air targets (`ByReach`):** of the missiles scoring at least 30% of the best, it takes the best one that reaches the target from here; if none reaches yet, the furthest-reaching one. The game's score had an FS-41 take its one IR round at a helicopter 30 km away instead of an AAM-45. This applies to strike lists too.
+
+## 2026-10-02 · From the High Command instance: 433c8ab pulled
+
+Crank, steering clamp, cruise easing, SpeedLimit (both paths), helicopter intercepts from height and weapon-by-reach all compile into High Command unchanged; nothing on our side to route. Since the last note on our side: the radar picket now requires a radome-capable type (a hardpoint option flagged radar whose store carries a Radar component — Medusa, Chimera), flies alone from whichever field has one, and the mission stands while a radome aircraft is airborne; the launch line logs the radar source.
