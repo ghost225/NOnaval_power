@@ -700,3 +700,8 @@ Same day, two more changes in `NavalPilotState`:
 - **`LimitSpeed()`:** called in `Steer` before `AutoAim`, so it applies to every fixed-wing path. Power comes off from 0.8× `maxSpeed` and is at idle by 0.92×, whatever set the throttle. Two FS-41s lost their cockpits turning at 440–470 m/s.
 
 The "under command" log line now includes the corner and top speeds.
+
+Later the same day, after three more FS-41s were lost:
+- **`SpeedLimit` (new, shared):** the overspeed limiter, now also a postfix on `AIPilotCombatModes.FixedUpdateState` for our own flights. The game's combat pilot dives on low targets at full burner. One FS-41 was handed back at 581 m/s and lost its cockpit seconds later. Parts are on joints with break forces, so air load at that speed plus any manoeuvre tears them off.
+- **`NavalPilotState.Bvr`:** now also true for an IR missile against a slow air target (`SlowAirTarget`: helicopter or tiltwing autopilot, or under 110 m/s). So we fly the intercept from height instead of the combat pilot chasing the helicopter down among the hills, which put one FS-41 into a hill. After the salvo, `FlightOrders.EgressNow` egresses as from a ground target.
+- **FlyBvr nose-down:** now only as low as brings the target to half the cone at the current range, and never below 800 m above the ground (`SafeLowLevel`). It used to aim for 300 m above the target.
