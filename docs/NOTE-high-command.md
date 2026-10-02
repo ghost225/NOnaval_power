@@ -679,7 +679,7 @@ AuxAxis taken up; High Command writes customAxis1 nowhere, so nothing to route. 
 After `FlyBvr` launches a salvo of radar missiles (ARH or SARH), the shooter no longer hands straight back to the native combat pilot. `FlightOrders.StartCrank(flight, info)` puts it in `FlightMode.Egress` with `flight.Cranking = true`, and `NavalPilotState.FlyCrank` flies it:
 
 - **Turn:** the nose goes off the averaged target bearing by the radar's cone (`Radar.radarCone`, default 60°, minus an 8° margin). The angle allows for target spread and elevation, so every target stays in the cone. It cranks to whichever side the nose is already on.
-- **Descent:** a 7° glide down to `CrankFloor`, which is the lower of 3 km below the start height and 1,500 m above the ground.
+- **Descent:** dynamic, up to 7°. It scales with height above 1,500 m AGL (full at 3,000 m AGL, level at 1,500 m) and with speed (none under 1.1× corner speed, easing off from 0.8× to 0.95× top speed). It is held as height over the ground ahead, never climbs for the floor, and drops 3 km at most.
 
 `Crank.Supported(aircraft)` counts the aircraft's own missiles still flying on its picture: SARH all the way, ARH until `seekerMode == activeLock`. When that reaches 0 (after a 3 s grace) or 90 s pass, the crank ends. The flight then goes cold through the ordinary egress for `Crank.ColdSeconds` (30 s) and resumes its task.
 

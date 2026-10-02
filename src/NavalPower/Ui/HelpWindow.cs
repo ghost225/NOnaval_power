@@ -257,7 +257,7 @@ namespace NavalPower
             K(s, "Aircraft", "rename (single aircraft), pin a camera, type and stores.");
             K(s, "TAKE THE CONTROLS", "fly it yourself (see Cameras).");
             P(s, "The status on each flight says what it is doing: FORMING UP, JOINING, RUNNING IN, LAUNCHING, CRANKING, EGRESSING, DEFENDING, EVADING, MARSHAL, LANDING and so on. A flight needing attention (low fuel, under fire, out of what it was sent with) is tinted.");
-            P(s, "After an air-to-air shot with radar missiles, the shooter CRANKS: it turns until its targets sit at the edge of its radar's cone and eases down (up to 3 km, never below 1,500 m), keeping them tracked for its missiles -- a semi-active round all the way in, an active one until its own seeker locks. Then it goes cold for 30 s (EGRESSING) and picks its task up again. Being shot at still comes first.");
+            P(s, "After an air-to-air shot with radar missiles, the shooter CRANKS: it turns until its targets sit at the edge of its radar's cone and eases down as its height and speed allow (up to 7°, levelling off approaching 1,500 m over the ground, not at all when slow or near top speed, and no more than 3 km in all), keeping them tracked for its missiles -- a semi-active round all the way in, an active one until its own seeker locks. Then it goes cold for 30 s (EGRESSING) and picks its task up again. Being shot at still comes first.");
         }
 
         private void HelpStrikes(Surface s)
