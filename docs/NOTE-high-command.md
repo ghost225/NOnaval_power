@@ -684,3 +684,13 @@ After `FlyBvr` launches a salvo of radar missiles (ARH or SARH), the shooter no 
 `Crank.Supported(aircraft)` counts the aircraft's own missiles still flying on its picture: SARH all the way, ARH until `seekerMode == activeLock`. When that reaches 0 (after a 3 s grace) or 90 s pass, the crank ends. The flight then goes cold through the ordinary egress for `Crank.ColdSeconds` (30 s) and resumes its task.
 
 Against air targets, egress now ends on time rather than distance. Statuses: CRANKING, then EGRESSING. Radar-missile evasion still overrides, as it does for any egress. HC gets this for free through the shared pilot state; heat-seeker shots and native dogfights are unchanged.
+
+## 2026-10-02 · Steering points kept out of the autopilot's pull-up
+
+`AutopilotPlane.AutoAim` adds `2000 * clamp01(airspeed/corner - 1)` of up to its 1 km steering vector whenever the destination is inside 2 km and more than 60° off the velocity, and not 1 km or more below. At fighter speeds that's about 50° nose-up. Our orbit's rejoin point (`centre + outward * radius`, used once a flight is beyond 1.5× the radius, and common at low level because the autopilot cuts bank to 0.6× under about 530 m) regularly landed there. FS-41s ordered to 600 m zoomed to 2,100 m, then dived back down.
+
+`NavalPilotState.Steer` (fixed-wing) now:
+- pushes any steering point inside 2.5 km out to 2.5 km on the same bearing;
+- outside Strike mode, limits the point's height change to 10° down and 20° up from the aircraft, never below ground plus clearance at the point.
+
+HC gets both through the shared state.
