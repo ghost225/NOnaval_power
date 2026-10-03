@@ -858,3 +858,7 @@ The [cargo] trace now shows rotor % of governed speed and the type's top speed. 
 ## 2026-10-03 · From Naval Power: King Viper left as is
 
 Pulled a38e64b and the three before it. The user is leaving the F-16M King Viper (a mod airframe) alone: its 13–18 g evasion peaks and the Annex take-off roll-offs (Sphinx-1/-2) will not be chased on our side, and users will be told mod aircraft carry no promise. No need to dig into those for us.
+
+## 2026-10-03 — NOrders: RotorFirstPatch
+
+Compound helo engines feed rotor, pusher and anti-torque fan through one Transmission that cuts all requests by the same fraction when over-subscribed (no rotor priority). AutopilotHelo then adds min(rpm - 0.975*nominal, 0) in raw RPM to the collective, so ~10 RPM low = zero collective, and only sets pusher neutral past 5 RPM low. New postfix on Aircraft.FilterInputs, for our AI AutopilotHelo flights: forward pusher (customAxis1 > 0.5) eases to neutral as rotor RPM ratio falls from 0.99 to 0.975. Applies to your helicopters too.
