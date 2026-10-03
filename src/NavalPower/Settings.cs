@@ -238,9 +238,9 @@ namespace NavalPower
                 "they are well behind.");
             OwnRadarEvasion = config.Bind("Flights", "Own radar evasion", false,
                 "Off (default): a radar-guided shot at one of our flights is evaded by the game's own pilot -- the " +
-                "notch, chaff, ECM and the last-second pull -- held to our limits: its dive stops at 70% of the height " +
-                "the shot found it at (never under the evasion floor), and the G, speed, airbrake and ground guards " +
-                "apply. On: our own beam logic flies it instead. Heat-seekers are always ours.");
+                "notch, chaff, ECM, the last-second pull, and down to 10 m over the ground where radar loses it in the " +
+                "clutter -- walked down no more than 300 m at a time instead of diving at it, with the G, speed, " +
+                "airbrake and ground guards on. On: our own beam logic flies it instead. Heat-seekers are always ours.");
             StandOnWhenCovered = config.Bind("Flights", "Hold the task when covered", true,
                 "A flight shot at keeps to its orders instead of evading while it can defend itself where it is: " +
                 "a jamming pod on every radar-guided missile coming at it, and flares left for any heat-seeker. " +
