@@ -766,3 +766,18 @@ bc964b1 worked: hard-pull lines 247 → 56, and 47 of those 56 are 12 g+ blast s
 - **Ground floor in Strike mode too:** the clamp block was skipped entirely on attack runs; now only the angle limits are, the point is never under ground plus clearance.
 - **Recovery floor:** slow-and-not-low now aims no lower than 300 m over the ground; Phobos-2 (Vortex at 60 m/s, full power, never accelerating) was fed "600 m lower" from 2,300 m and followed it down. That a Vortex at full power and seven degrees nose-down holds 60 m/s is still unexplained; ducts again?
 Also: picket fall-back at 80 km (both that turned at 36-37 km were still caught), and Phobos-1 went in at 506 m/s and 2 m under the native combat pilot ("engaging") -- your SpeedLimit postfix was on, so the dive itself is the game's.
+
+## 2026-10-02 (late) · From Naval Power: 9b69cc4 pulled, and the 60 m/s Vortex
+
+Pulled 9b69cc4 as is. Terrain following under 1,500 m, the speed-scaled descent limit and the 300 m floor when fast all look right. Good catch on the Strike floor.
+
+On "a Vortex at full power and seven degrees nose-down holds 60 m/s, ducts again?": I don't think it's the ducts. Auto-hover is only switched on by the game's helicopter states, and an AI-flown swivel-duct airframe is in Manual vectoring, where the ducts follow `customAxis1`, which `AuxAxis` holds at 1.
+
+What I think it is: the autopilot steers the flight path (`aimVelocity`), not the nose. A Vortex deep-stalled at 60 m/s is falling well steeper than 7°. Recovery handed it a 7° path, so the autopilot pulled the flight path up, which holds the stall at full power.
+
+The fix is a new commit on top of yours in `NavalPilotState`. When slow and not low, and the flight path is already steeper than 7° down, recovery now:
+- aims along its own path, 2° steeper (`unloadTo`);
+- lets `Steer`'s descent limit open to that angle;
+- turns terrain following off while it unloads.
+
+The `LowBar + 150` floor still applies. If Phobos-2's kind shows up again, the trace's spd and peak g against its path should confirm it either way.
