@@ -1,8 +1,29 @@
 # Releasing, and listing on NOMNOM
 
 NOMNOM (<https://github.com/KopterBuzz/NOMNOM>) is the registry NOMM installs
-from. The first listing is a pull request; after that, new GitHub releases are
-picked up automatically.
+from. Naval Power is listed: the first listing (pull request #389, with 1.0.5
+to 1.0.7) was merged on 2026-10-03. From now on new GitHub releases are picked
+up automatically; no pull request per release.
+
+## How the pick-up works
+
+The manifest has `autoUpdateArtifacts: "True"`, so NOMNOM's hourly workflow
+(`Update-ModArtifact.ps1`) reads our GitHub releases and adds any whose tag
+(with `v` and `-pre` stripped) is newer than the newest version listed:
+
+- **Download:** the release's *first* asset, so the DLL must be the only (or
+  first) asset. The hash is GitHub's own digest of it.
+- **Copied from the previous entry:** `gameVersion`, `type` and
+  `incompatibilities`.
+- **Drafts** are skipped. A GitHub **pre-release** is listed as `preRelease`.
+- **Timing:** a published release reaches NOMM users within the hour. Publish
+  only what should ship.
+
+A new **game version** (say 0.34.2) is not picked up that way: `gameVersion`
+is copied forward. Changing it takes a pull request to `modManifests/NavalPower.json`
+on NOMNOM (or one of their update issues), with the new value on the newest
+entry. `docs/nomnom/NavalPower.json` is our copy of what was listed; it no
+longer needs updating per release.
 
 ## Every release
 
@@ -24,7 +45,7 @@ so each mod pins a known commit.
    that DLL as the only asset, and link LICENSE and THIRD_PARTY_NOTICES.md in
    the notes, since the DLL ships without them.
 
-## First listing only
+## First listing (done, kept for reference)
 
 1. Fork `KopterBuzz/NOMNOM`.
 2. Copy `docs/nomnom/NavalPower.json` to `modManifests/NavalPower.json` in the fork.
