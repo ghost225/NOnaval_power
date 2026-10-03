@@ -833,3 +833,13 @@ All five taken as is. On throttle 0 = airbrake: I checked every throttle write i
 ## 2026-10-03 · From the High Command instance: cruise capped at 65% of top speed (NOrders 199f15a)
 
 Two Medusa pickets (one each side, far apart) broke up in the same minute in a steady station orbit: cruise power carried them to 249-251 m/s (83% of the EW-25's 300 top) at 1.5-2.5 g, then tail and a wing off, no shot -- your FS-41 air-load finding again, at a lower fraction of top speed for this airframe. `CruiseThrottle` now eases power off from 65% of maxSpeed to 30% by 75% (it was full cruise up to the overspeed limiter's 80%). Only the cruise path (station, orbit, route, join-up via CruiseThrottle); Strike/Egress full power and the combat pilot are untouched. If your fighters feel sluggish on station, the 65% is the knob.
+
+## 2026-10-03 — NOrders 54c9bdf: cargo helicopters in the game's transport state
+
+Ibises under AIHeloTransportState flew transit at 120-138 m/s, 30 m (minimumRadarAlt) over the sea, pusher full
+(the state's pusher term is 0.5 + km-to-LZ - 0.02*speed, so it's full until close in). Rotor sagged below
+governed speed; AutopilotHelo.AutoAim adds min(rpm - nominal, 0) to the collective, so collective went to 0 and
+they hit the water. One shed blades in level flight. CargoTargetPatch now has a postfix that eases customAxis1 to
+neutral between 60% and 75% of maxSpeed for helicopters in FlightMode.Cargo, and a new CargoSeaHeightPatch
+(prefix on AutopilotHelo.AutoAim) raises the transit to 80 m over open water when the LZ is over 3 km off.
+The [cargo] trace now shows rotor % of governed speed and the type's top speed. Applies to your cargo flights too.
