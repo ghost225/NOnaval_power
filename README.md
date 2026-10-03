@@ -41,6 +41,11 @@ Commanding requires single-player or being the mission host.
 Not compatible with [Resolute Command](https://github.com/RValeWorks/Resolute-Command):
 both take over the same map controls.
 
+Mod aircraft: Naval Power flies whatever is in the hangar, but it is tuned and
+tested on the game's own aircraft. Mod aircraft may not handle well under AI
+control (the F-16M King Viper especially: hard manoeuvres while evading, and
+carrier take-offs). No promises they behave.
+
 ## Use
 
 - **Ships:** follow a friendly ship with the spectator camera.
