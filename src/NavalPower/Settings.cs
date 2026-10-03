@@ -206,9 +206,9 @@ namespace NavalPower
                 "An escort fires an air-to-air missile (heat-seeking first, then active radar) at a missile fired " +
                 "on the aircraft it escorts, when it can reach it in time.");
             DeckView = config.Bind("Interface", "Deck view", true,
-                "Adds a deck view to the commanded ship's Switch View cycle -- orbit, fly-by, deck view: a free camera flown with " +
-                "the movement keys that rides with the ship, keeping its place relative to it through turns. Only while commanding " +
-                "that ship; off, the game's own cycle.");
+                "A Deck view button on the command bar while commanding a ship: a free camera flown with the movement keys " +
+                "that rides with the ship, keeping its place relative to it through turns. The game's Switch View cycle is " +
+                "left alone either way; off, no button.");
             RearmAtAirfields = config.Bind("Flights", "Rearm at airfields", false,
                 "What a new flight does when it comes home to a land airfield: on, it is rearmed (paid per round) and refuelled " +
                 "and goes back out to its task; off, it parks and returns to the reserve. Each flight can be switched in its window. " +

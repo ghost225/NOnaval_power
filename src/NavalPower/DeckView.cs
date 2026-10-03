@@ -10,8 +10,10 @@ namespace NavalPower
 {
     // Deck view: a free camera that rides with the ship.
     //
-    // A third step in the game's own "Switch View" cycle for a ship: orbit,
-    // fly-by, deck view, back to orbit. Flown like the free camera -- the
+    // Entered from the Deck view button on the command bar while commanding
+    // a ship -- not from the game's "Switch View" cycle, where it was an
+    // extra step whenever the camera followed your own ship. Switch View or
+    // Center goes back to the orbit camera. Flown like the free camera -- the
     // movement keys, free look, the wheel to zoom -- but its position and
     // heading are kept relative to the ship, so it is carried along with the
     // ship's motion and turns: a camera hovering off the starboard bow stays
@@ -45,7 +47,7 @@ namespace NavalPower
             }
         }
 
-        // The setting: off, the commanded ship only, or any ship followed.
+        // The setting on, and the ship the one under command.
         internal static bool AllowedOn(Ship ship)
         {
             // Only the ship under command: in the game's own spectator camera
@@ -62,6 +64,18 @@ namespace NavalPower
         internal static bool SnapToDeck = true;
 
         internal static void ResetZoom() { Instance.fovAdjust = 0f; }
+
+        // The button: into deck view on the commanded ship, or back to orbit.
+        internal static void Toggle()
+        {
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            if (cameras == null) return;
+            if (Active) { cameras.SwitchState(cameras.orbitState); return; }
+            Ship ship = CommandState.Ship;
+            if (ship == null || ship.disabled || !AllowedOn(ship) || cameras.followingUnit != ship) return;
+            Plugin.Log.LogInfo("[deckview] deck view · " + ShipNames.Of(ship));
+            cameras.SwitchState(Instance);
+        }
 
         internal static void Zoom(float delta)
         {
@@ -169,9 +183,11 @@ namespace NavalPower
                     pan += scale * GameManager.playerInput.GetAxis("Pan View") * (PlayerSettings.viewInvertPitch ? -1f : 1f);
                     tilt = Mathf.Clamp(tilt + scale * GameManager.playerInput.GetAxis("Tilt View"), -89f, 89f);
                 }
-                float along = GameManager.playerInput.GetAxis("Move Longitudinal");
-                float across = GameManager.playerInput.GetAxis("Move Lateral");
-                float up = GameManager.playerInput.GetAxis("Move Vertical");
+                // Raw axes: the smoothed ones ramp up and coast down the way a
+                // keyboard axis does, which slid the camera on after the key.
+                float along = GameManager.playerInput.GetAxisRaw("Move Longitudinal");
+                float across = GameManager.playerInput.GetAxisRaw("Move Lateral");
+                float up = GameManager.playerInput.GetAxisRaw("Move Vertical");
                 if (HeightLocked) up = 0f;
                 if (cam.allowInputs && (along != 0f || across != 0f || up != 0f))
                 {
@@ -187,15 +203,11 @@ namespace NavalPower
                     moving = true;
                 }
             }
-            // Direct control: the camera goes the speed asked for almost at
-            // once and stops almost at once, with no drift after the keys are
-            // let go -- the free camera's build-up and coast overshot any spot
-            // on a deck. Smoothed over about a tenth of a second, the same at
-            // any frame rate.
-            if (!moving) wanted = Vector3.zero;
-            float blend = 1f - Mathf.Exp(-Time.unscaledDeltaTime / 0.1f);
-            localVelocity = Vector3.Lerp(localVelocity, wanted, blend);
-            if (!moving && localVelocity.sqrMagnitude < 0.01f) localVelocity = Vector3.zero;
+            // Direct control: the camera goes the speed asked for at once and
+            // stops the moment the keys are let go -- no build-up, no coast.
+            // The free camera's drift overshot any spot on a deck, and even a
+            // tenth of a second of smoothing read as sliding.
+            localVelocity = moving ? wanted : Vector3.zero;
             local += localVelocity * Time.unscaledDeltaTime;
 
             // Middle click: the zoom back to normal (not over our panels,
@@ -263,58 +275,6 @@ namespace NavalPower
             Quaternion rotation = snap ? wanted
                 : Quaternion.Lerp(cam.transform.rotation, wanted, Mathf.Min(2f * Time.unscaledDeltaTime / Mathf.Max(PlayerSettings.viewSmoothing, 0.01f), 1f));
             cam.transform.SetPositionAndRotation(position, rotation);
-        }
-    }
-
-    // Into the cycle: on a ship, "Switch View" in the fly-by goes to deck
-    // view. The fly-by only reads that key while flight controls are enabled
-    // -- never while commanding a ship -- so the key is read here as well;
-    // and where the fly-by does act on it, its step back to orbit (or to a
-    // cockpit view, for a unit with one) is turned into deck view.
-    [HarmonyPatch(typeof(CameraTVState), nameof(CameraTVState.UpdateState))]
-    internal static class DeckViewCyclePatch
-    {
-        private const string Name = "Deck view";
-        internal static bool InFlyby;
-
-        private static void Prefix() => InFlyby = true;
-
-        private static void Postfix(CameraStateManager cam)
-        {
-            InFlyby = false;
-            if (!Guard.Ok(Name)) return;
-            try
-            {
-                if (cam == null || cam.currentState != cam.TVState) return;
-                if (!(cam.followingUnit is Ship ship) || ship.disabled || !DeckViewState.AllowedOn(ship)) return;
-                if (!GameManager.playerInput.GetButtonTimedPressUp("Switch View", 0f, PlayerSettings.clickDelay)) return;
-                Plugin.Log.LogInfo("[deckview] fly-by → deck view · " + ShipNames.Of(ship));
-                cam.SwitchState(DeckViewState.Instance);
-            }
-            catch (Exception ex) { Guard.Failed(Name, ex); }
-        }
-
-        private static void Finalizer() => InFlyby = false;
-    }
-
-    [HarmonyPatch(typeof(CameraStateManager), nameof(CameraStateManager.SwitchState))]
-    internal static class DeckViewSwitchPatch
-    {
-        private const string Name = "Deck view switch";
-
-        private static void Prefix(CameraStateManager __instance, ref CameraBaseState state)
-        {
-            if (!DeckViewCyclePatch.InFlyby || !Guard.Ok(Name)) return;
-            try
-            {
-                if ((state == __instance.orbitState || state == __instance.cockpitState) && __instance.currentState == __instance.TVState &&
-                    __instance.followingUnit is Ship ship && !ship.disabled && DeckViewState.AllowedOn(ship))
-                {
-                    Plugin.Log.LogInfo("[deckview] fly-by → deck view · " + ShipNames.Of(ship));
-                    state = DeckViewState.Instance;
-                }
-            }
-            catch (Exception ex) { Guard.Failed(Name, ex); }
         }
     }
 }

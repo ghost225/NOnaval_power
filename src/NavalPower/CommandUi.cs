@@ -37,32 +37,43 @@ namespace NavalPower
 
         // Deck view's height lock: a button at the left, just above the event
         // line, shown only while the camera is in deck view.
-        private Button heightLock, deckSnap;
-        private Text heightLockText, deckSnapText;
+        private Button deckView, heightLock, deckSnap;
+        private Text deckViewText, heightLockText, deckSnapText;
+
+        // Bottom left, above the event line: Deck view whenever a ship is under
+        // command (and the setting is on), and while in deck view its own two
+        // switches beside it.
+        private Button RowButton(int slot, Action onClick, out Text text)
+        {
+            Button button = UiKit.Button((RectTransform)root.transform, "", 0, 0, 190, 26, onClick);
+            var rect = (RectTransform)button.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0f, 0f);
+            rect.pivot = new Vector2(0f, 0f);
+            rect.anchoredPosition = new Vector2(12f + slot * (190f + 6f), StripHeight + EventHeight + 6f);
+            text = button.GetComponentInChildren<Text>();
+            text.fontSize = Theme.CaptionSize;
+            return button;
+        }
 
         private void RefreshHeightLock()
         {
             bool deck = DeckViewState.Active;
-            if (heightLock == null)
+            var cameras = SceneSingleton<CameraStateManager>.i;
+            Ship ship = CommandState.Ship;
+            bool offer = deck || (ship != null && !ship.disabled && DeckViewState.AllowedOn(ship) && cameras != null && cameras.followingUnit == ship);
+            if (deckView == null)
             {
-                if (!deck) return;
-                heightLock = UiKit.Button((RectTransform)root.transform, "", 0, 0, 190, 26, () => DeckViewState.HeightLocked = !DeckViewState.HeightLocked);
-                var rect = (RectTransform)heightLock.transform;
-                rect.anchorMin = rect.anchorMax = new Vector2(0f, 0f);
-                rect.pivot = new Vector2(0f, 0f);
-                rect.anchoredPosition = new Vector2(12f, StripHeight + EventHeight + 6f);
-                heightLockText = heightLock.GetComponentInChildren<Text>();
-                heightLockText.fontSize = Theme.CaptionSize;
-                deckSnap = UiKit.Button((RectTransform)root.transform, "", 0, 0, 190, 26, () => DeckViewState.SnapToDeck = !DeckViewState.SnapToDeck);
-                var snapRect = (RectTransform)deckSnap.transform;
-                snapRect.anchorMin = snapRect.anchorMax = new Vector2(0f, 0f);
-                snapRect.pivot = new Vector2(0f, 0f);
-                snapRect.anchoredPosition = new Vector2(12f + 190f + 6f, StripHeight + EventHeight + 6f);
-                deckSnapText = deckSnap.GetComponentInChildren<Text>();
-                deckSnapText.fontSize = Theme.CaptionSize;
+                if (!offer) return;
+                deckView = RowButton(0, DeckViewState.Toggle, out deckViewText);
+                heightLock = RowButton(1, () => DeckViewState.HeightLocked = !DeckViewState.HeightLocked, out heightLockText);
+                deckSnap = RowButton(2, () => DeckViewState.SnapToDeck = !DeckViewState.SnapToDeck, out deckSnapText);
             }
+            deckView.gameObject.SetActive(offer);
             heightLock.gameObject.SetActive(deck);
             deckSnap.gameObject.SetActive(deck);
+            if (!offer) return;
+            deckViewText.text = deck ? "DECK VIEW · leave" : "Deck view";
+            deckView.image.color = deck ? Theme.AccentFill : Theme.Control;
             if (!deck) return;
             deckSnapText.text = DeckViewState.SnapToDeck ? "Snap to deck: ON" : "SNAP TO DECK: OFF";
             deckSnap.image.color = DeckViewState.SnapToDeck ? Theme.Control : Theme.AccentFill;

@@ -305,10 +305,10 @@ namespace NavalPower
             K(s, "Pin a camera feed on it", "from any unit's menu, or the eye button on a flight's row: a window of its own (up to three). Close the window to unpin.");
             K(s, "NV", "night vision for that feed.   Mouse wheel over a feed zooms it; middle click resets the zoom.");
             H(s, "DECK VIEW");
-            P(s, "On a ship, the game's Switch View key cycles orbit → fly-by → deck view → orbit. Deck view is a free camera that rides with the ship: it keeps its place relative to the ship through turns, with the horizon level. " +
-                "Fly it with the movement keys (walking pace near the deck, faster further out, Shift for 4×), look with free look, zoom with the wheel. It can go down to head height on the deck (and inside the ship with Snap to deck off), and remembers where you left it for each class of ship, between sessions. " +
-                "Switch View or Center returns to orbit. Deck view is only there while you command the ship; the setting Deck view turns it off.");
-            K(s, "Lock height", "the button above the event line, bottom left, while in deck view: movement stays level so you can look up without climbing.");
+            P(s, "While commanding a ship, the Deck view button (bottom left, above the event line) puts the camera on it. Deck view is a free camera that rides with the ship: it keeps its place relative to the ship through turns, with the horizon level. The game's own Switch View cycle is left as it is. " +
+                "Fly it with the movement keys (walking pace near the deck, faster further out, Shift for 4×; it stops the moment you let go), look with free look, zoom with the wheel. It can go down to head height on the deck (and inside the ship with Snap to deck off), and remembers where you left it for each class of ship, between sessions. " +
+                "The same button (DECK VIEW · leave), Switch View or Center returns to orbit. The setting Deck view turns the button off.");
+            K(s, "Lock height", "beside it while in deck view: movement stays level so you can look up without climbing.");
             K(s, "Snap to deck", "beside it, on by default: the camera stays at head height over the ship's surfaces. Off, it passes through the ship, so you can go inside the bridge.");
             H(s, "FLYING IT YOURSELF");
             P(s, "TAKE THE CONTROLS in a flight's window, Take the controls on its menu, or the joystick button on its row puts you in the cockpit. The bar along the bottom then offers " +
