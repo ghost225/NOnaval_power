@@ -314,12 +314,16 @@ namespace NavalPower
         // state's colour, and with `outlined` a thin frame round it as well.
         // A solid coloured row made its text unreadable -- red on yellow, for
         // a flight needing attention. Rows are reused, so every Row call
-        // clears this first.
-        internal static void Edge(Button row, Color? colour, bool outlined = false)
+        // clears this first. `inset` moves the bar, and the label with it, in
+        // from the row's edge: a flight under its wing's header sits one step
+        // in, so the wing's own edge and its members' read as a group.
+        internal static void Edge(Button row, Color? colour, bool outlined = false, float inset = 0f)
         {
             if (row == null) return;
             Transform bar = row.transform.Find("StateEdge");
             var frame = row.GetComponent<Outline>();
+            Text label = row.GetComponentInChildren<Text>();
+            if (label != null) label.rectTransform.offsetMin = new Vector2(10f + (colour != null ? inset : 0f), label.rectTransform.offsetMin.y);
             if (colour == null)
             {
                 if (bar != null) bar.gameObject.SetActive(false);
@@ -339,6 +343,7 @@ namespace NavalPower
                 bar = made;
             }
             bar.gameObject.SetActive(true);
+            ((RectTransform)bar).anchoredPosition = new Vector2(inset, 0f);
             var barImage = bar.GetComponent<Image>();
             if (barImage != null) barImage.color = colour.Value;
             if (outlined)

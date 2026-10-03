@@ -38,6 +38,9 @@ namespace NavalPower
         public static readonly Color SurfaceRaised = new Color(0.098f, 0.117f, 0.145f, 0.98f);
         public static readonly Color Control = new Color(0.137f, 0.161f, 0.196f, 1f);
         public static readonly Color ControlHover = new Color(0.180f, 0.212f, 0.255f, 1f);
+        // A list row (a flight in air ops): a step lighter than a control, so
+        // rows stand off the window behind them.
+        public static readonly Color RowFill = new Color(0.165f, 0.192f, 0.235f, 1f);
         public static readonly Color Divider = new Color(1f, 1f, 1f, 0.07f);
         public static readonly Color TitleBar = new Color(0.150f, 0.176f, 0.214f, 1f);
 

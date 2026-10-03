@@ -536,7 +536,7 @@ namespace NavalPower
             float width;
             switch (key)
             {
-                case "air": width = 580f; break;
+                case "air": width = 600f; break;
                 case "tf": width = 560f; break;
                 case "amp": width = 580f; break;
                 case "tfedit": width = PlotSize + 40f; break;

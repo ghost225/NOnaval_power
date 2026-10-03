@@ -78,9 +78,9 @@ namespace NavalPower
                     wing.Value.Sort((a, b) => string.CompareOrdinal(a.Label ?? "", b.Label ?? ""));
                     WingHeader(s, wing.Key, wing.Value);
                     if (collapsed.Contains("wing:" + wing.Key)) continue;
-                    foreach (Flight member in wing.Value) FlightRow(s, member, "  ");
+                    foreach (Flight member in wing.Value) FlightRow(s, member, true);
                 }
-                foreach (Flight flight in singles) FlightRow(s, flight, "");
+                foreach (Flight flight in singles) FlightRow(s, flight, false);
             }
 
             if (airborne.Count > 0)
@@ -166,7 +166,7 @@ namespace NavalPower
                 });
             // Neutral, with the lead's state as an edge.
             header.image.color = Wings.Members(wing).Contains(CommandState.SelectedFlight)
-                ? Theme.Dim(Theme.Accent, 0.3f) : Theme.SurfaceRaised;
+                ? Theme.Dim(Theme.Accent, 0.3f) : Theme.Control;
             Surface.Edge(header, FlightIcons.For(lead));
         }
 
@@ -176,7 +176,7 @@ namespace NavalPower
             return "";
         }
 
-        private void FlightRow(Surface s, Flight flight, string indent)
+        private void FlightRow(Surface s, Flight flight, bool underWing)
         {
             Flight shown = flight;
             bool selected = CommandState.SelectedFlight == flight;
@@ -184,7 +184,7 @@ namespace NavalPower
             string attention = flight.Attention;
             // Tight: every character counts beside the joystick and camera.
             // Under its wing's header, "Raven 1-2" is just "1-2".
-            Button row = FlightControlsRow(s, indent + ShortCallsign(flight) + " · " + role + (flight.Status ?? ShortTask(flight)) +
+            Button row = FlightControlsRow(s, ShortCallsign(flight) + " · " + role + (flight.Status ?? ShortTask(flight)) +
                 " · " + flight.FuelPercent.ToString("0") + "% · " + flight.StoresSummary + FlareTag(flight, true) +
                 (attention != null ? " · " + UiKit.Tint(attention.ToUpperInvariant(), FlightIcons.Attention) : ""),
                 () => OpenFlight(shown), flight);
@@ -192,8 +192,8 @@ namespace NavalPower
             // an edge in its map colour.
             row.GetComponentInChildren<Text>().color =
                 flight.Mode == FlightMode.ReturnToBase && !NeedsYou(flight) ? Theme.TextMuted : Theme.Text;
-            row.image.color = selected ? Theme.AccentFill : Theme.Control;
-            Surface.Edge(row, FlightIcons.For(flight));
+            row.image.color = selected ? Theme.AccentFill : Theme.RowFill;
+            Surface.Edge(row, FlightIcons.For(flight), inset: underWing ? 14f : 0f);
         }
 
         // Flares left, coloured when they are running out.
