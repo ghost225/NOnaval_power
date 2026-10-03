@@ -363,23 +363,27 @@ namespace NavalPower
             {
                 Color color = FlightIcons.For(selected);
                 Vector2 at = Project(selected.Aircraft.GlobalPosition());
-                if (selected.Mode == FlightMode.Route && selected.Route.Count > 0)
+                // A wingman flies its lead's orders: show those, from the
+                // lead, so a route laid with a wingman selected appears.
+                Flight orders = selected.Mode == FlightMode.Formation ? Wings.LeadOf(selected) : selected;
+                Vector2 from = orders != selected && orders?.Aircraft != null ? Project(orders.Aircraft.GlobalPosition()) : at;
+                if (orders.Mode == FlightMode.Route && orders.Route.Count > 0)
                 {
-                    Vector2 last = at;
-                    for (int i = 0; i < selected.Route.Count && i < 32; i++)
+                    Vector2 last = from;
+                    for (int i = 0; i < orders.Route.Count && i < 32; i++)
                     {
-                        Vector2 leg = Project(selected.Route[i]);
+                        Vector2 leg = Project(orders.Route[i]);
                         Line(vh, last, leg, Theme.Dim(color, 0.85f), 1.6f);
                         Diamond(vh, leg, 4f, color);
                         last = leg;
                     }
                 }
-                else if (selected.Mode == FlightMode.Orbit)
+                else if (orders.Mode == FlightMode.Orbit)
                 {
                     // The area it is working, plus a tether so it is obvious
                     // which aircraft the area belongs to.
-                    Circle(vh, selected.OrbitCentre, selected.OrbitRadius, Theme.Dim(color, 0.6f));
-                    Vector2 middle = Project(selected.OrbitCentre);
+                    Circle(vh, orders.OrbitCentre, orders.OrbitRadius, Theme.Dim(color, 0.6f));
+                    Vector2 middle = Project(orders.OrbitCentre);
                     Line(vh, at, middle, Theme.Dim(color, 0.3f), 1.2f);
                     Line(vh, middle + Vector2.left * 5f, middle + Vector2.right * 5f, Theme.Dim(color, 0.8f), 1.6f);
                     Line(vh, middle + Vector2.down * 5f, middle + Vector2.up * 5f, Theme.Dim(color, 0.8f), 1.6f);

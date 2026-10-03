@@ -336,7 +336,11 @@ namespace NavalPower
             // Everything else, a page each, each row showing where it stands.
             s.Row("Tasking  ▸   " + ShortTask(flight) + (flight.Mode == FlightMode.Orbit
                 ? "  ·  " + UnitConverter.DistanceReading(flight.OrbitRadius) : ""), () => s.Show(x => TaskingPage(x, flight)));
-            s.Row("Height  ▸   " + UnitConverter.AltitudeReading(flight.Altitude), () => s.Show(x => AltitudePage(x, flight)));
+            // A wingman's own height follows its slot moment to moment; the
+            // wing's ordered height is the lead's.
+            Flight heightOf = flight.Mode == FlightMode.Formation ? Wings.LeadOf(flight) : flight;
+            s.Row("Height  ▸   " + UnitConverter.AltitudeReading(heightOf.Altitude) + (heightOf != flight ? "  ·  the wing's" : ""),
+                () => s.Show(x => AltitudePage(x, flight)));
             s.Row("Rules & weapons  ▸   " + FlightOrders.Describe(flight.Roe) + "  ·  " +
                 (flight.ConfineToArea ? "inside task area" : "anywhere in reach"), () => s.Show(x => RulesPage(x, flight)));
             if (flight.Wing != null || JoinableWings(flight).Count > 0)
@@ -956,7 +960,8 @@ namespace NavalPower
                     WingOrders.SetAltitude(flight, chosen);
                     s.Show(x => FlightPage(x, flight));
                 });
-                if (Mathf.Abs(flight.Altitude - height) < 1f) row.image.color = Theme.AccentFill;
+                Flight heightOf = flight.Mode == FlightMode.Formation ? Wings.LeadOf(flight) : flight;
+                if (Mathf.Abs(heightOf.Altitude - height) < 1f) row.image.color = Theme.AccentFill;
             }
             s.Row("Back", () => s.Show(x => FlightPage(x, flight)));
         }
