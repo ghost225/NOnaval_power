@@ -11,7 +11,7 @@ namespace NavalPower
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Id = "com.navalpower.nuclearoption";
-        public const string Version = "1.0.8";
+        public const string Version = "1.0.9";
 
         internal static Plugin Instance;
         internal static ManualLogSource Log;
