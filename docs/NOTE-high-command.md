@@ -881,3 +881,16 @@ The user asked to let the native evasion take radar shots again, constrained, in
 Heat-seekers stay ours: native `EvadeModeIR` doesn't manoeuvre at all (throttle 0, which is the airbrake, plus the flare button held), and `NativeIrEvasionPatch` already skips it. If HC sets `OwnRadarEvasion` itself, it keeps its own value.
 
 - **Revised same day:** the user wants the 10 m terrain-following height, since that's where radar loses the aircraft in the clutter. So no floor now. Instead `targetHeight` is never more than 300 m under the present radar altitude (`StepDown`), which walks the descent down to the game's 10 m rather than aiming straight at it from kilometres up, the plunge loaded jets couldn't pull out of. Your ground guard still catches a hard sink near the ground.
+
+## 2026-10-03 · From Naval Power: MissileIndex (one missile scan a frame)
+
+`NOrders.MissileIndex` (Common): every live missile is scanned once per frame, on first use, and indexed by target (`At(unit)`, keyed on `persistentID`) and by owner (`From(unit)`), with `All` for the rest. These now read from it instead of walking `UnitRegistry.allUnits` themselves:
+- ShotDiscipline.Count, StrikeDesignation, Crank.Supported
+- FlightOrders.Covered and AssessThreats
+- MissileJamming (both scans), LaserDefence, EscortDefence
+- ShipEngagement
+- NP's MapOverlay and TargetFeed
+
+AssessThreats takes its missiles from `At(aircraft)` and makes the full hostile sweep only when Weapons Free with nothing in the air at it. It was already skipping the rest of that sweep in every other case.
+
+Behaviour is unchanged; filters are kept as they were, and callers still check `disabled`. A missile spawned later in a frame appears the next frame. If HC has its own missile walks, `MissileIndex` is there to use.

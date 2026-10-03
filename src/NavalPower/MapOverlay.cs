@@ -252,8 +252,8 @@ namespace NavalPower
             {
                 nextMissileSweep = Time.unscaledTime + 0.25f;
                 ownMissiles.Clear();
-                foreach (Unit unit in UnitRegistry.allUnits)
-                    if (unit is Missile missile && !missile.disabled && missile.owner == ship)
+                foreach (Missile missile in MissileIndex.From(ship))
+                    if (missile != null && !missile.disabled && missile.owner == ship)
                         ownMissiles.Add(missile);
             }
             foreach (Missile missile in ownMissiles)

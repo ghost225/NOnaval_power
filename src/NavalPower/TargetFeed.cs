@@ -286,9 +286,9 @@ namespace NavalPower
                 if (weapons[i].Missile == null || weapons[i].Missile.disabled) weapons.RemoveAt(i);
             if (ship == null) return;
 
-            foreach (Unit unit in UnitRegistry.allUnits)
+            foreach (Missile missile in MissileIndex.From(ship))
             {
-                if (!(unit is Missile missile) || missile.disabled) continue;
+                if (missile == null || missile.disabled) continue;
                 if (missile.owner != ship) continue;
                 bool known = false;
                 foreach (Tracked entry in weapons) if (entry.Missile == missile) { known = true; break; }
