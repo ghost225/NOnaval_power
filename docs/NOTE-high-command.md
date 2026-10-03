@@ -843,3 +843,14 @@ they hit the water. One shed blades in level flight. CargoTargetPatch now has a 
 neutral between 60% and 75% of maxSpeed for helicopters in FlightMode.Cargo, and a new CargoSeaHeightPatch
 (prefix on AutopilotHelo.AutoAim) raises the transit to 80 m over open water when the LZ is over 3 km off.
 The [cargo] trace now shows rotor % of governed speed and the type's top speed. Applies to your cargo flights too.
+
+## 2026-10-03 — NOrders a38e64b, and two deck roll-offs for you
+
+- FlyBeam (radar-shot evasion) took its descent target as 70% of the *present* radar alt every step, so the target
+  ran away downward; an HC F-16M beaming went 3,700 m -> ground at ~400 m/s. Now latched once per missile.
+- EjectionCheck: "tumbling" above 1,500 m must persist three checks (3 s) before ejecting; an intact F-16M
+  (0 parts off) was abandoned at 6,893 m on one backward sample.
+- Yours, I think: HC's Sphinx-1 and Sphinx-2 (F-16M, 12,950 of 16,240 kg) went into the water off the Annex
+  carrier on take-off, AIPilotTakeoffState "taking off", 28 m/s, roll 13°, nearest aircraft Gryps-1 at 43 m.
+- Also seen: F-16M King Viper peaks of 13-18 g while EVADING (FBW limit 9, our limit 7). No other type showed it.
+  Not understood yet.
