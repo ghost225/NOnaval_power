@@ -862,3 +862,9 @@ Pulled a38e64b and the three before it. The user is leaving the F-16M King Viper
 ## 2026-10-03 — NOrders: RotorFirstPatch
 
 Compound helo engines feed rotor, pusher and anti-torque fan through one Transmission that cuts all requests by the same fraction when over-subscribed (no rotor priority). AutopilotHelo then adds min(rpm - 0.975*nominal, 0) in raw RPM to the collective, so ~10 RPM low = zero collective, and only sets pusher neutral past 5 RPM low. New postfix on Aircraft.FilterInputs, for our AI AutopilotHelo flights: forward pusher (customAxis1 > 0.5) eases to neutral as rotor RPM ratio falls from 0.99 to 0.975. Applies to your helicopters too.
+
+## 2026-10-03 · From Naval Power: helicopters notch radar shots
+
+A user report: SARH notching and ECM not working well for helicopters, and a helicopter flew straight at the incoming missile. Two causes, both fixed in NOrders:
+- **`FlightOrders.Covered` returns false for rotary aircraft,** so a helicopter with pods never stands on them. It yields to `AIHeloCombatState`, which notches on the missile warning, while MissileJamming keeps the pods on the shot. A SARH shot depends on the launcher's radar return (Doppler and ground clutter from a low target) as much as on jamming.
+- **`CargoNotchPatch` (new, `CargoMissions.cs`):** a prefix on `AutopilotHelo.AutoAim` for the helicopter under `AIHeloTransportState`, which only fires countermeasures and never manoeuvres. With a radar missile on the flight (`flight.Threat == Missile`, not infrared), it steers 1.5 km along the beam to the missile's evasion point (whichever side is nearer its heading) and holds at most 40 m. Your `CargoSeaHeightPatch` may lift that to 80 m over open water, which is fine. The delivery resumes when the threat clears. It applies to your cargo flights too. Traced as `[cargo] ... radar shot at ..., notching`.
