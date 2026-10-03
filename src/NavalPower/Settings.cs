@@ -60,6 +60,7 @@ namespace NavalPower
         internal static ConfigEntry<bool> HarnessKeys;
         internal static ConfigEntry<bool> InterfaceTrace;
         internal static ConfigEntry<bool> OwnRadarEvasion;
+        internal static ConfigEntry<bool> OwnIrEvasion;
         internal static ConfigEntry<bool> StandOnWhenCovered;
         internal static ConfigEntry<int> MissilesPerAirTarget, MissilesPerSurfaceTarget;
         internal static ConfigEntry<float> RadarEvasionFloor;
@@ -240,7 +241,11 @@ namespace NavalPower
                 "Off (default): a radar-guided shot at one of our flights is evaded by the game's own pilot -- the " +
                 "notch, chaff, ECM, the last-second pull, and down to 10 m over the ground where radar loses it in the " +
                 "clutter -- walked down no more than 300 m at a time instead of diving at it, with the G, speed, " +
-                "airbrake and ground guards on. On: our own beam logic flies it instead. Heat-seekers are always ours.");
+                "airbrake and ground guards on. On: our own beam logic flies it instead.");
+            OwnIrEvasion = config.Bind("Flights", "Own heat-seeker evasion", false,
+                "Off (default): a heat-seeker at one of our flights is evaded by the game's own pilot, with our guardrails: " +
+                "the shot put on the beam (the game's own heat-seeker evasion does not turn), idle -- never the airbrake -- " +
+                "and our flare strings. On: our own beam logic flies it instead.");
             StandOnWhenCovered = config.Bind("Flights", "Hold the task when covered", true,
                 "A flight shot at keeps to its orders instead of evading while it can defend itself where it is: " +
                 "a jamming pod on every radar-guided missile coming at it, and flares left for any heat-seeker. " +
@@ -404,6 +409,7 @@ namespace NavalPower
             Tuning.FlareReserve = FlareReserve.Value;
             Tuning.IrBurstPause = IrBurstPause.Value;
             Tuning.OwnRadarEvasion = OwnRadarEvasion.Value;
+            Tuning.OwnIrEvasion = OwnIrEvasion.Value;
             Tuning.StandOnWhenCovered = StandOnWhenCovered.Value;
             Tuning.MissilesPerAirTarget = MissilesPerAirTarget.Value;
             Tuning.MissilesPerSurfaceTarget = MissilesPerSurfaceTarget.Value;

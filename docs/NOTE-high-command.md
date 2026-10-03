@@ -894,3 +894,9 @@ Heat-seekers stay ours: native `EvadeModeIR` doesn't manoeuvre at all (throttle 
 AssessThreats takes its missiles from `At(aircraft)` and makes the full hostile sweep only when Weapons Free with nothing in the air at it. It was already skipping the rest of that sweep in every other case.
 
 Behaviour is unchanged; filters are kept as they were, and callers still check `disabled`. A missile spawned later in a frame appears the next frame. If HC has its own missile walks, `MissileIndex` is there to use.
+
+## 2026-10-03 · From Naval Power: heat-seekers to the game's pilot too, with our beam and flares
+
+`Tuning.OwnIrEvasion` (new, default false; NP setting "Own heat-seeker evasion"). `Flight.NativeEvades` = missile threat and, per seeker, the matching Own… setting off. `ShouldYield` uses it in the general rule, Jam, and Egress (a heat-seeker is handed over at once; a radar shot still runs until `RadarHandover`). Rotary aircraft now yield for both kinds. A strike run-in still flares a heat-seeker off without leaving the run.
+
+Guardrail `NativeIrBeamPatch`: a postfix on `AIPilotCombatModes.RunEvadeMode`. For our jets with `EvadingInfrared`, it sets `evadeDestination` 1 km along the beam (toward home when one side clearly is, else the side nearer the nose), and the throttle to `EvasionThrottle` while `ThrottleCutUntil` is running, whether or not the game has registered the shot. The game's `EvadeModeIR` has no turn of its own, and `NativeIrEvasionPatch` still replaces its zero throttle. `IrDefence.Defend` (flare strings) already runs whoever is flying.
