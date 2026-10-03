@@ -13,6 +13,7 @@ namespace NavalPower
         internal static ConfigEntry<float> DefaultFuel;
         internal static ConfigEntry<float> DefaultAltitude;
         internal static ConfigEntry<float> DefaultHelicopterAltitude;
+        internal static ConfigEntry<float> DefaultHelicopterAreaRadius;
         internal static ConfigEntry<float> DefaultAreaRadius;
         internal static ConfigEntry<float> MinimumClearance;
         internal static ConfigEntry<float> ThreatSettleSeconds;
@@ -112,6 +113,10 @@ namespace NavalPower
             DefaultHelicopterAltitude = config.Bind("Flights", "Default helicopter altitude", 600f,
                 new ConfigDescription("Altitude above ground a newly adopted helicopter holds, in metres.",
                     new AcceptableValueRange<float>(30f, 6000f)));
+
+            DefaultHelicopterAreaRadius = config.Bind("Flights", "Default helicopter task area radius", 4000f,
+                new ConfigDescription("Radius of the area a helicopter works when first launched, in metres.",
+                    new AcceptableValueRange<float>(500f, 60000f)));
 
             DefaultAreaRadius = config.Bind("Flights", "Default task area radius", 6000f,
                 new ConfigDescription("Radius of the area a flight works when first launched, in metres.",
@@ -371,6 +376,7 @@ namespace NavalPower
             Tuning.DefaultFuel = DefaultFuel.Value;
             Tuning.DefaultAltitude = DefaultAltitude.Value;
             Tuning.DefaultHelicopterAltitude = DefaultHelicopterAltitude.Value;
+            Tuning.DefaultHelicopterAreaRadius = DefaultHelicopterAreaRadius.Value;
             Tuning.DefaultAreaRadius = DefaultAreaRadius.Value;
             Tuning.MinimumClearance = MinimumClearance.Value;
             Tuning.ThreatSettleSeconds = ThreatSettleSeconds.Value;
