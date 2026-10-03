@@ -1178,8 +1178,12 @@ namespace NavalPower
             {
                 if (!CarrierOps.Releasable(CommandState.Hq, option)) continue;
                 WeaponMount mount = option;
-                string detail = mount.info != null ? "  ·  " + mount.info.weaponName : "";
-                if (mount.ammo > 1) detail += " ×" + mount.ammo;
+                // The mount's own name usually says it all ("AGM-48 x2"); the
+                // weapon and count only when it does not name the weapon.
+                string detail = "";
+                if (mount.info != null && !string.IsNullOrEmpty(mount.info.weaponName) &&
+                    mount.mountName.IndexOf(mount.info.weaponName, System.StringComparison.OrdinalIgnoreCase) < 0)
+                    detail = "  ·  " + mount.info.weaponName + (mount.ammo > 1 ? " ×" + mount.ammo : "");
                 if (mount.radar) detail += "  ·  RADAR";
                 if (mount.countermeasure) detail += "  ·  CM";
                 if (mount.Cargo) detail += "  ·  CARGO";

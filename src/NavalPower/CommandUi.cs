@@ -638,8 +638,20 @@ namespace NavalPower
             // The game's own UI font, but only a dynamic one: a font baked to a
             // fixed-size texture is sharp at 1080p and smeared at any larger
             // scale, which is what fuzzy text on a big screen turned out to be.
+            // The one most of the game's text uses: the first found was a
+            // matter of load order, and changed between sessions as other
+            // mods and screens added text of their own.
+            var uses = new Dictionary<Font, int>();
             foreach (Text text in Resources.FindObjectsOfTypeAll<Text>())
-                if (text.font != null && text.font.dynamic) { font = text.font; break; }
+                if (text.font != null && text.font.dynamic)
+                    uses[text.font] = uses.TryGetValue(text.font, out int n) ? n + 1 : 1;
+            int most = 0;
+            foreach (var use in uses) if (use.Value > most) { most = use.Value; font = use.Key; }
+            var ranked = new List<KeyValuePair<Font, int>>(uses);
+            ranked.Sort((a, b) => b.Value.CompareTo(a.Value));
+            var seen = new System.Text.StringBuilder();
+            for (int i = 0; i < ranked.Count && i < 5; i++) seen.Append(i == 0 ? "" : ", ").Append(ranked[i].Key.name).Append(" ×").Append(ranked[i].Value);
+            if (seen.Length > 0) Plugin.Log.LogInfo("[ui] fonts in use: " + seen);
             if (font == null)
             {
                 try { font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch (ArgumentException) { }
