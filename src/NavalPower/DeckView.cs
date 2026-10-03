@@ -299,3 +299,31 @@ namespace NavalPower
         }
     }
 }
+
+namespace NavalPower
+{
+    // The game's own third step for a ship -- fly-by to the "cockpit" view on
+    // a ship with a cockpit view point -- does nothing while commanding it:
+    // that state returns at once whenever flight controls are off, so the
+    // camera sat fixed, could not look around, and Switch View could not
+    // leave it. While the ship is under command the cycle is orbit, fly-by,
+    // orbit. (The deck view hook used to take that step; with deck view on
+    // its own button now, the broken step showed again.)
+    [HarmonyLib.HarmonyPatch(typeof(CameraStateManager), nameof(CameraStateManager.SwitchState))]
+    internal static class ShipCockpitViewPatch
+    {
+        private const string Name = "Ship cockpit view";
+
+        private static void Prefix(CameraStateManager __instance, ref CameraBaseState state)
+        {
+            if (!NOrders.Guard.Ok(Name)) return;
+            try
+            {
+                if (__instance == null || state != __instance.cockpitState) return;
+                if (__instance.followingUnit is Ship ship && ship == CommandState.Ship && !GameManager.flightControlsEnabled)
+                    state = __instance.orbitState;
+            }
+            catch (System.Exception ex) { NOrders.Guard.Failed(Name, ex); }
+        }
+    }
+}
