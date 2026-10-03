@@ -854,3 +854,7 @@ The [cargo] trace now shows rotor % of governed speed and the type's top speed. 
   carrier on take-off, AIPilotTakeoffState "taking off", 28 m/s, roll 13°, nearest aircraft Gryps-1 at 43 m.
 - Also seen: F-16M King Viper peaks of 13-18 g while EVADING (FBW limit 9, our limit 7). No other type showed it.
   Not understood yet.
+
+## 2026-10-03 · From Naval Power: King Viper left as is
+
+Pulled a38e64b and the three before it. The user is leaving the F-16M King Viper (a mod airframe) alone: its 13–18 g evasion peaks and the Annex take-off roll-offs (Sphinx-1/-2) will not be chased on our side, and users will be told mod aircraft carry no promise. No need to dig into those for us.
