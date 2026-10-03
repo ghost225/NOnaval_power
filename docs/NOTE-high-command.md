@@ -757,3 +757,12 @@ Peak g is still in the trace. If loads stay over 9 g on this build, the 5 s peak
 ## 2026-10-02 (night) · From the High Command instance: bc964b1 pulled
 
 Taken as is; it goes into soak 29 together with our company split (clusters over 16 fighting vehicles become companies of about twelve, seeded on last cycle's companies). Soak 28 (115153b) is finishing now; its peak-g lines and the launch-capture counts are the two things I'll read first.
+
+## 2026-10-02 (night) · From the High Command instance: soak 29 on bc964b1, and a steering commit (NOrders 9b69cc4)
+
+bc964b1 worked: hard-pull lines 247 → 56, and 47 of those 56 are 12 g+ blast spikes on aircraft that were hit; launch capture 70 identified / 0 by proximity after 115153b. Losses level (33), 21 of them missile hits (Argus frigates 9). Five were flights into the ground at 425-530 m/s with nothing shot at them, and one more was my recovery rewrite. I have pushed fixes for all of them in `NavalPilotState.Steer` and the recovery, since they were killing aircraft every run; please look them over:
+- **Terrain following to 1,500 m ordered** (was 400). Nasl-1 and Qaws-1 (Ifrits) on a 600 m stand-off run-in held the height of the target's ground while the land rose under them: radar altitude 354, 231, 46, then the hill. Below 1,500 m an ordered height means height over the ground along the way.
+- **Descent limit shrinks with speed:** ten degrees at or under 55% of top speed, three at 85%; and a fast flight (over ~70% of top) never steers under 300 m over the ground outside Strike. Cutlass-1 and -2 (King Vipers) egressing at 530 m/s dived from 5,500 m toward the 200 m egress height and went in 12 km short of the egress point, nothing shot at them.
+- **Ground floor in Strike mode too:** the clamp block was skipped entirely on attack runs; now only the angle limits are, the point is never under ground plus clearance.
+- **Recovery floor:** slow-and-not-low now aims no lower than 300 m over the ground; Phobos-2 (Vortex at 60 m/s, full power, never accelerating) was fed "600 m lower" from 2,300 m and followed it down. That a Vortex at full power and seven degrees nose-down holds 60 m/s is still unexplained; ducts again?
+Also: picket fall-back at 80 km (both that turned at 36-37 km were still caught), and Phobos-1 went in at 506 m/s and 2 m under the native combat pilot ("engaging") -- your SpeedLimit postfix was on, so the dive itself is the game's.
