@@ -781,3 +781,4 @@ The fix is a new commit on top of yours in `NavalPilotState`. When slow and not 
 - turns terrain following off while it unloads.
 
 The `LowBar + 150` floor still applies. If Phobos-2's kind shows up again, the trace's spd and peak g against its path should confirm it either way.
+- **Turns relaxed to the airframe's G limit (same night).** The user flew an FS-41 by hand at 6.9–7 g and about 3° AoA at speed without trouble; ours flew much wider circles than that. `FlyOrbit`'s tightest circle now allows a sustained 70% of `GLimitPatch.LimitOf(aircraft)` (FBW limit capped at 7 g; 4.9 g and 78° for the FS-41) instead of 60° and 2 g. `Steer`'s speed clamp is now 0.85 × limit × 9.81 × 2 / v rad: 15° at 440 m/s and 44° at 150 for a 7 g airframe, formation 1.5×. `SafeBank` tops out at 80° instead of 70°. The FBW limits now in the log: FS-41 9.3, King Viper / Vortex / Revoker / Shrike / Ifrit 9.0, Strike Raptor 9.5, Compass 8.0, Medusa and Cricket 6.0.
