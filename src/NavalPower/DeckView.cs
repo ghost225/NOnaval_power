@@ -303,12 +303,14 @@ namespace NavalPower
 namespace NavalPower
 {
     // The game's own third step for a ship -- fly-by to the "cockpit" view on
-    // a ship with a cockpit view point -- does nothing while commanding it:
-    // that state returns at once whenever flight controls are off, so the
-    // camera sat fixed, could not look around, and Switch View could not
-    // leave it. While the ship is under command the cycle is orbit, fly-by,
-    // orbit. (The deck view hook used to take that step; with deck view on
-    // its own button now, the broken step showed again.)
+    // a ship with a cockpit view point -- does nothing with flight controls
+    // off: that state returns at once, so the camera sat fixed, could not
+    // look around, and Switch View could not leave it. Commanding a ship turns
+    // them off, and so do other modes; first fixed only for the commanded
+    // ship, it still trapped the cycle on others. Now on any ship, while the
+    // controls are off, the cycle is orbit, fly-by, orbit; and should the
+    // fixed view be entered anyway, Switch View or Center leaves it. Each
+    // camera change on a ship is logged, so a cycle that goes wrong says where.
     [HarmonyLib.HarmonyPatch(typeof(CameraStateManager), nameof(CameraStateManager.SwitchState))]
     internal static class ShipCockpitViewPatch
     {
@@ -319,11 +321,42 @@ namespace NavalPower
             if (!NOrders.Guard.Ok(Name)) return;
             try
             {
-                if (__instance == null || state != __instance.cockpitState) return;
-                if (__instance.followingUnit is Ship ship && ship == CommandState.Ship && !GameManager.flightControlsEnabled)
+                if (__instance == null || !(__instance.followingUnit is Ship ship)) return;
+                if (state == __instance.cockpitState && !GameManager.flightControlsEnabled)
                     state = __instance.orbitState;
+                if (state != __instance.currentState)
+                    Plugin.Log.LogInfo("[camera] " + ShipNames.Of(ship) + " · " + NameOf(__instance, __instance.currentState) + " → " + NameOf(__instance, state));
             }
             catch (System.Exception ex) { NOrders.Guard.Failed(Name, ex); }
+        }
+
+        internal static string NameOf(CameraStateManager cam, CameraBaseState state) =>
+            state == null ? "none" : state == cam.orbitState ? "orbit" : state == cam.TVState ? "fly-by" : state == cam.cockpitState ? "fixed ship view"
+            : state == cam.freeState ? "free" : state == DeckViewState.Instance ? "deck view" : state.GetType().Name;
+    }
+
+    [HarmonyLib.HarmonyPatch(typeof(CameraCockpitState), nameof(CameraCockpitState.UpdateState))]
+    internal static class ShipCockpitEscapePatch
+    {
+        private const string Name = "Ship cockpit escape";
+
+        // First, before the state's own update -- which reads an aircraft's
+        // pilot and may fail on a ship before anything after it could run.
+        private static bool Prefix(CameraStateManager cam)
+        {
+            if (!NOrders.Guard.Ok(Name)) return true;
+            try
+            {
+                if (cam == null || cam.currentState != cam.cockpitState || !(cam.followingUnit is Ship) || GameManager.flightControlsEnabled) return true;
+                if (GameManager.playerInput.GetButtonTimedPressUp("Switch View", 0f, PlayerSettings.clickDelay) ||
+                    GameManager.playerInput.GetButtonDown("Center"))
+                {
+                    cam.SwitchState(cam.orbitState);
+                    return false;
+                }
+            }
+            catch (System.Exception ex) { NOrders.Guard.Failed(Name, ex); }
+            return true;
         }
     }
 }
