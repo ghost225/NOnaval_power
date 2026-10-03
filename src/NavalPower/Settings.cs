@@ -236,10 +236,11 @@ namespace NavalPower
                 "Throttle for jets on area, route, station and jamming tasks. Strike run-ins and egress use full " +
                 "power. A wing's lead cruises 5% below this so its wingmen can close up, and slows further while " +
                 "they are well behind.");
-            OwnRadarEvasion = config.Bind("Flights", "Own radar evasion", true,
-                "A radar-guided shot at one of our flights is flown off by our own logic: full power, the shot put " +
-                "on the beam, chaff in bursts, and a gentle descent. Off leaves it to the game's own evasion, which " +
-                "dives for the deck -- too hard for heavily loaded aircraft, which went into the sea.");
+            OwnRadarEvasion = config.Bind("Flights", "Own radar evasion", false,
+                "Off (default): a radar-guided shot at one of our flights is evaded by the game's own pilot -- the " +
+                "notch, chaff, ECM and the last-second pull -- held to our limits: its dive stops at 70% of the height " +
+                "the shot found it at (never under the evasion floor), and the G, speed, airbrake and ground guards " +
+                "apply. On: our own beam logic flies it instead. Heat-seekers are always ours.");
             StandOnWhenCovered = config.Bind("Flights", "Hold the task when covered", true,
                 "A flight shot at keeps to its orders instead of evading while it can defend itself where it is: " +
                 "a jamming pod on every radar-guided missile coming at it, and flares left for any heat-seeker. " +

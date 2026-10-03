@@ -282,6 +282,7 @@ namespace NavalPower
             P(s, "A jam list carries on through whatever else the flight is ordered to do, and stops only when cleared or when the flight is sent home. " +
                 "When a radar-guided missile comes at it, a pod is switched onto the missile (the spare first, otherwise borrowed from the list) and goes back the moment it is over.");
             H(s, "DEFENCE");
+            K(s, "Evading", "a radar missile is evaded by the game's own pilot -- notch, chaff, ECM, last-second pull -- but its dive stops at 70% of the height the shot found it at (never under 250 m), within the G and speed limits. A heat-seeker is ours: idle (never airbrakes), the shot turned onto the beam, flares in bursts from 3 km. Helicopters notch radar shots too. The setting Own radar evasion flies radar shots with our own beam instead.");
             K(s, "Built-in ECM", "aircraft with their own ECM use it automatically against radar missiles inside 6 km.");
             K(s, "Hold the task when covered", "on by default (setting): a flight with a pod on every radar missile coming at it, and flares for any heat-seeker, keeps to its orders (status DEFENDING) instead of evading. A radar missile inside 2.5 km is evaded regardless.");
             K(s, "Flares", "fired automatically against heat-seekers; the countermeasure readout shows what is left, tinted when low.");

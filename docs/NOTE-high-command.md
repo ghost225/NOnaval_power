@@ -873,3 +873,9 @@ A user report: SARH notching and ECM not working well for helicopters, and a hel
 
 - **Helicopter default height (2026-10-03):** `Tuning.DefaultHelicopterAltitude` (600 m; NP setting "Default helicopter altitude") via `FlightOrders.DefaultAltitudeFor(aircraft)` at the three adoption sites. `AutopilotHelo` types only; tiltwings keep `DefaultAltitude`. NP's fixed-wing default is now 3,000 m; HC's values are its own.
 - **Helicopter default task area:** `Tuning.DefaultHelicopterAreaRadius` (4 km; NP setting "Default helicopter task area radius") via `FlightOrders.DefaultRadiusFor(aircraft)`, same sites.
+
+## 2026-10-03 · From Naval Power: radar evasion back to the game's pilot, with a height floor
+
+The user asked to let the native evasion take radar shots again, constrained, instead of our own beam (`FlyBeam`), which kept showing edge cases. `Tuning.OwnRadarEvasion` now defaults to false (NP's setting too), so `ShouldYield` hands radar shots to `AIPilotCombatModes`. Its `EvadeModeRadar` sets `targetHeight = 10` and terrain-follows down to it at full power, which is the dive that put loaded aircraft in the sea. `EvadeTowardFriendsPatch` (postfix on `EvadeModeRadar`) now raises `targetHeight` to a floor latched per shot (`missileAlerts[0]`): max(70% of the radar altitude when the shot was first seen, `Tuning.RadarEvasionFloor` 250 m). The game's notch, chaff, ECM and last-second pull stay. Also in force under the combat pilot: the G limit, SpeedLimit, the airbrake guard, your ground guard, and the warning replay.
+
+Heat-seekers stay ours: native `EvadeModeIR` doesn't manoeuvre at all (throttle 0, which is the airbrake, plus the flare button held), and `NativeIrEvasionPatch` already skips it. If HC sets `OwnRadarEvasion` itself, it keeps its own value.
