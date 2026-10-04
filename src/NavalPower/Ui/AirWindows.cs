@@ -257,6 +257,18 @@ namespace NavalPower
                 CommandState.SelectedKey = null;
                 CommandState.Say("Weapon released · tasking " + flight.Name);
             }
+            // The planner open: the flight chosen now gets a tab and the map's
+            // clicks, the plans already made stay as tabs of their own.
+            if (CommandState.StrikePlanning != null && windows.TryGetValue("strike", out Surface planner) && planner.IsOpen)
+            {
+                Flight lead = Wings.LeadOf(flight) ?? flight;
+                if (lead != CommandState.StrikePlanning)
+                {
+                    CommandState.StrikePlanning = lead;
+                    planner.Show(x => StrikePlannerPage(x, lead));
+                    CommandState.Say("Strike planner · now planning " + (lead.Wing ?? lead.Name));
+                }
+            }
             Surface window = Window("flight");
             bool wasOpen = window.IsOpen;
             window.Show(s => FlightPage(s, flight));
@@ -704,6 +716,22 @@ namespace NavalPower
             CommandState.Say("STRIKE PLANNING MODE ACTIVE · " + (lead.Wing ?? lead.Name) + " · click enemies to add or remove them");
         }
 
+        // The planner's tabs: the wing being planned, and every other lead
+        // with a plan waiting, in a steady order.
+        private static List<Flight> PlannedLeads(Flight current)
+        {
+            var leads = new List<Flight>();
+            foreach (Flight f in FlightOrders.All())
+            {
+                Flight lead = Wings.LeadOf(f) ?? f;
+                if (leads.Contains(lead)) continue;
+                if (lead == current || StrikePlans.PlanOf(lead).Count > 0) leads.Add(lead);
+            }
+            if (current != null && !leads.Contains(current)) leads.Add(current);
+            leads.Sort((a, b) => string.CompareOrdinal(a.Wing ?? a.Name, b.Wing ?? b.Name));
+            return leads;
+        }
+
         internal void RefreshStrikePlanner()
         {
             if (CommandState.StrikePlanning == null || !windows.TryGetValue("strike", out Surface window) || !window.IsOpen) return;
@@ -715,9 +743,44 @@ namespace NavalPower
         {
             if (!Alive(s, flight)) { CommandState.StrikePlanning = null; return; }
             CommandState.StrikePlanning = flight;
-            s.Title("STRIKE PLANNER  ·  " + (flight.Wing != null ? flight.Wing + " (wing)" : flight.Name).ToUpperInvariant());
+            s.Title("STRIKE PLANNER");
             s.Info(UiKit.Tint("STRIKE PLANNING MODE ACTIVE", FlightIcons.Fighting) +
-                "  ·  click enemies on the map to add or remove them  ·  other map orders are paused until this closes", Theme.TextMuted);
+                "  ·  click enemies on the map to add or remove them from the selected tab's plan  ·  other map orders are paused until this closes", Theme.TextMuted);
+
+            // A tab a plan: every wing with targets planned and not yet sent,
+            // and the one being planned now. Plans wait, armed, for the go:
+            // AUTHORIZE ALL sends every one of them at once.
+            List<Flight> plans = PlannedLeads(flight);
+            int targetsAll = 0;
+            foreach (Flight lead in plans) targetsAll += StrikePlans.PlanOf(lead).Count;
+            int ready = plans.FindAll(l => StrikePlans.PlanOf(l).Count > 0).Count;
+            if (ready > 0)
+            {
+                Button all = s.Row("AUTHORIZE ALL  ·  " + ready + " plan(s), " + targetsAll + " target(s), together", () =>
+                {
+                    var said = new List<string>();
+                    foreach (Flight lead in PlannedLeads(flight))
+                        if (StrikePlans.PlanOf(lead).Count > 0) said.Add(StrikePlans.Authorize(lead));
+                    s.Close();
+                    CommandState.Say("GO · " + said.Count + " strike(s) authorised · " + string.Join(" · ", said.ToArray()));
+                });
+                all.image.color = Theme.Dim(FlightIcons.Fighting, 0.6f);
+            }
+            if (plans.Count > 1)
+            {
+                string[] tabs = new string[plans.Count];
+                for (int t = 0; t < plans.Count; t++)
+                    tabs[t] = (plans[t].Wing ?? plans[t].Name) + " (" + StrikePlans.PlanOf(plans[t]).Count + ")";
+                Button[] bar = s.Group(tabs, t =>
+                {
+                    Flight pick = plans[t];
+                    s.Show(x => StrikePlannerPage(x, pick));
+                });
+                int at = plans.IndexOf(flight);
+                if (at >= 0) bar[at].image.color = Theme.AccentFill;
+            }
+            s.Info(UiKit.Tint((flight.Wing != null ? flight.Wing + " (wing)" : flight.Name).ToUpperInvariant(), FlightIcons.Fighting) +
+                "  ·  " + flight.TypeName, Theme.Text);
             List<StrikeItem> plan = StrikePlans.PlanOf(flight);
             if (plan.Count == 0) s.Info("No targets yet.", Theme.TextMuted);
             if (plan.Count > 0)
@@ -764,10 +827,13 @@ namespace NavalPower
                         }, out _);
                     Surface.Edge(row, left ? Theme.Bad : FlightIcons.Fighting);
                 }
-                Button go = s.Row("AUTHORIZE STRIKE", () =>
+                Button go = s.Row("AUTHORIZE STRIKE  ·  this plan only", () =>
                 {
                     string said = StrikePlans.Authorize(flight);
-                    s.Close();                         // planning over
+                    // Other plans still waiting: on to the next tab; none, planning over.
+                    Flight next = PlannedLeads(null).Find(l => l != flight && StrikePlans.PlanOf(l).Count > 0);
+                    if (next != null) s.Show(x => StrikePlannerPage(x, next));
+                    else s.Close();
                     CommandState.Say(said);
                 });
                 go.image.color = Theme.Dim(FlightIcons.Fighting, 0.45f);
