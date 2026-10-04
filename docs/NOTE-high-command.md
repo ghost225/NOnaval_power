@@ -935,6 +935,6 @@ so HC's map symbols show only HC's task forces.
 ## 2026-10-04 · NOrders: strike run changes (shared code)
 
 - Level bombs are released by our own state (`FlyBombRunIn` / `FlyLevelDrop`, CCIP-style fall from `BombImpact`), at the flight's height (no descent; `Tuning.BombingHeight` is no longer read), only with a track good to 50 m.
-- Gun runs: `RunInFor` returns false for guns (straight to the combat pilot); `NativeSpeedLimitPatch` caps strafing speed and holds a pull-out until climbing, starting earlier at speed.
+- Gun runs: a run-in to 800 m at strafing speed (`NativeSpeedLimitPatch.HoldGunSpeed`), then the combat pilot; `NativeSpeedLimitPatch` caps strafing speed and holds a pull-out until climbing, starting earlier at speed.
 - `Steer`: with speed at or above corner, the lateral swing is at least 25° (past the autopilot's 20° yaw-not-bank zone). Line-ups were flown on the rudder. Watch for any new over-banking in HC transit.
-- Non-level run-ins hand over when the target is within a 25° dive, not only at the weapon's set height.
+- Non-level run-ins hand over when the target is within a 15° dive, not only at the weapon's set height.
