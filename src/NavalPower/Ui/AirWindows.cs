@@ -951,9 +951,11 @@ namespace NavalPower
             if (!Alive(s, flight)) return;
             CommandState.SelectedFlight = flight;
             s.Title(flight.Name.ToUpperInvariant() + "  ·  altitude");
-            float[] metres = { 100f, 200f, 300f, 600f, 1500f, 3000f, 6000f };
+            float[] metres = { 100f, 200f, 300f, 600f, 1500f, 3000f, 6000f, 8000f, 10000f, 12000f };
+            bool helicopter = flight.Aircraft != null && flight.Aircraft.autopilot is AutopilotHelo;
             foreach (float height in metres)
             {
+                if (helicopter && height > 6000f) continue;   // well past any helicopter's ceiling
                 float chosen = height;
                 Button row = s.Row(UnitConverter.AltitudeReading(height) + (height < 400f ? "  ·  terrain following" : ""), () =>
                 {
