@@ -166,7 +166,7 @@ namespace NavalPower
             K(s, "A friendly ship", "Take command of it, Cover it with a flight…, formation rows, Rename…, camera.");
             K(s, "One of our flights", "Orders… (its window), Hold here, Weapons free, Return to base, Take the controls, camera.");
             K(s, "A hostile", "Engage with…, Strike with flights…, Jam it… (with a jammer up), Close / Open the range, camera.");
-            K(s, "A lost track", "Send a flight to search…, Steer toward where it was. No firing or camera on a stale track.");
+            K(s, "A lost track", "Send a flight to search…, Steer toward where it was. No firing or camera on a stale track. A contact not seen lately but still where it was seen (within 20 m, the cockpit's own test) is HELD: it can be attacked, but has no camera.");
             K(s, "A bearing line (passive ESM)", "Steer toward the emitter, Add a leg toward it, anti-radiation shots down the bearing, Send a flight to investigate….");
             H(s, "THE MOUSE");
             K(s, "Mouse wheel", "zooms whatever is under the cursor: a camera feed, the map, or the main view.");

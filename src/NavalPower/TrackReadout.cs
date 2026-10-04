@@ -46,9 +46,24 @@ namespace NavalPower
         {
             if (IsCurrent(contact)) return true;
             FactionHQ hq = CommandState.Hq;
-            if (contact == null || contact.disabled || hq == null || !Fixed(contact)) return false;
-            return hq.GetTrackingData(contact.persistentID) != null;
+            if (contact == null || contact.disabled || hq == null) return false;
+            if (Fixed(contact)) return hq.GetTrackingData(contact.persistentID) != null;
+            return Holds(contact);
         }
+
+        // Not seen for a while, but still where it was last seen: the
+        // cockpit's own test for a valid (not outdated) marker -- within 20 m
+        // of its last known position. A parked vehicle, a dug-in launcher or
+        // a ship at anchor stays lockable from the cockpit long after the
+        // 4 s of IsCurrent; it was shown stale here and could not be tasked.
+        internal static bool Holds(Unit contact)
+        {
+            FactionHQ hq = CommandState.Hq;
+            if (contact == null || contact.disabled || hq == null || contact.NetworkHQ == hq) return false;
+            return hq.GetTrackingData(contact.persistentID) != null && hq.IsTargetPositionAccurate(contact, CockpitAccuracy);
+        }
+
+        private const float CockpitAccuracy = 20f;   // HUDUnitMarker's own threshold
 
         internal static bool Fixed(Unit contact) => contact is Building;
 
@@ -71,10 +86,11 @@ namespace NavalPower
 
             TrackingInfo track = hq != null ? hq.GetTrackingData(contact.persistentID) : null;
             bool observed = friendly || (track != null && track.Observed());
+            bool holds = !observed && !Fixed(contact) && Holds(contact);
 
             var text = new System.Text.StringBuilder();
             text.Append(name).Append(friendly ? "  ·  FRIENDLY" : observed ? "  ·  TRACKED"
-                : Fixed(contact) && track != null ? "  ·  FIXED TARGET" : "  ·  STALE TRACK");
+                : Fixed(contact) && track != null ? "  ·  FIXED TARGET" : holds ? "  ·  HELD" : "  ·  STALE TRACK");
             if (!friendly && ship != null) text.Append("\n").Append(TrackPicture.Describe(ship, contact));
 
             if (!known)
@@ -102,6 +118,8 @@ namespace NavalPower
                     ? "\nObserved now"
                     : Fixed(contact)
                         ? "\nLast seen " + age.ToString("0") + " s ago · it does not move · no camera without eyes on it"
+                    : holds
+                        ? "\nLast seen " + age.ToString("0") + " s ago · not moved since · no camera without eyes on it"
                         : "\nLast seen " + age.ToString("0") + " s ago · position estimated");
             }
 
