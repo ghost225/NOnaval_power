@@ -332,6 +332,7 @@ namespace NavalPower
             {
                 int capable = FlightOrders.CapableOf(target).Count;
                 s.Row("Strike with flights…  ·  " + capable + " capable", () => s.Show(x => StrikePage(x, target)));
+                if (capable > 0) s.Row("Plan a strike…  ·  add it to a flight's strike plan", () => s.Show(x => PlanStrikePage(x, target)));
             }
             if (FlightOrders.Jammers().Count > 0)
                 s.Row("Jam it…", () => s.Show(x => JamPage(x, target)));
@@ -452,6 +453,43 @@ namespace NavalPower
                 if (!able) row.GetComponentInChildren<Text>().color = Theme.TextFaint;
             }
             Back(s);
+        }
+
+        // Onto a flight's strike plan (the wing lead's, as Shift + right-click
+        // builds it), nothing flown until AUTHORIZE STRIKE on its page.
+        private void PlanStrikePage(Surface s, Unit target)
+        {
+            string name = NameOf(target);
+            s.Title("PLAN A STRIKE  ·  " + name.ToUpperInvariant());
+            var shown = new List<Flight>();
+            foreach (Flight capable in FlightOrders.CapableOf(target))
+            {
+                Flight lead = Wings.LeadOf(capable) ?? capable;
+                if (shown.Contains(lead)) continue;
+                shown.Add(lead);
+                List<StrikeItem> plan = StrikePlans.PlanOf(lead);
+                bool already = plan.Exists(i => i.Target == target);
+                string who = lead.Wing != null ? lead.Wing + " (wing)" : lead.Name;
+                Button row = s.Row(who + "  ·  " + (already ? "already in its plan" : plan.Count + " target(s) planned"), () =>
+                {
+                    StrikePlans.Plan(lead, target);
+                    int count = StrikePlans.PlanOf(lead).Count;
+                    CommandState.Say(who + " · strike plan · " + count + " target(s) · add more, then AUTHORIZE STRIKE on its page");
+                    s.Show(x => PlannedPage(x, lead, target));
+                });
+                if (already) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
+            }
+            if (shown.Count == 0) s.Info("No flight carries anything that can hurt it.", Theme.TextMuted);
+            Back(s);
+        }
+
+        private void PlannedPage(Surface s, Flight lead, Unit target)
+        {
+            int count = StrikePlans.PlanOf(lead).Count;
+            s.Title((lead.Wing ?? lead.Name).ToUpperInvariant() + "  ·  strike plan");
+            s.Info(NameOf(target) + " added  ·  " + count + " target(s) planned", Theme.TextMuted);
+            s.Row("Open its strike plan  ·  authorise there", () => { OpenFlight(lead); s.Close(); });
+            s.Row("Done  ·  add more from other contacts", () => s.Close());
         }
 
         // Which store to spend on this target. Left to the analyser a flight

@@ -159,7 +159,7 @@ namespace NavalPower
             K(s, "Right-click the map", "sets the flight's task area (or moves its delivery zone, if it is delivering cargo).");
             K(s, "Shift + right-click the map", "adds route legs for the flight.");
             K(s, "Right-click a hostile", "strikes it now (told so if it carries nothing that can hurt it).");
-            K(s, "Shift + right-click hostiles", "adds each to the strike plan; nothing flies until AUTHORIZE STRIKE.");
+            K(s, "Shift + right-click hostiles", "adds each to the strike plan; nothing flies until AUTHORIZE STRIKE. Or right-click an enemy, Plan a strike…, and pick the flight.");
             P(s, "Closing the flight's window gives the map back to the ship.");
             H(s, "CONTACT MENUS");
             K(s, "Your own ship", "Speed…, Hold position, Clear the route, Arm a weapon for a manual shot…, Rules of engagement…, Go silent / Radiate, Launch an aircraft…, formation rows, Rename…, camera, CEASE FIRE.");
