@@ -782,7 +782,10 @@ namespace NavalPower
         private static void PerTargetStepper(Surface s, Flight flight, System.Action refresh)
         {
             int now = flight.MissilesPerTarget;
-            Button[] row = s.Group(new[] { "Per target: auto", "−5", "−", now > 0 ? now + " per target" : "—", "+", "+5" }, i =>
+            // Short labels: six equal buttons share the row, and "Per target:
+            // auto" or "12 per target" spilled out of theirs on both sides.
+            s.Info("Guided rounds per target  ·  " + (now > 0 ? now.ToString() : "auto"), Theme.TextMuted);
+            Button[] row = s.Group(new[] { "Auto", "−5", "−", now > 0 ? now.ToString() : "—", "+", "+5" }, i =>
             {
                 int next = now;
                 if (i == 0) next = 0;
