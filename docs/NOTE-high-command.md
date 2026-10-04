@@ -931,3 +931,10 @@ so HC's map symbols show only HC's task forces.
 ## 2026-10-04 · Lore mode and Naval Power launches
 
 `LoreSpawnPatch` refuses every `TrySpawnAircraft` with `player == null`, which includes every Naval Power deck/field launch (the player's own orders, but spawned as AI). NP's queue read that as a busy hangar and sat for 15 min; NOrders now cancels after three refusals with a free AI hangar, naming lore mode as the likely cause (`CarrierOps.LastRefusalWasVeto`). Since NP and HC each compile their own NOrders, NP can't ask HC's `Roster` directly. If lore mode should exempt launches a player commander orders, one way is for HC to let a spawn through when NP's `FlightOrders.ExpectLaunch` is pending (or for HC to expose a public static `LoreAllows(FactionHQ, AircraftDefinition)` NP can read by reflection to mark barred airframes on the deck page). The user's call.
+
+## 2026-10-04 · NOrders: strike run changes (shared code)
+
+- Level bombs are released by our own state (`FlyBombRunIn` / `FlyLevelDrop`, CCIP-style fall from `BombImpact`), at the flight's height (no descent; `Tuning.BombingHeight` is no longer read), only with a track good to 50 m.
+- Gun runs: `RunInFor` returns false for guns (straight to the combat pilot); `NativeSpeedLimitPatch` caps strafing speed and holds a pull-out until climbing, starting earlier at speed.
+- `Steer`: with speed at or above corner, the lateral swing is at least 25° (past the autopilot's 20° yaw-not-bank zone). Line-ups were flown on the rudder. Watch for any new over-banking in HC transit.
+- Non-level run-ins hand over when the target is within a 25° dive, not only at the weapon's set height.
