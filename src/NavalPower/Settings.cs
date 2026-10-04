@@ -245,7 +245,8 @@ namespace NavalPower
             OwnIrEvasion = config.Bind("Flights", "Own heat-seeker evasion", false,
                 "Off (default): a heat-seeker at one of our flights is evaded by the game's own pilot, with our guardrails: " +
                 "the shot put on the beam (the game's own heat-seeker evasion does not turn), idle -- never the airbrake -- " +
-                "and our flare strings. On: our own beam logic flies it instead.");
+                "and our flare strings. On an ordered attack (strike or engage) there is no turn: the attack is held and flared through. " +
+                "On: our own beam logic flies it instead.");
             StandOnWhenCovered = config.Bind("Flights", "Hold the task when covered", true,
                 "A flight shot at keeps to its orders instead of evading while it can defend itself where it is: " +
                 "a jamming pod on every radar-guided missile coming at it, and flares left for any heat-seeker. " +
