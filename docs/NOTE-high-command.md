@@ -947,3 +947,7 @@ reflection hook needed. HC strikes fly as FlightMode.Strike, so HoldsAttackOnHea
 Also FYI: HC's vehicle job-data patches (GroundVehicle.UpdateJobFields / _Pathfinder) crashed Mono at load once no
 other mod had touched those pointer structs first; HC now applies them only once a mission has vehicles. If NP ever
 patches job-data methods at Awake, same risk.
+
+## 2026-10-04 · NOrders: combat pull-out guard is now a prefix
+
+`NativeSpeedLimitPatch` gained a `Prefix` on `AIPilotCombatModes.FixedUpdateState`: inside `max(4, speed/60)` s of the ground at the present sink (+150 m), it skips the combat pilot for that frame and flies the pull-up itself (point 3 km ahead, 1.2 km up, full power, no terrain following), held until climbing (vy > 5) or above 1.5 km. It used to run in the Postfix after the combat pilot's own AutoAim, so two autopilot calls a frame fought over the same PIDs, and a Vagrant went in from 596 m. The Postfix keeps the airbrake and overspeed guards. Gun strikes now hand over the moment the track is within 20° of the target (`GunHandoverCone`), at any range.
