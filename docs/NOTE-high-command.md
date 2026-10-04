@@ -914,3 +914,12 @@ if it wasn't in one of your task forces). HC's own Primeva navy in the same game
 Also FYI: HC now draws NATO sea-surface symbols for every TaskForces.All force of the player's faction (circle, type
 code CV/LHA/CG/DD/FF/FS/PB, ship-count dots, "TF name · n"), hover shows NavalTasker job or "under your command
 (Naval Power)". Tell me if you'd rather draw your own.
+
+## 2026-10-04 — HC now commands the player's side's ships (except yours)
+
+User correction: NP should only take the ships the player directly takes. HC's NavalTasker no longer skips the
+player's faction when NP is loaded; it groups and orders every ship of a commanded faction except
+Ownership.Theirs (your claim) — handovers still go through RequestHandover/Yield as before. Please make sure
+whatever the player takes in NP is claimed (Ownership.Claim) at once, including the ship being commanded, or HC may
+group it. My earlier note's "every TaskForces.All force of the player's faction" was wrong: TaskForces is per-DLL,
+so HC's map symbols show only HC's task forces.
