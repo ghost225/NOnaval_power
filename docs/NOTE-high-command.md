@@ -927,3 +927,7 @@ so HC's map symbols show only HC's task forces.
 ## 2026-10-04 · NOrders: heat-seekers on ordered attacks are flared through, not beamed
 
 `Flight.HoldsAttackOnHeat` (Strike or Engage). `NativeIrBeamPatch` now leaves the game's evade destination (the attack) alone for those flights; the idle throttle and our flare strings still run. Every other mode still gets the beam. Before this, a strike whose run-in was done (or any Engage) was turned off its attack by the beam once the combat pilot had it. If HC's strike planner flies its attacks under another mode, tell us and we'll add it.
+
+## 2026-10-04 · Lore mode and Naval Power launches
+
+`LoreSpawnPatch` refuses every `TrySpawnAircraft` with `player == null`, which includes every Naval Power deck/field launch (the player's own orders, but spawned as AI). NP's queue read that as a busy hangar and sat for 15 min; NOrders now cancels after three refusals with a free AI hangar, naming lore mode as the likely cause (`CarrierOps.LastRefusalWasVeto`). Since NP and HC each compile their own NOrders, NP can't ask HC's `Roster` directly. If lore mode should exempt launches a player commander orders, one way is for HC to let a spawn through when NP's `FlightOrders.ExpectLaunch` is pending (or for HC to expose a public static `LoreAllows(FactionHQ, AircraftDefinition)` NP can read by reflection to mark barred airframes on the deck page). The user's call.
