@@ -488,7 +488,7 @@ namespace NavalPower
             int count = StrikePlans.PlanOf(lead).Count;
             s.Title((lead.Wing ?? lead.Name).ToUpperInvariant() + "  ·  strike plan");
             s.Info(NameOf(target) + " added  ·  " + count + " target(s) planned", Theme.TextMuted);
-            s.Row("Open its strike plan  ·  authorise there", () => { OpenFlight(lead); s.Close(); });
+            s.Row("Open the strike planner  ·  click more enemies, authorise there", () => { s.Close(); OpenStrikePlanner(lead); });
             s.Row("Done  ·  add more from other contacts", () => s.Close());
         }
 

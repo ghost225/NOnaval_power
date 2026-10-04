@@ -416,6 +416,17 @@ namespace NavalPower
             }
         }
 
+        // Strike planning outranks everything on the status line, the latest
+        // event after it.
+        private static string PlanningBanner(string said)
+        {
+            Flight lead = CommandState.StrikePlanning;
+            if (lead == null) return null;
+            int count = StrikePlans.PlanOf(lead).Count;
+            return UiKit.Tint("STRIKE PLANNING MODE ACTIVE", FlightIcons.Fighting) + "  ·  " + (lead.Wing ?? lead.Name) + "  ·  " + count + " target(s)" +
+                (said != null && !said.StartsWith("STRIKE PLANNING") ? "  ·  " + UiKit.Tint(said, Theme.Accent) : "  ·  click enemies to add or remove");
+        }
+
         // The standing status, or with none, the last event, dimmed.
         private static string OrRecent(string standing) =>
             !string.IsNullOrEmpty(standing) ? standing
@@ -439,13 +450,13 @@ namespace NavalPower
             // A fresh order's confirmation outranks the standing status, for as
             // long as it is fresh.
             string said = CommandState.Feedback;
-            stripStatus.text = said != null ? UiKit.Tint(said, Theme.Accent)
+            stripStatus.text = PlanningBanner(said) ?? (said != null ? UiKit.Tint(said, Theme.Accent)
                 : CommandState.SelectedFlight != null
                     ? UiKit.Tint("Tasking " + CommandState.SelectedFlight.Name, Theme.Accent) +
                       "  ·  right-click the map to order it"
                 : CommandState.Armed
                     ? "Right-click a contact to engage with " + (CommandState.SelectedWeapon()?.Name ?? "")
-                : OrRecent(WeaponOrders.GetStatus(ship));
+                : OrRecent(WeaponOrders.GetStatus(ship)));
 
             bool silent = Sensors.IsSilent(ship);
             EngagementMode roe = EngagementPolicy.GetMode(ship);
@@ -482,12 +493,12 @@ namespace NavalPower
                 (traffic > 0 ? "  ·  " + traffic + " in the pattern" : "");
 
             string said = CommandState.Feedback;
-            stripStatus.text = said != null ? UiKit.Tint(said, Theme.Accent)
+            stripStatus.text = PlanningBanner(said) ?? (said != null ? UiKit.Tint(said, Theme.Accent)
                 : CommandState.SelectedFlight != null
                     ? UiKit.Tint("Tasking " + CommandState.SelectedFlight.Name, Theme.Accent) +
                       "  ·  right-click the map to order it"
                 : CommandState.Recent != null ? UiKit.Tint(CommandState.Recent, Theme.TextMuted)
-                : "Open AIR to launch or task flights  ·  the view flies with the movement keys";
+                : "Open AIR to launch or task flights  ·  the view flies with the movement keys");
 
             List<Flight> airborne = FlightOrders.All();
             int trouble = 0;
@@ -545,6 +556,7 @@ namespace NavalPower
                 case "sns": width = 500f; break;
                 case "deck": width = 480f; break;
                 case "flight": width = 460f; break;
+                case "strike": width = 540f; break;
                 case "wpn": width = 460f; break;
                 case "help": width = 640f; break;
                 default: width = 400f; break;
@@ -555,6 +567,7 @@ namespace NavalPower
                 CommandState.SelectedFlight = null;
                 CommandState.AwaitingCargoZone = null;
             };
+            if (key == "strike") window.OnClosed = () => CommandState.StrikePlanning = null;
             // Closing a pinned feed's window is how a pin is taken down.
             if (key.StartsWith("pin") && int.TryParse(key.Substring(3), out int slot))
                 window.OnClosed = () => feedView?.Unpin(slot);

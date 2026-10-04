@@ -605,6 +605,34 @@ namespace NavalPower
             return true;
         }
 
+        private void TogglePlanned(Flight lead, Unit target)
+        {
+            string name = target.definition?.unitName ?? target.name;
+            List<StrikeItem> plan = StrikePlans.PlanOf(lead);
+            StrikeItem existing = plan.Find(i => i.Target == target);
+            string who = lead.Wing ?? lead.Name;
+            if (existing != null)
+            {
+                StrikePlans.Remove(lead, existing);
+                CommandState.Say("Removed " + name + " from " + who + "'s plan · " + StrikePlans.PlanOf(lead).Count + " target(s)");
+            }
+            else if (!TrackReadout.IsTargetable(target))
+            {
+                CommandState.Say(name + " · no live track · not planned");
+                return;
+            }
+            else
+            {
+                bool able = false;
+                foreach (Flight member in Wings.Group(lead))
+                    if (member.Aircraft != null && FlightOrders.BestStationFor(member.Aircraft, target) != null) { able = true; break; }
+                if (!able) { CommandState.Say(who + " carries nothing that can hurt " + name + " · not planned"); return; }
+                StrikePlans.Plan(lead, target);
+                CommandState.Say("Added " + name + " to " + who + "'s plan · " + StrikePlans.PlanOf(lead).Count + " target(s)");
+            }
+            Ui?.RefreshStrikePlanner();
+        }
+
         internal void ProcessInput()
         {
             UpdateGesture();
@@ -634,6 +662,27 @@ namespace NavalPower
             EsmContact estimate = onMap ? PickEsm(map) : null;
             if (estimate != null && (pointed == null || pickedEsmDistance < pickedUnitDistance)) pointed = null;
             else estimate = null;
+
+            // The strike planner open: a click on an enemy (left on the map,
+            // right anywhere) puts it on the plan or takes it off, and no other
+            // order goes out -- a normal strike cannot be sent by mistake.
+            if (CommandState.StrikePlanning != null && !PointerOnForeignUi(onMap ? map : null))
+            {
+                bool enemy = pointed != null && pointed.NetworkHQ != null && pointed.NetworkHQ != CommandState.Hq;
+                if (enemy)
+                {
+                    if (left) leftGesture.Claim();
+                    Ui?.ClosePopup();
+                    TogglePlanned(CommandState.StrikePlanning, pointed);
+                    return;
+                }
+                if (right)
+                {
+                    Ui?.ClosePopup();
+                    CommandState.Say("Strike planning · click an enemy to add or remove it · close the planner for other orders");
+                    return;
+                }
+            }
 
             if (left)
             {
@@ -699,10 +748,11 @@ namespace NavalPower
                 // Shift: into the strike plan, sent only when authorised.
                 if (append)
                 {
+                    // The first shift-click opens the planner; from there on
+                    // plain clicks build the plan.
                     StrikePlans.Plan(tasking, pointed);
-                    int planned = StrikePlans.PlanOf(tasking).Count;
-                    CommandState.Say(tasking.Name + " · strike plan · " + planned + " target(s) · shift-click more, then AUTHORIZE STRIKE on its page");
                     if (!pinned) CommandState.SelectedFlight = tasking;       // keep it in hand while planning
+                    Ui?.OpenStrikePlanner(tasking);
                     return;
                 }
                 WingOrders.Strike(tasking, pointed);

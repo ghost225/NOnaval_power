@@ -159,7 +159,7 @@ namespace NavalPower
             K(s, "Right-click the map", "sets the flight's task area (or moves its delivery zone, if it is delivering cargo).");
             K(s, "Shift + right-click the map", "adds route legs for the flight.");
             K(s, "Right-click a hostile", "strikes it now (told so if it carries nothing that can hurt it).");
-            K(s, "Shift + right-click hostiles", "adds each to the strike plan; nothing flies until AUTHORIZE STRIKE. Or right-click an enemy, Plan a strike…, and pick the flight.");
+            K(s, "Shift + right-click hostiles", "opens the strike planner with the enemy on the plan; then plain clicks add or remove; nothing flies until AUTHORIZE STRIKE. Or right-click an enemy, Plan a strike…, and pick the flight.");
             P(s, "Closing the flight's window gives the map back to the ship.");
             H(s, "CONTACT MENUS");
             K(s, "Your own ship", "Speed…, Hold position, Clear the route, Arm a weapon for a manual shot…, Rules of engagement…, Go silent / Radiate, Launch an aircraft…, formation rows, Rename…, camera, CEASE FIRE.");
@@ -262,7 +262,7 @@ namespace NavalPower
 
         private void HelpStrikes(Surface s)
         {
-            P(s, "For attacking several targets in one go. Open the flight's window, then Shift + right-click each enemy: they collect in the wing lead's STRIKE PLAN on that window.");
+            P(s, "For attacking several targets in one go. Open the STRIKE PLANNER: Strike planner… on the flight's window, Plan a strike… on an enemy's menu, or Shift + right-click an enemy with the flight's window open. While the planner is open the status line reads STRIKE PLANNING MODE ACTIVE: click an enemy (left on the map, or right anywhere) to add it to the wing lead's plan, click it again to take it off, and no other map order is given -- a normal strike cannot be sent by mistake. AUTHORIZE STRIKE sends it and ends planning; closing the planner keeps the plan.");
             K(s, "STRIKE PLAN header", "how many targets, the guided rounds per target (set right there: auto, or stepped up to 30), and rounds wanted against rounds carried.");
             K(s, "Looks possible in one pass / About N passes", "with the reasons: bombs and guns take a pass each; targets outside one launch point's reach take another.");
             K(s, "CAN'T COMPLETE", "a weapon runs out before the list does at this rate; the skipped targets are marked NO ROUNDS LEFT, and Set 1 per target is offered when that would cover them all.");

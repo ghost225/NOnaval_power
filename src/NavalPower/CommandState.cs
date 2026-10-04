@@ -41,6 +41,9 @@ namespace NavalPower
         // An airdrop along a line, being laid down: the flight, and the start
         // once the first click has given it.
         internal static Flight AwaitingDropLine;
+        // The wing lead whose strike plan the map is building (the strike
+        // planner open): clicks on enemies add or remove them, nothing else.
+        internal static Flight StrikePlanning;
         internal static GlobalPosition? DropLineStart;
 
         internal static bool Active => Ship != null || Base != null;
@@ -81,6 +84,7 @@ namespace NavalPower
             AwaitingCargoZone = null;
             AwaitingLanding = null;
             AwaitingDropLine = null;
+            StrikePlanning = null;
             DropLineStart = null;
             Quantity = 1;
         }

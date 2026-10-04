@@ -655,7 +655,71 @@ namespace NavalPower
         // the button that sends it. Then any strike list being flown.
         private void StrikePlanSection(Surface s, Flight flight)
         {
+            List<StrikeItem> planned = StrikePlans.PlanOf(flight);
+            bool planning = CommandState.StrikePlanning != null && CommandState.StrikePlanning == (Wings.LeadOf(flight) ?? flight);
+            Button planner = s.Row((planning ? "STRIKE PLANNER OPEN" : "Strike planner…") + "  ·  " +
+                (planned.Count > 0 ? planned.Count + " target(s) planned" : "click enemies to build a strike"), () => OpenStrikePlanner(flight));
+            if (planning || planned.Count > 0) Surface.Edge(planner, FlightIcons.Fighting);
+            if (flight.StrikeList.Count > 0)
+            {
+                s.Info(UiKit.Tint("STRIKE LIST  ·  " + flight.StrikeList.Count + " to go", FlightIcons.Fighting), Theme.Text);
+                foreach (StrikeItem item in flight.StrikeList)
+                {
+                    bool now = item.Target == flight.Target;
+                    int closing = ShotDisciplinePatch.Closing(flight.Aircraft != null ? flight.Aircraft.NetworkHQ : null, item.Target);
+                    s.Info((now ? "▸ " : "   ") + ContactName(item.Target) + (closing > 0 ? "  ·  " + closing + " missile(s) closing" : "") +
+                        (item.Saturate ? "  ·  " + UiKit.Tint("SATURATION", FlightIcons.Fighting) : string.IsNullOrEmpty(item.Weapon) ? "" : "  ·  " + WeaponLabel(flight, item.Weapon)), now ? Theme.Text : Theme.TextMuted);
+                }
+            }
+        }
+
+        // ---- the strike planner ---------------------------------------------
+
+        // A window of its own. While it is open the map builds the plan: a
+        // click on an enemy (left on the map, right anywhere) adds it, a
+        // click on one already planned takes it off, and nothing else is
+        // ordered -- no strike sent by a slip of the mouse. The status line
+        // says so the whole time. Authorising or closing it ends planning.
+        internal void OpenStrikePlanner(Flight flight)
+        {
+            Ensure();
+            Flight lead = Wings.LeadOf(flight) ?? flight;
+            if (CommandState.SelectedKey != null) CommandState.SelectedKey = null;
+            CommandState.StrikePlanning = lead;
+            Surface window = Window("strike");
+            bool wasOpen = window.IsOpen;
+            window.Show(x => StrikePlannerPage(x, lead));
+            if (!wasOpen)
+            {
+                Vector2 at = DropUp(window, ToolFor("air"));
+                if (windows.TryGetValue("flight", out Surface fw) && fw.IsOpen)
+                {
+                    Vector2 f = fw.Panel.anchoredPosition;
+                    float x = f.x - window.Width - 8f;
+                    if (x < 8f) x = f.x + fw.Width + 8f;
+                    at = new Vector2(x, f.y);
+                }
+                window.Place(at);
+            }
+            CommandState.Say("STRIKE PLANNING MODE ACTIVE · " + (lead.Wing ?? lead.Name) + " · click enemies to add or remove them");
+        }
+
+        internal void RefreshStrikePlanner()
+        {
+            if (CommandState.StrikePlanning == null || !windows.TryGetValue("strike", out Surface window) || !window.IsOpen) return;
+            Flight lead = CommandState.StrikePlanning;
+            window.Show(x => StrikePlannerPage(x, lead));
+        }
+
+        private void StrikePlannerPage(Surface s, Flight flight)
+        {
+            if (!Alive(s, flight)) { CommandState.StrikePlanning = null; return; }
+            CommandState.StrikePlanning = flight;
+            s.Title("STRIKE PLANNER  ·  " + (flight.Wing != null ? flight.Wing + " (wing)" : flight.Name).ToUpperInvariant());
+            s.Info(UiKit.Tint("STRIKE PLANNING MODE ACTIVE", FlightIcons.Fighting) +
+                "  ·  click enemies on the map to add or remove them  ·  other map orders are paused until this closes", Theme.TextMuted);
             List<StrikeItem> plan = StrikePlans.PlanOf(flight);
+            if (plan.Count == 0) s.Info("No targets yet.", Theme.TextMuted);
             if (plan.Count > 0)
             {
                 StrikePlans.Needs(flight, out int wanted, out int carried);
@@ -669,7 +733,7 @@ namespace NavalPower
                 // Rounds per target for guided rounds, the whole wing's -- the
                 // same setting as on the rules page. A gun runs passes until
                 // the target is down; this does not apply to it.
-                PerTargetStepper(s, flight, () => s.Show(x => FlightPage(x, flight)));
+                PerTargetStepper(s, flight, () => s.Show(x => StrikePlannerPage(x, flight)));
                 if (shortfalls.Count > 0)
                 {
                     foreach (StrikePlans.Shortfall f in shortfalls)
@@ -679,7 +743,7 @@ namespace NavalPower
                         {
                             WingOrders.SetMissilesPerTarget(flight, 1);
                             CommandState.Say(flight.Name + " · 1 guided round per target");
-                            s.Show(x => FlightPage(x, flight));
+                            s.Show(x => StrikePlannerPage(x, flight));
                         });
                 }
                 else
@@ -696,29 +760,20 @@ namespace NavalPower
                         () => s.Show(x => PlanWeaponPage(x, flight, item)), "✕", () =>
                         {
                             StrikePlans.Remove(flight, item);
-                            s.Show(x => FlightPage(x, flight));
+                            s.Show(x => StrikePlannerPage(x, flight));
                         }, out _);
                     Surface.Edge(row, left ? Theme.Bad : FlightIcons.Fighting);
                 }
                 Button go = s.Row("AUTHORIZE STRIKE", () =>
                 {
-                    CommandState.Say(StrikePlans.Authorize(flight));
-                    s.Show(x => FlightPage(x, flight));
+                    string said = StrikePlans.Authorize(flight);
+                    s.Close();                         // planning over
+                    CommandState.Say(said);
                 });
                 go.image.color = Theme.Dim(FlightIcons.Fighting, 0.45f);
-                s.Row("Clear the plan", () => { StrikePlans.Clear(flight); s.Show(x => FlightPage(x, flight)); });
+                s.Row("Clear the plan", () => { StrikePlans.Clear(flight); s.Show(x => StrikePlannerPage(x, flight)); });
             }
-            if (flight.StrikeList.Count > 0)
-            {
-                s.Info(UiKit.Tint("STRIKE LIST  ·  " + flight.StrikeList.Count + " to go", FlightIcons.Fighting), Theme.Text);
-                foreach (StrikeItem item in flight.StrikeList)
-                {
-                    bool now = item.Target == flight.Target;
-                    int closing = ShotDisciplinePatch.Closing(flight.Aircraft != null ? flight.Aircraft.NetworkHQ : null, item.Target);
-                    s.Info((now ? "▸ " : "   ") + ContactName(item.Target) + (closing > 0 ? "  ·  " + closing + " missile(s) closing" : "") +
-                        (item.Saturate ? "  ·  " + UiKit.Tint("SATURATION", FlightIcons.Fighting) : string.IsNullOrEmpty(item.Weapon) ? "" : "  ·  " + WeaponLabel(flight, item.Weapon)), now ? Theme.Text : Theme.TextMuted);
-                }
-            }
+            s.Row("Close the planner  ·  plan kept", () => s.Close());
         }
 
         // Guided rounds per target: Auto, or a count stepped up and down --
@@ -747,7 +802,7 @@ namespace NavalPower
         {
             if (!Alive(s, flight)) return;
             s.Title("ATTACK ON " + ContactName(item.Target).ToUpperInvariant());
-            Back(s, flight);
+            s.Row("Back to the planner", () => s.Show(x => StrikePlannerPage(x, flight)));
             // How: an ordinary attack with one weapon (at the per-target
             // rounds), or a saturation -- everything chosen, from every
             // aircraft carrying it, at this one target.
@@ -800,11 +855,11 @@ namespace NavalPower
                 });
                 if (item.Together) together.image.color = Theme.AccentFill;
                 s.Info("Missiles hold together; glide bombs go on their own release cue.", Theme.TextMuted);
-                s.Row("Done", () => s.Show(x => FlightPage(x, flight)));
+                s.Row("Done", () => s.Show(x => StrikePlannerPage(x, flight)));
                 return;
             }
 
-            Button auto = s.Row("Best available  ·  let the flight choose", () => { item.Weapon = null; s.Show(x => FlightPage(x, flight)); });
+            Button auto = s.Row("Best available  ·  let the flight choose", () => { item.Weapon = null; s.Show(x => StrikePlannerPage(x, flight)); });
             if (string.IsNullOrEmpty(item.Weapon)) auto.image.color = Theme.AccentFill;
             foreach (KeyValuePair<string, WeaponInfo> entry in infos)
             {
@@ -814,7 +869,7 @@ namespace NavalPower
                     (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), () =>
                     {
                         item.Weapon = entry.Key;
-                        s.Show(x => FlightPage(x, flight));
+                        s.Show(x => StrikePlannerPage(x, flight));
                     });
                 if (item.Weapon == entry.Key) row.image.color = Theme.AccentFill;
                 if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
