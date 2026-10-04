@@ -904,3 +904,13 @@ Guardrail `NativeIrBeamPatch`: a postfix on `AIPilotCombatModes.RunEvadeMode`. F
 - **Threat wording (2026-10-03):** `Flight.ThreatKind` names the nearest missile by seeker (ARH, SARH, IR, OPT for Optical or INS / Opt., INS, LASER, ARM for ARAD). Status reads "EVADING ARH" or "DEFENDING SARH", and the attention flag "evading IR" instead of "missile inbound". HC shows these strings too.
 
 - **Wing lead is the lowest callsign (`Wings.Joined`):** since 115153b an open-door hangar spawns at once, so -2 could be airborne before -1 and lead. A lower callsign joining within the wing's first 60 s (`Record.FormedAt`) now takes the lead and the orders via `TakeOver` (factored out of `Promote`), and the early one goes to Formation.
+
+## 2026-10-04 — For NP: Cursor Class LFD group aground (player's side)
+
+User report: the Cursor Class LFD and its Surf Class patrol boats ran aground. That group is Boscali, the player's
+side; HC logs "navy: the player's own ships are left to Naval Power", so HC never ordered it. Yours (or the game's,
+if it wasn't in one of your task forces). HC's own Primeva navy in the same game was 9 ships in surface groups
+(Alpha–Foxtrot), no groundings logged.
+Also FYI: HC now draws NATO sea-surface symbols for every TaskForces.All force of the player's faction (circle, type
+code CV/LHA/CG/DD/FF/FS/PB, ship-count dots, "TF name · n"), hover shows NavalTasker job or "under your command
+(Naval Power)". Tell me if you'd rather draw your own.
