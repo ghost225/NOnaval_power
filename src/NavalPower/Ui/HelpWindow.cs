@@ -202,7 +202,7 @@ namespace NavalPower
             K(s, "Weapons Hold", "never starts a fight. It still evades and defends against anything fired at it.");
             K(s, "Weapons Tight", "fights back only against aircraft that fired on it in the last 90 seconds, then returns to its task. It will not wander off after ground units that happen to shoot at it.");
             K(s, "Weapons Free", "picks up any hostile in its weapons' reach (inside its task area, unless set to fight anywhere), engages, then resumes its task.");
-            P(s, "Also on Rules & weapons: Guided rounds per target (Auto, 1–4: how many missiles or glide bombs may be closing on one target at once), " +
+            P(s, "Also on Rules & weapons: Guided rounds per target (Auto, or −5 / − / + / +5 up to 30: how many guided rounds may be closing on one target at once; a gun flies passes until the target is down), " +
                 "and Fights only inside its task area / Fights anywhere in reach. The quick order Weapons free (a mode, not the ROE) hands the aircraft to the game's AI to hunt on its own.");
         }
 
@@ -263,7 +263,7 @@ namespace NavalPower
         private void HelpStrikes(Surface s)
         {
             P(s, "For attacking several targets in one go. Open the flight's window, then Shift + right-click each enemy: they collect in the wing lead's STRIKE PLAN on that window.");
-            K(s, "STRIKE PLAN header", "how many targets, the guided rounds per target (with Per target: auto / 1 / 2 / 3 / 4 right there), and rounds wanted against rounds carried.");
+            K(s, "STRIKE PLAN header", "how many targets, the guided rounds per target (set right there: auto, or stepped up to 30), and rounds wanted against rounds carried.");
             K(s, "Looks possible in one pass / About N passes", "with the reasons: bombs and guns take a pass each; targets outside one launch point's reach take another.");
             K(s, "CAN'T COMPLETE", "a weapon runs out before the list does at this rate; the skipped targets are marked NO ROUNDS LEFT, and Set 1 per target is offered when that would cover them all.");
             K(s, "Click a planned target", "choose its weapon: One weapon (or best available), or SATURATION.");

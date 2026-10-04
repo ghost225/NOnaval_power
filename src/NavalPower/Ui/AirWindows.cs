@@ -442,12 +442,7 @@ namespace NavalPower
             s.Info("Guided rounds per target (missiles, glide bombs)  ·  " + (flight.MissilesPerTarget > 0 ? flight.MissilesPerTarget.ToString()
                 : "auto (air " + Settings.MissilesPerAirTarget.Value + ", surface " +
                   (Settings.MissilesPerSurfaceTarget.Value > 0 ? Settings.MissilesPerSurfaceTarget.Value.ToString() : "as needed") + ")"), Theme.TextMuted);
-            Button[] perTarget = s.Group(new[] { "Auto", "1", "2", "3", "4" }, i =>
-            {
-                WingOrders.SetMissilesPerTarget(flight, i);
-                CommandState.Say(flight.Name + " · " + (i == 0 ? "missiles per target automatic" : i + " missile(s) per target"));
-            });
-            perTarget[Mathf.Clamp(flight.MissilesPerTarget, 0, 4)].image.color = Theme.AccentFill;
+            PerTargetStepper(s, flight, () => s.Show(x => RulesPage(x, flight)));
             // A toggle stays on its page, so the change can be seen.
             Button confine = s.Row(flight.ConfineToArea ? "Fights only inside its task area" : "Fights anywhere in reach", () =>
             {
@@ -671,15 +666,10 @@ namespace NavalPower
                 s.Info(UiKit.Tint("STRIKE PLAN  ·  " + plan.Count + " target(s)", FlightIcons.Fighting) +
                     "  ·  " + (perTarget > 0 ? UiKit.Tint(perTarget + "× PER TARGET", perTarget > 1 ? FlightIcons.Attention : Theme.Text) : "auto per target") +
                     (wanted > 0 ? "  ·  " + wanted + " of " + carried + " guided rounds" : ""), Theme.Text);
-                // Rounds per target for missiles and glide bombs, the whole
-                // wing's -- the same setting as on the rules page.
-                Button[] per = s.Group(new[] { "Per target: auto", "1", "2", "3", "4" }, i =>
-                {
-                    WingOrders.SetMissilesPerTarget(flight, i);
-                    CommandState.Say(flight.Name + " · " + (i == 0 ? "rounds per target automatic" : i + " guided round(s) per target"));
-                    s.Show(x => FlightPage(x, flight));
-                });
-                per[Mathf.Clamp(perTarget, 0, 4)].image.color = Theme.AccentFill;
+                // Rounds per target for guided rounds, the whole wing's -- the
+                // same setting as on the rules page. A gun runs passes until
+                // the target is down; this does not apply to it.
+                PerTargetStepper(s, flight, () => s.Show(x => FlightPage(x, flight)));
                 if (shortfalls.Count > 0)
                 {
                     foreach (StrikePlans.Shortfall f in shortfalls)
@@ -699,6 +689,7 @@ namespace NavalPower
                 {
                     StrikeItem item = plan[i];
                     string weapon = PlanLabel(flight, item);
+                    if (!item.Saturate && GunItem(flight, item)) weapon += "  ·  passes until it's down";
                     bool left = unreached.Contains(item);
                     Button row = s.Row((i + 1) + ".  " + ContactName(item.Target) + "  ·  " + DistanceTo(flight, item.Target) + "  ·  " + weapon +
                         (left ? "  ·  " + UiKit.Tint("NO ROUNDS LEFT", Theme.Bad) : ""),
@@ -730,6 +721,28 @@ namespace NavalPower
             }
         }
 
+        // Guided rounds per target: Auto, or a count stepped up and down --
+        // as many as the wing carries, not only one to four.
+        private const int MaxPerTarget = 30;
+        private static void PerTargetStepper(Surface s, Flight flight, System.Action refresh)
+        {
+            int now = flight.MissilesPerTarget;
+            Button[] row = s.Group(new[] { "Per target: auto", "−5", "−", now > 0 ? now + " per target" : "—", "+", "+5" }, i =>
+            {
+                int next = now;
+                if (i == 0) next = 0;
+                else if (i == 1) next = Mathf.Max(now - 5, 0);
+                else if (i == 2) next = Mathf.Max(now - 1, 0);
+                else if (i == 4) next = Mathf.Min(Mathf.Max(now, 0) + 1, MaxPerTarget);
+                else if (i == 5) next = Mathf.Min(Mathf.Max(now, 0) + 5, MaxPerTarget);
+                else return;
+                WingOrders.SetMissilesPerTarget(flight, next);
+                CommandState.Say(flight.Name + " · " + (next == 0 ? "rounds per target automatic" : next + " guided round(s) per target"));
+                refresh();
+            });
+            row[now > 0 ? 3 : 0].image.color = Theme.AccentFill;
+        }
+
         private void PlanWeaponPage(Surface s, Flight flight, StrikeItem item)
         {
             if (!Alive(s, flight)) return;
@@ -751,7 +764,7 @@ namespace NavalPower
             foreach (Flight member in Wings.Group(Wings.LeadOf(flight) ?? flight))
                 foreach (WeaponStation station in FlightOrders.ArmedStations(member.Aircraft))
                 {
-                    string key = station.WeaponInfo.name;
+                    string key = FlightOrders.WeaponKey(station.WeaponInfo);
                     rounds.TryGetValue(key, out int n);
                     rounds[key] = n + station.Ammo;
                     infos[key] = station.WeaponInfo;
@@ -765,12 +778,12 @@ namespace NavalPower
                 {
                     WeaponInfo info = entry.Value;
                     if (!(info.missile || info.glideBomb) || info.bomb) continue;
-                    bool ticked = item.Weapons.Contains(info.name);
+                    bool ticked = item.Weapons.Contains(entry.Key);
                     float worth = WeaponOrders.Opportunity(info, item.Target);
                     Button row = s.Row((ticked ? "✓  " : "     ") + info.weaponName + "  ·  " + rounds[entry.Key] + " in the wing  ·  " +
                         (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), () =>
                         {
-                            if (!item.Weapons.Remove(info.name)) item.Weapons.Add(info.name);
+                            if (!item.Weapons.Remove(entry.Key)) item.Weapons.Add(entry.Key);
                             s.Show(x => PlanWeaponPage(x, flight, item));
                         });
                     if (ticked) row.image.color = Theme.AccentFill;
@@ -800,12 +813,20 @@ namespace NavalPower
                 Button row = s.Row(info.weaponName + "  ·  " + rounds[entry.Key] + " in the wing  ·  " +
                     (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), () =>
                     {
-                        item.Weapon = info.name;
+                        item.Weapon = entry.Key;
                         s.Show(x => FlightPage(x, flight));
                     });
-                if (item.Weapon == info.name) row.image.color = Theme.AccentFill;
+                if (item.Weapon == entry.Key) row.image.color = Theme.AccentFill;
                 if (worth <= 0.01f) row.GetComponentInChildren<Text>().color = Theme.TextMuted;
             }
+        }
+
+        // A plan item flown with a gun (named, or the best available being one).
+        private static bool GunItem(Flight flight, StrikeItem item)
+        {
+            WeaponStation station = !string.IsNullOrEmpty(item.Weapon) ? FlightOrders.NamedStation(flight.Aircraft, item.Weapon)
+                : FlightOrders.BestStationFor(flight.Aircraft, item.Target);
+            return station?.WeaponInfo != null && station.WeaponInfo.gun;
         }
 
         // The plan row's weapon column: the weapon, or the saturation's load.

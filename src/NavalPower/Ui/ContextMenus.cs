@@ -505,16 +505,27 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " striking " + name);
                 s.Close();
             });
+            // One row a weapon, whatever pylons carry it.
+            var left = new Dictionary<string, int>();
+            var kinds = new Dictionary<string, WeaponInfo>();
             foreach (WeaponStation station in FlightOrders.ArmedStations(flight.Aircraft))
             {
-                WeaponInfo info = station.WeaponInfo;
+                string key = FlightOrders.WeaponKey(station.WeaponInfo);
+                left.TryGetValue(key, out int n);
+                left[key] = n + station.Ammo;
+                if (!kinds.ContainsKey(key)) kinds[key] = station.WeaponInfo;
+            }
+            foreach (KeyValuePair<string, WeaponInfo> kind in kinds)
+            {
+                WeaponInfo info = kind.Value;
+                string key = kind.Key;
                 float worth = WeaponOrders.Opportunity(info, target);
                 bool releasable = FlightOrders.CanReleaseNow(flight.Aircraft, info, target);
-                Button row = s.Row(info.weaponName + "  ·  " + station.Ammo + " left  ·  " +
+                Button row = s.Row(info.weaponName + "  ·  " + left[key] + " left  ·  " +
                     (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match") +
                     (releasable ? "" : "  ·  must close for a track"), () =>
                 {
-                    WingOrders.Strike(flight, target, info.name);
+                    WingOrders.Strike(flight, target, key);
                     CommandState.Say(flight.Name + " striking " + name + " with " + info.weaponName);
                     s.Close();
                 });
