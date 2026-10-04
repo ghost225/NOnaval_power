@@ -693,7 +693,7 @@ namespace NavalPower
                 string contact = pointed.definition?.unitName ?? pointed.name;
                 if (FlightOrders.BestStationFor(tasking.Aircraft, pointed) == null)
                 {
-                    CommandState.Say(tasking.Name + " carries nothing that can attack " + contact + " · a gun run is chosen from the contact's menu");
+                    CommandState.Say(tasking.Name + " carries nothing that can attack " + contact);
                     return;
                 }
                 // Shift: into the strike plan, sent only when authorised.
