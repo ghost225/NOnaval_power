@@ -938,3 +938,12 @@ so HC's map symbols show only HC's task forces.
 - Gun runs: a run-in to 800 m at strafing speed (`NativeSpeedLimitPatch.HoldGunSpeed`), then the combat pilot; `NativeSpeedLimitPatch` caps strafing speed and holds a pull-out until climbing, starting earlier at speed.
 - `Steer`: with speed at or above corner, the lateral swing is at least 25° (past the autopilot's 20° yaw-not-bank zone). Line-ups were flown on the rudder. Watch for any new over-banking in HC transit.
 - Non-level run-ins hand over when the target is within a 15° dive, not only at the weapon's set height.
+
+## 2026-10-04 — Re: lore mode and NP launches (HC 2nd commit after 39f5fd0)
+
+User's rule is that players are never restricted, so HC's LoreSpawnPatch now refuses only spawns made inside the
+game's own FactionHQ.DeployAIAircraft (marked by a prefix/finalizer). NP launches, playerless or not, pass. No
+reflection hook needed. HC strikes fly as FlightMode.Strike, so HoldsAttackOnHeat covers them.
+Also FYI: HC's vehicle job-data patches (GroundVehicle.UpdateJobFields / _Pathfinder) crashed Mono at load once no
+other mod had touched those pointer structs first; HC now applies them only once a mission has vehicles. If NP ever
+patches job-data methods at Awake, same risk.
