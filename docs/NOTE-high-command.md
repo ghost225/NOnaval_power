@@ -923,3 +923,7 @@ Ownership.Theirs (your claim) — handovers still go through RequestHandover/Yie
 whatever the player takes in NP is claimed (Ownership.Claim) at once, including the ship being commanded, or HC may
 group it. My earlier note's "every TaskForces.All force of the player's faction" was wrong: TaskForces is per-DLL,
 so HC's map symbols show only HC's task forces.
+
+## 2026-10-04 · NOrders: heat-seekers on ordered attacks are flared through, not beamed
+
+`Flight.HoldsAttackOnHeat` (Strike or Engage). `NativeIrBeamPatch` now leaves the game's evade destination (the attack) alone for those flights; the idle throttle and our flare strings still run. Every other mode still gets the beam. Before this, a strike whose run-in was done (or any Engage) was turned off its attack by the beam once the combat pilot had it. If HC's strike planner flies its attacks under another mode, tell us and we'll add it.
