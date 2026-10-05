@@ -470,10 +470,63 @@ namespace NavalPower
                 CommandState.Say(flight.Name + " · weapons free · it will hunt on its own");
             });
             if (flight.Mode == FlightMode.Engage) free.image.color = Theme.AccentFill;
+            TurretSection(s, flight);
             s.Info("Stores  ·  " + flight.Stores, Theme.TextMuted);
             float flares = IrDefence.FlareFraction(flight.Aircraft);
             s.Info("Countermeasures  ·  " + IrDefence.Readout(flight.Aircraft),
                 flares <= 0f ? Theme.Bad : flares <= Settings.FlareReserve.Value ? Theme.Warn : Theme.TextMuted);
+        }
+
+        // Turret mounts (a chin gun, side guns, a ventral turret): their own
+        // rules of engagement over the flight's, as a ship's weapons have, the
+        // chip on the right cycling follows-the-flight, free, tight, hold.
+        // Only for an aircraft that has turrets. A helicopter's turret is flown
+        // a gunship pass when struck with; a fixed-wing's fires at what it can
+        // reach and is no strike weapon.
+        private void TurretSection(Surface s, Flight flight)
+        {
+            var names = new Dictionary<string, string>();
+            var rounds = new Dictionary<string, int>();
+            var opportunistic = new HashSet<string>();
+            foreach (Flight member in Wings.Group(Wings.LeadOf(flight) ?? flight))
+            {
+                if (member.Aircraft == null || member.Aircraft.weaponStations == null) continue;
+                foreach (WeaponStation station in member.Aircraft.weaponStations)
+                {
+                    if (station?.WeaponInfo == null || !station.HasTurret()) continue;
+                    string key = FlightOrders.WeaponKey(station.WeaponInfo);
+                    names[key] = station.WeaponInfo.weaponName ?? key;
+                    rounds.TryGetValue(key, out int n);
+                    rounds[key] = n + station.Ammo;
+                    if (TurretRules.OpportunisticOnly(member.Aircraft, station)) opportunistic.Add(key);
+                }
+            }
+            if (names.Count == 0) return;
+            s.Info("TURRETS  ·  free fires at will  ·  tight: the ordered target and who fired on the flight  ·  hold: silent  ·  the whole wing's", Theme.TextFaint);
+            foreach (KeyValuePair<string, string> entry in names)
+            {
+                string key = entry.Key;
+                EngagementMode? own = TurretRules.OwnMode(flight, key);
+                EngagementMode shown = TurretRules.ModeFor(flight, key);
+                string chip = own == null ? "·" : own == EngagementMode.WeaponsFree ? "F" : own == EngagementMode.WeaponsTight ? "T" : "H";
+                System.Action cycle = () =>
+                {
+                    EngagementMode? next = own == null ? EngagementMode.WeaponsFree
+                        : own == EngagementMode.WeaponsFree ? EngagementMode.WeaponsTight
+                        : own == EngagementMode.WeaponsTight ? EngagementMode.WeaponsHold
+                        : (EngagementMode?)null;
+                    WingOrders.SetTurretMode(flight, key, next);
+                    CommandState.Say(entry.Value + " · " + (next.HasValue ? EngagementPolicy.Describe(next.Value) : "follows the flight's rules"));
+                    s.Show(x => RulesPage(x, flight));
+                };
+                Button row = s.Row(entry.Value + " (turret)  ·  " + rounds[key] + " rds  ·  " +
+                    (own == null ? "follows the flight, " + EngagementPolicy.Describe(shown).ToLowerInvariant() : EngagementPolicy.Describe(own.Value).ToLowerInvariant()) +
+                    (opportunistic.Contains(key) ? "  ·  fires at what it can reach; not a strike weapon" : "  ·  gunship pass when struck with"),
+                    cycle, chip, cycle, out Button chipButton);
+                Text chipText = chipButton.GetComponentInChildren<Text>();
+                chipText.color = own == null ? Theme.TextMuted : own == EngagementMode.WeaponsFree ? Theme.Good
+                    : own == EngagementMode.WeaponsTight ? Theme.Warn : Theme.Bad;
+            }
         }
 
         // Who it flies with.
@@ -885,6 +938,7 @@ namespace NavalPower
             // Every weapon the wing carries, once, with the rounds across it.
             var rounds = new Dictionary<string, int>();
             var infos = new Dictionary<string, WeaponInfo>();
+            var turrets = new HashSet<string>();
             foreach (Flight member in Wings.Group(Wings.LeadOf(flight) ?? flight))
                 foreach (WeaponStation station in FlightOrders.ArmedStations(member.Aircraft))
                 {
@@ -892,6 +946,7 @@ namespace NavalPower
                     rounds.TryGetValue(key, out int n);
                     rounds[key] = n + station.Ammo;
                     infos[key] = station.WeaponInfo;
+                    if (station.HasTurret()) turrets.Add(key);
                 }
 
             if (item.Saturate)
@@ -934,7 +989,7 @@ namespace NavalPower
             {
                 WeaponInfo info = entry.Value;
                 float worth = WeaponOrders.Opportunity(info, item.Target);
-                Button row = s.Row(info.weaponName + "  ·  " + rounds[entry.Key] + " in the wing  ·  " +
+                Button row = s.Row(info.weaponName + (turrets.Contains(entry.Key) ? " (TURRET, gunship pass)" : "") + "  ·  " + rounds[entry.Key] + " in the wing  ·  " +
                     (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match"), () =>
                     {
                         item.Weapon = entry.Key;

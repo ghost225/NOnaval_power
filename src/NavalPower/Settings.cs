@@ -36,7 +36,7 @@ namespace NavalPower
         internal static ConfigEntry<bool> EscortRetaliate, EscortIntercept;
         internal static ConfigEntry<float> CruiseThrottle;
         internal static ConfigEntry<bool> PreFlare;
-        internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange, IrBurstPause;
+        internal static ConfigEntry<float> PreFlareInterval, FlareReserve, IrBurstRange, IrBurstPause, TurretStrikeSeconds;
         internal static ConfigEntry<int> IrBurstFlares;
 
         internal static ConfigEntry<int> DamageControlConcentration;
@@ -272,6 +272,9 @@ namespace NavalPower
                 "every few seconds, so a shot fired without warning meets flares already in the air.");
             PreFlareInterval = config.Bind("Flights", "Pre-flare interval", 2f,
                 Advanced("Seconds between pre-emptive flares near known IR launchers."));
+            TurretStrikeSeconds = config.Bind("Flights", "Turret strike time", 90f,
+                Advanced("How long a helicopter or tiltwing presses a strike with a turret weapon (a chin gun, side guns) after its first rounds, " +
+                    "in seconds, before it leaves. The turret fires continuously, so the usual end of a strike (rounds went down) would send it away after one burst."));
             FlareReserve = config.Bind("Flights", "Flare reserve", 0.3f,
                 Advanced("Pre-flaring stops when the flares left fall to this fraction, keeping them for actual shots."));
             DamageControlRate = config.Bind("Damage control", "Work rate", 5,
@@ -404,6 +407,7 @@ namespace NavalPower
             Tuning.PreFlare = PreFlare.Value;
             Tuning.PreFlareInterval = PreFlareInterval.Value;
             Tuning.FlareReserve = FlareReserve.Value;
+            Tuning.TurretStrikeSeconds = TurretStrikeSeconds.Value;
             Tuning.IrBurstPause = IrBurstPause.Value;
             Tuning.OwnRadarEvasion = OwnRadarEvasion.Value;
             Tuning.OwnIrEvasion = OwnIrEvasion.Value;

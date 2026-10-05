@@ -951,3 +951,12 @@ patches job-data methods at Awake, same risk.
 ## 2026-10-04 · NOrders: combat pull-out guard is now a prefix
 
 `NativeSpeedLimitPatch` gained a `Prefix` on `AIPilotCombatModes.FixedUpdateState`: inside `max(4, speed/60)` s of the ground at the present sink (+150 m), it skips the combat pilot for that frame and flies the pull-up itself (point 3 km ahead, 1.2 km up, full power, no terrain following), held until climbing (vy > 5) or above 1.5 km. It used to run in the Postfix after the combat pilot's own AutoAim, so two autopilot calls a frame fought over the same PIDs, and a Vagrant went in from 596 m. The Postfix keeps the airbrake and overspeed guards. Gun strikes now hand over the moment the track is within 20° of the target (`GunHandoverCone`), at any range.
+
+## 2026-10-05 · NOrders: turrets on aircraft (shared code; HC mostly unaffected)
+
+New `Aircraft/TurretRules.cs`. With no player aboard, an aircraft's `Turret` picks and fires on its own (only the player's aircraft has the `CombatHUD.turretAutoControl` gate), so flight rules never reached it. Now:
+
+- **Rules of engagement for turrets** (Free / Tight / Hold, per flight with a per-weapon override in `Flight.TurretModes`, keyed by `FlightOrders.WeaponKey`): a 4 Hz sweep (`TurretRules.Tick`, from `FlightOrders.Tick`) holds a turret whose pick is not allowed (cleared, `SetManual(true)`), and `EngagementPolicy.Allows` (the `Weapon.Fire` prefix) now has an aircraft branch as the backstop. **Both are gated on `Host.PlayerDirected`**, so High Command's flights keep the game's own turret fire (your CAS gunships on Tight would otherwise stop shooting targets of opportunity). If you want HC's flights under the same rules, drop that gate and decide the roles' ROE.
+- **Fixed-wing turrets are not strike weapons** (`TurretRules.OpportunisticOnly`: a turret station on an aircraft with no `AIHeloCombatState`). `ArmedStations` and `BestStationFor` skip them. This does affect HC: the fixed-wing combat pilot has no turret code, so such a station could never be flown a pass. Helicopters and tiltwings keep turret stations as ordinary weapons: the native `AIHeloCombatState.GunshipMode` flies the pass.
+- **`FlightOrders.TurretStrikeHolds`** (applies to HC too): a helicopter strike whose chosen station is a turret no longer egresses after its first burst ("rounds went down"); it presses for `Tuning.TurretStrikeSeconds` (90) from the first rounds.
+- One `[turret]` line per turret station per airframe type at the first `NavalPilotState.Install`, with traverse, firing cone, range and flags.

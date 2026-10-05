@@ -508,12 +508,14 @@ namespace NavalPower
             // One row a weapon, whatever pylons carry it.
             var left = new Dictionary<string, int>();
             var kinds = new Dictionary<string, WeaponInfo>();
+            var turrets = new HashSet<string>();
             foreach (WeaponStation station in FlightOrders.ArmedStations(flight.Aircraft))
             {
                 string key = FlightOrders.WeaponKey(station.WeaponInfo);
                 left.TryGetValue(key, out int n);
                 left[key] = n + station.Ammo;
                 if (!kinds.ContainsKey(key)) kinds[key] = station.WeaponInfo;
+                if (station.HasTurret()) turrets.Add(key);
             }
             foreach (KeyValuePair<string, WeaponInfo> kind in kinds)
             {
@@ -521,7 +523,7 @@ namespace NavalPower
                 string key = kind.Key;
                 float worth = WeaponOrders.Opportunity(info, target);
                 bool releasable = FlightOrders.CanReleaseNow(flight.Aircraft, info, target);
-                Button row = s.Row(info.weaponName + "  ·  " + left[key] + " left  ·  " +
+                Button row = s.Row(info.weaponName + (turrets.Contains(key) ? " (TURRET, gunship pass)" : "") + "  ·  " + left[key] + " left  ·  " +
                     (worth > 0.01f ? "effective " + worth.ToString("0.00") : "poor match") +
                     (releasable ? "" : "  ·  must close for a track"), () =>
                 {
